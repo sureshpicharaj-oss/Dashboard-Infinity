@@ -1,0 +1,17 @@
+{
+  "name": "secret-dashboard",
+  "version": "1.0.0",
+  "description": "Secret Dashboard",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "dotenv": "^16.4.0",
+    "express": "^4.19.0",
+    "google-auth-library": "^9.11.0",
+    "puppeteer": "^25.2.1",
+    "xml2js": "^0.6.2"
+  }
+}

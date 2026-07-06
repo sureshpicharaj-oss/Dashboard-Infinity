@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Infinity Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f4f6fa;
+      color: #1a1a2e;
+    }
+
+    header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    }
+    header h1 { font-size: 1.3rem; font-weight: 600; }
+    .meta { font-size: .78rem; color: #aab; margin-top: 3px; }
+
+    #refreshBtn {
+      background: #4f7fff;
+      color: #fff;
+      border: none;
+      padding: 9px 20px;
+      border-radius: 6px;
+      font-size: .88rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      transition: background .15s;
+    }
+    #refreshBtn:hover { background: #3a6be8; }
+    #refreshBtn:disabled { background: #556; cursor: not-allowed; }
+
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+    .loading .spinner { display: block; }
+    .loading #refreshLabel { display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Skeleton loading */
+    @keyframes shimmer {
+      0%   { background-position: -800px 0; }
+      100% { background-position:  800px 0; }
+    }
+    .skel {
+      display: inline-block;
+      height: 13px;
+      border-radius: 4px;
+      background: linear-gradient(90deg, #e8eaf0 25%, #f4f6fa 50%, #e8eaf0 75%);
+      background-size: 800px 100%;
+      animation: shimmer 1.4s infinite;
+    }
+    .skel-line   { width: 80%; }
+    .skel-short  { width: 45%; }
+    .skel-num    { width: 60px; }
+    .skel-thumb  { width: 300px; height: 110px; border-radius: 6px; }
+    tr.skel-row td { padding: 14px 16px; }
+
+    /* Loading progress bar under header */
+    #loadBar {
+      height: 3px;
+      background: #eef1f8;
+      display: none;
+    }
+    #loadBarFill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #4f7fff, #7fa4ff);
+      transition: width .4s ease;
+      border-radius: 0 2px 2px 0;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      padding: 16px 32px 0;
+    }
+    .tab-btn {
+      padding: 8px 22px;
+      border: none;
+      border-radius: 6px 6px 0 0;
+      background: #e4e8f2;
+      color: #555;
+      font-size: .88rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+    .tab-btn:hover { background: #d4d9eb; }
+    .tab-btn.active { background: #fff; color: #1a1a2e; box-shadow: 0 -2px 0 #4f7fff inset; }
+
+    .stats-bar {
+      display: flex;
+      gap: 16px;
+      padding: 20px 32px;
+      flex-wrap: wrap;
+    }
+    .stat-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 14px 22px;
+      min-width: 150px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+    .stat-card .label { font-size: .72rem; color: #777; text-transform: uppercase; letter-spacing: .5px; }
+    .stat-card .value { font-size: 1.7rem; font-weight: 700; margin-top: 3px; }
+    .stat-card.c-total    .value { color: #1a1a2e; }
+    .stat-card.c-imps     .value { color: #4f7fff; }
+    .stat-card.c-active   .value { color: #1aab6d; }
+    .stat-card.c-nodata   .value { color: #999; }
+    .stat-card.c-ctr      .value { color: #7b5ea7; }
+    .stat-card.c-ctr .label { display: flex; align-items: center; gap: 5px; }
+    .ctr-method-select {
+      font-size: .66rem; color: #7b5ea7; background: #f5f0ff;
+      border: 1px solid #c8b8e8; border-radius: 3px; padding: 1px 4px;
+      cursor: pointer; outline: none; font-family: inherit;
+    }
+    .ctr-method-select:focus { border-color: #7b5ea7; }
+    .stat-card.c-view     .value { color: #c0392b; }
+    .stat-card.c-short    .value { color: #2196a8; }
+    .stat-card.c-long     .value { color: #e07b2a; }
+
+    .toolbar {
+      padding: 0 32px 16px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    #searchBox {
+      flex: 1;
+      max-width: 380px;
+      padding: 9px 14px;
+      border: 1px solid #dde;
+      border-radius: 6px;
+      font-size: .88rem;
+      background: #fff;
+      outline: none;
+    }
+    #searchBox:focus { border-color: #4f7fff; }
+
+    #advertiserTags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      width: 100%;
+      padding-top: 4px;
+    }
+    .adv-tag {
+      font-size: .73rem;
+      font-weight: 500;
+      padding: 4px 12px;
+      border-radius: 20px;
+      border: 1px solid #dde;
+      background: #f5f5fb;
+      color: #555;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .12s, border-color .12s, color .12s;
+      user-select: none;
+      letter-spacing: .01em;
+    }
+    .adv-tag:hover  { border-color: #4f7fff; color: #4f7fff; background: #eef1ff; }
+    .adv-tag.active { background: #4f7fff; border-color: #4f7fff; color: #fff; }
+    .adv-tag[style*="--tc"]:hover  { border-color: var(--tc); color: var(--tc); background: #f5f5fb; }
+    .adv-tag[style*="--tc"].active { background: var(--tc); border-color: var(--tc); color: #fff; }
+    .tag-edit-btn { color: #888; border-color: #ccc; margin-left: 4px; }
+    .tag-edit-btn:hover { color: #4f7fff; border-color: #4f7fff; background: #eef1ff; }
+    .te-cat { border: 1px solid #2e3650; border-radius: 6px; padding: 12px 14px; }
+    .te-cat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .te-cat-name { font-weight: 600; font-size: 13px; }
+    .te-del-cat { background: none; border: none; color: #c0392b; font-size: 11px; cursor: pointer; padding: 2px 6px; border-radius: 3px; }
+    .te-del-cat:hover { background: rgba(192,57,43,.1); }
+    .te-keywords { display: flex; flex-wrap: wrap; gap: 6px; }
+    .te-kw { display: inline-flex; align-items: center; gap: 4px; background: #0f1622; border: 1px solid #2e3650; border-radius: 20px; padding: 3px 10px; font-size: 12px; color: #c5d5e8; }
+    .te-kw button { background: none; border: none; color: #6e93b0; cursor: pointer; font-size: 14px; line-height: 1; padding: 0; }
+    .te-kw button:hover { color: #c0392b; }
+    .row-tag-btn { display:none;background:none;border:1px solid #3a4a6a;color:#6e93b0;border-radius:10px;font-size:11px;padding:1px 6px;cursor:pointer;margin-left:5px;vertical-align:middle;line-height:1.4; }
+    .adv-cell:hover .row-tag-btn { display:inline; }
+    .row-tag-btn:hover { background:#4f7fff;border-color:#4f7fff;color:#fff; }
+    .row-cat-chip { display:inline-block;font-size:10px;font-weight:600;padding:1px 7px;border-radius:10px;margin-left:5px;vertical-align:middle;background:color-mix(in srgb,var(--tc) 15%,transparent);color:var(--tc);border:1px solid color-mix(in srgb,var(--tc) 35%,transparent); }
+    .tp-opt { display:block;width:100%;text-align:left;background:none;border:1px solid #2e3650;color:#c5d5e8;border-radius:4px;padding:5px 10px;font-size:12px;cursor:pointer;margin-bottom:4px; }
+    .tp-opt:hover { background:#2e3650; }
+    .tp-opt.tp-active { background:#4f7fff;border-color:#4f7fff;color:#fff; }
+    .tp-opt.tp-remove { color:#c0392b;border-color:rgba(192,57,43,.3); }
+    .tp-opt.tp-remove:hover { background:rgba(192,57,43,.1); }
+
+    .li-links { display: none; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    tbody tr:hover .li-links { display: flex; }
+    .li-link {
+      font-size: .68rem; color: #4f7fff; text-decoration: none;
+      padding: 1px 5px; border: 1px solid #d0d8ff; border-radius: 3px;
+      background: #f0f3ff; white-space: nowrap;
+    }
+    .li-link:hover { background: #4f7fff; color: #fff; border-color: #4f7fff; }
+
+    .table-wrapper {
+      margin: 0 32px 32px;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+      overflow: auto;
+    }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    thead th {
+      background: #f8f9fc;
+      padding: 11px 16px;
+      text-align: left;
+      font-size: .75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: #555;
+      border-bottom: 1px solid #eee;
+      white-space: nowrap;
+      user-select: none;
+      cursor: pointer;
+    }
+    thead th:hover { background: #eef1f8; }
+    thead th .sort-icon { margin-left: 4px; opacity: .35; }
+    thead th.sorted .sort-icon { opacity: 1; color: #4f7fff; }
+
+    tbody tr { border-bottom: 1px solid #f0f0f5; transition: background .1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #f8f9fc; }
+    td { padding: 12px 16px; font-size: .875rem; vertical-align: middle; }
+
+    .adv-cell  { font-weight: 600; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .adv-cell:hover::after { content: ' ✎'; opacity: .4; font-weight: 400; font-size:.8em; }
+    .adv-cell input {
+      width: 100%; border: 1.5px solid #4f7fff; border-radius: 4px;
+      padding: 3px 7px; font-size: .875rem; font-weight: 600;
+      outline: none; background: #f0f4ff;
+    }
+    .url-cell  { overflow: hidden; }
+    .url-cell a {
+      color: #4f7fff;
+      text-decoration: none;
+      font-size: .82rem;
+      word-break: break-all;
+    }
+    .url-cell a:hover { text-decoration: underline; }
+
+    .thumb-cell { width: 320px; text-align: center; }
+    .thumb-img {
+      width: 300px;
+      height: 110px;
+      object-fit: cover;
+      object-position: top;
+      border-radius: 6px;
+      border: 1px solid #e0e4ef;
+      background: #f4f6fa;
+      display: block;
+    }
+
+    .size-badge {
+      display: inline-block;
+      background: #eef1fb;
+      color: #4466bb;
+      padding: 3px 9px;
+      border-radius: 4px;
+      font-size: .78rem;
+      font-family: monospace;
+      white-space: nowrap;
+    }
+
+    .num-cell { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .num-cell.has-data { font-weight: 600; color: #1a1a2e; }
+    .num-cell.no-data  { color: #bbb; }
+    .ctr-cell  { text-align: right; white-space: nowrap; }
+    .ctr-cell.has-data { font-weight: 600; color: #1aab6d; }
+    .ctr-cell.no-data  { color: #bbb; }
+
+    #errorBanner {
+      display: none;
+      margin: 0 32px 16px;
+      background: #fde8e8;
+      color: #c0392b;
+      border: 1px solid #f5c6c6;
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-size: .88rem;
+    }
+
+    .empty-state {
+      padding: 60px 32px;
+      text-align: center;
+      color: #aaa;
+    }
+
+    /* Video Skin tab — compound video cell */
+    .video-stack-cell { vertical-align: top; min-width: 200px; max-width: 260px; }
+    .vid-dur-group { margin-bottom: 8px; }
+    .vid-dur-group:last-child { margin-bottom: 0; }
+    .dur-label {
+      font-size: .82rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: #4a5a8a;
+      margin-bottom: 3px;
+      padding-bottom: 2px;
+      border-bottom: 1px solid #eef0f8;
+    }
+    .vid-sub-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 4px 0;
+      border-bottom: 1px dotted #f0f0f5;
+    }
+    .vid-sub-item:last-child { border-bottom: none; }
+    .vid-id-text {
+      font-size: .76rem;
+      color: #444;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+      min-width: 0;
+    }
+    .comp-pill {
+      font-size: .85rem;
+      font-weight: 700;
+      background: #d4edda;
+      color: #1a5c2a;
+      padding: 2px 9px;
+      border-radius: 12px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      box-shadow: 0 1px 3px rgba(46,125,50,.15);
+    }
+    .comp-pill.pending { background: #f5f5f5; color: #aaa; box-shadow: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Infinity Dashboard</h1>
+    <div class="meta" id="lastFetched">Not yet loaded</div>
+  </div>
+  <button id="refreshBtn" onclick="loadData()">
+    <span class="spinner"></span>
+    <span id="refreshLabel">&#x21bb; Refresh</span>
+  </button>
+</header>
+<div id="loadBar"><div id="loadBarFill"></div></div>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="setTab('desktop')">Desktop</button>
+  <button class="tab-btn" onclick="setTab('video')">Video Skin</button>
+  <button class="tab-btn" onclick="setTab('mobile')">Mobile</button>
+  <button class="tab-btn" onclick="setTab('video-mobile')">Video Mobile</button>
+</div>
+
+<div class="stats-bar">
+  <div class="stat-card c-total">
+    <div class="label">Creatives</div>
+    <div class="value" id="statTotal">—</div>
+  </div>
+  <div class="stat-card c-imps">
+    <div class="label">Total Impressions</div>
+    <div class="value" id="statImps">—</div>
+  </div>
+  <div class="stat-card c-active">
+    <div class="label">With Data</div>
+    <div class="value" id="statActive">—</div>
+  </div>
+  <div class="stat-card c-nodata">
+    <div class="label">No Data</div>
+    <div class="value" id="statNoData">—</div>
+  </div>
+  <div class="stat-card c-ctr">
+    <div class="label">CTR <select id="ctrMethod" class="ctr-method-select" onchange="updateStats()"><option value="median" selected>Median</option><option value="average">Simple Avg</option><option value="aggregate">Aggregate</option></select></div>
+    <div class="value" id="statAvgCtr">—</div>
+    <div id="statCtrN" style="font-size:.68rem;color:#999;margin-top:2px;"></div>
+  </div>
+  <div class="stat-card c-view">
+    <div class="label">Avg Viewability</div>
+    <div class="value" id="statAvgView">—</div>
+  </div>
+  <div class="stat-card c-short" id="cardAvgShort" style="display:none">
+    <div class="label">Avg Short-form</div>
+    <div class="value" id="statAvgShort">—</div>
+  </div>
+  <div class="stat-card c-long" id="cardAvgLong" style="display:none">
+    <div class="label">Avg Long-form</div>
+    <div class="value" id="statAvgLong">—</div>
+  </div>
+</div>
+
+<div class="toolbar">
+  <input id="searchBox" type="search" placeholder="Search by name or URL…" oninput="renderTable()" />
+  <div id="advertiserTags"></div>
+</div>
+
+<div id="errorBanner"></div>
+
+<!-- Inline tag picker -->
+<div id="tagPicker" style="display:none;position:absolute;z-index:999;background:#1a1e2e;border:1px solid #2e3650;border-radius:6px;padding:12px 14px;min-width:200px;max-width:260px;box-shadow:0 4px 20px rgba(0,0,0,.5)"></div>
+
+<!-- Tag editor modal -->
+<div id="tagEditorOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#1a1e2e;border:1px solid #2e3650;border-radius:8px;width:480px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;overflow:hidden">
+    <div style="padding:18px 20px 14px;border-bottom:1px solid #2e3650;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:15px;font-weight:600;color:#e2ebf5">Tag rules</span>
+      <button onclick="closeTagEditor()" style="background:none;border:none;color:#6e93b0;font-size:20px;cursor:pointer;line-height:1">×</button>
+    </div>
+    <div id="tagRulesList" style="padding:16px 20px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px"></div>
+    <div style="padding:14px 20px;border-top:1px solid #2e3650">
+      <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#6e93b0;margin-bottom:8px">Add rule</div>
+      <div style="display:flex;gap:8px">
+        <input id="teNewKeyword"  placeholder="keyword (e.g. alice)" style="flex:1;background:#0f1622;border:1px solid #2e3650;color:#e2ebf5;border-radius:4px;padding:7px 10px;font-size:13px" onkeydown="if(event.key==='Enter')addTagRule()">
+        <input id="teNewCategory" placeholder="category (e.g. Lifestyle)" style="flex:1;background:#0f1622;border:1px solid #2e3650;color:#e2ebf5;border-radius:4px;padding:7px 10px;font-size:13px" onkeydown="if(event.key==='Enter')addTagRule()">
+        <button onclick="addTagRule()" style="background:#4f7fff;color:#fff;border:none;border-radius:4px;padding:7px 14px;font-size:13px;cursor:pointer">Add</button>
+      </div>
+      <div style="font-size:11px;color:#6e93b0;margin-top:6px">Type a keyword that appears in the advertiser name + the category to assign it to. New categories are created automatically.</div>
+    </div>
+  </div>
+</div>
+
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th onclick="sortBy('advertiser')" data-col="advertiser" style="width:160px">Advertiser <span class="sort-icon">↕</span></th>
+        <th onclick="sortBy('netlifyUrl')" data-col="netlifyUrl" style="width:220px">Netlify URL <span class="sort-icon">↕</span></th>
+        <th style="width:320px">Preview</th>
+        <th id="thVideos" style="display:none;width:180px">Videos</th>
+        <th onclick="sortBy('impressions')" data-col="impressions" style="text-align:right;width:120px">Impressions <span class="sort-icon">↕</span></th>
+        <th onclick="sortBy('clicks')" data-col="clicks" style="text-align:right;width:80px">Clicks <span class="sort-icon">↕</span></th>
+        <th onclick="sortBy('ctr')" data-col="ctr" style="text-align:right;width:80px">CTR <span class="sort-icon">↕</span></th>
+        <th onclick="sortBy('activeView')" data-col="activeView" style="text-align:right;width:110px">Active View % <span class="sort-icon">↕</span></th>
+      </tr>
+    </thead>
+    <tbody id="tableBody">
+      <tr><td colspan="7" class="empty-state">Click Refresh to load data</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+  let allRows = [];
+  let activeTab = 'desktop';
+  let sortCol = 'sortKey';
+  let sortDir = -1;
+  let activeCategory = null;
+
+  // Tag rules loaded from server: { category: [keywords] }
+  let tagRules = {};
+  // Direct URL→category assignments (overrides keyword rules)
+  let urlTags = {};
+
+  // Assign a stable colour to each category by index in the rules object
+  const TAG_PALETTE = ['#4f7fff','#1aab6d','#c0392b','#e67e22','#7b5ea7','#16a085','#d35400','#2980b9'];
+  const DEFAULT_CATS = ['Food', 'Auto', 'Entertainment', 'Gardening'];
+  function tagColor(cat) {
+    const allCats = [...new Set([...DEFAULT_CATS, ...Object.keys(tagRules), ...Object.values(urlTags)])].filter(Boolean);
+    const idx = allCats.indexOf(cat);
+    return TAG_PALETTE[Math.max(0, idx) % TAG_PALETTE.length];
+  }
+
+  function getCategory(advertiser, netlifyUrl) {
+    // Direct URL assignment takes priority over keyword rules
+    if (netlifyUrl && urlTags[netlifyUrl]) return urlTags[netlifyUrl];
+    const name = (advertiser || '').toLowerCase();
+    for (const [cat, keywords] of Object.entries(tagRules)) {
+      if ((keywords || []).some(k => name.includes(k.toLowerCase()))) return cat;
+    }
+    return null;
+  }
+
+  async function loadTagRules() {
+    try {
+      const [rulesRes, urlTagsRes] = await Promise.all([fetch('/api/tag-rules'), fetch('/api/url-tags')]);
+      if (rulesRes.ok)   tagRules = await rulesRes.json();
+      if (urlTagsRes.ok) urlTags  = await urlTagsRes.json();
+    } catch(e) {}
+    renderTags();
+    renderTable();
+  }
+
+  async function setUrlTag(url, category) {
+    urlTags[url] = category || undefined;
+    if (!category) delete urlTags[url];
+    await fetch('/api/url-tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, category: category || null }) });
+    closeTagPicker();
+    renderTags();
+    renderTable();
+  }
+
+  // ── Inline tag picker ─────────────────────────────────────────────────────
+  let tagPickerUrl = null;
+
+  function openTagPickerFromBtn(btn) { openTagPicker(btn.dataset.url, btn); }
+  function applyTagFromPicker(btn) { setUrlTag(tagPickerUrl, btn.dataset.cat); }
+  function applyNewTagFromInput() {
+    const v = document.getElementById('tpNewCat').value.trim();
+    if (v) setUrlTag(tagPickerUrl, v);
+  }
+
+  function openTagPicker(url, anchorEl) {
+    tagPickerUrl = url;
+    const picker = document.getElementById('tagPicker');
+    const allCats = [...new Set([...DEFAULT_CATS, ...Object.keys(tagRules), ...Object.values(urlTags)])].filter(Boolean);
+    const current = urlTags[url] || null;
+    picker.innerHTML =
+      `<div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#6e93b0;margin-bottom:8px">Assign tag</div>` +
+      allCats.map(cat => `<button class="tp-opt${current===cat?' tp-active':''}" data-cat="${esc(cat)}" onclick="applyTagFromPicker(this)">${esc(cat)}</button>`).join('') +
+      (current ? `<button class="tp-opt tp-remove" onclick="setUrlTag(tagPickerUrl,null)">&#x2715; Remove tag</button>` : '') +
+      `<div style="display:flex;gap:6px;margin-top:8px">
+        <input id="tpNewCat" placeholder="New category…" style="flex:1;background:#0f1622;border:1px solid #2e3650;color:#e2ebf5;border-radius:4px;padding:5px 8px;font-size:12px" onkeydown="if(event.key===&#39;Enter&#39;)applyNewTagFromInput()">
+        <button onclick="applyNewTagFromInput()" style="background:#4f7fff;color:#fff;border:none;border-radius:4px;padding:5px 10px;font-size:12px;cursor:pointer">Set</button>
+      </div>`;
+    const rect = anchorEl.getBoundingClientRect();
+    picker.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+    picker.style.left = (rect.left  + window.scrollX)      + 'px';
+    picker.style.display = 'block';
+  }
+  function closeTagPicker() {
+    document.getElementById('tagPicker').style.display = 'none';
+    tagPickerUrl = null;
+  }
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#tagPicker') && !e.target.closest('.row-tag-btn')) closeTagPicker();
+  });
+
+  async function saveTagRules() {
+    await fetch('/api/tag-rules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tagRules) });
+  }
+
+  function renderTags() {
+    const tabRows = allRows.filter(r => r.device === activeTab);
+    const container = document.getElementById('advertiserTags');
+
+    const allDefinedCats = [...new Set([...Object.keys(tagRules), ...Object.values(urlTags)])].filter(Boolean);
+    const presentCats = allDefinedCats.filter(cat =>
+      tabRows.some(r => getCategory(r.advertiser, r.netlifyUrl) === cat)
+    );
+
+    const allBtn = presentCats.length
+      ? `<button class="adv-tag${!activeCategory ? ' active' : ''}" onclick="setCategoryFilter(null)">All</button>`
+      : '';
+    const catBtns = presentCats.map(cat => {
+      const active = activeCategory === cat ? ' active' : '';
+      const color  = tagColor(cat);
+      return `<button class="adv-tag${active}" style="--tc:${color}" data-cat="${esc(cat)}" onclick="setCategoryFilterFromBtn(this)">${esc(cat)}</button>`;
+    }).join('');
+
+    container.innerHTML = allBtn + catBtns +
+      `<button class="adv-tag tag-edit-btn" onclick="openTagEditor()">&#9881; Edit tags</button>`;
+  }
+
+  // ── Tag editor modal ──────────────────────────────────────────────────────
+  function openTagEditor() {
+    document.getElementById('tagEditorOverlay').style.display = 'flex';
+    renderTagEditor();
+  }
+  function closeTagEditor() {
+    document.getElementById('tagEditorOverlay').style.display = 'none';
+  }
+
+  function renderTagEditor() {
+    const list = document.getElementById('tagRulesList');
+    if (!Object.keys(tagRules).length) {
+      list.innerHTML = '<p style="color:#888;font-size:13px;margin:0">No tag rules yet. Add one below.</p>';
+      return;
+    }
+    list.innerHTML = Object.entries(tagRules).map(([cat, keywords]) => `
+      <div class="te-cat">
+        <div class="te-cat-header">
+          <span class="te-cat-name" style="color:${tagColor(cat)}">${cat}</span>
+          <button class="te-del-cat" onclick="deleteCategory(${JSON.stringify(cat)})">Delete category</button>
+        </div>
+        <div class="te-keywords">
+          ${(keywords || []).map(kw => `
+            <span class="te-kw">
+              ${kw}
+              <button onclick="deleteKeyword(${JSON.stringify(cat)}, ${JSON.stringify(kw)})">×</button>
+            </span>`).join('')}
+        </div>
+      </div>`).join('');
+  }
+
+  function deleteCategory(cat) {
+    delete tagRules[cat];
+    if (activeCategory === cat) activeCategory = null;
+    saveTagRules();
+    renderTagEditor();
+    renderTags();
+    renderTable();
+  }
+
+  function deleteKeyword(cat, kw) {
+    tagRules[cat] = (tagRules[cat] || []).filter(k => k !== kw);
+    if (!tagRules[cat].length) delete tagRules[cat];
+    saveTagRules();
+    renderTagEditor();
+    renderTags();
+    renderTable();
+  }
+
+  function addTagRule() {
+    const kwInput  = document.getElementById('teNewKeyword');
+    const catInput = document.getElementById('teNewCategory');
+    const kw  = kwInput.value.trim().toLowerCase();
+    const cat = catInput.value.trim();
+    if (!kw || !cat) return;
+    if (!tagRules[cat]) tagRules[cat] = [];
+    if (!tagRules[cat].includes(kw)) tagRules[cat].push(kw);
+    kwInput.value = '';
+    saveTagRules();
+    renderTagEditor();
+    renderTags();
+    renderTable();
+  }
+
+  function setCategoryFilterFromBtn(btn) { setCategoryFilter(btn.dataset.cat || null); }
+  function setCategoryFilter(cat) {
+    activeCategory = cat;
+    updateStats();
+    renderTags();
+    renderTable();
+  }
+
+  function setTab(tab) {
+    activeTab = tab;
+    activeCategory = null;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.getAttribute('onclick') === `setTab('${tab}')`));
+    document.getElementById('thVideos').style.display = (tab === 'video' || tab === 'video-mobile') ? '' : 'none';
+    updateStats();
+    renderTags();
+    renderTable();
+  }
+
+  async function loadData() {
+    const btn = document.getElementById('refreshBtn');
+    btn.disabled = true;
+    btn.classList.add('loading');
+    document.getElementById('errorBanner').style.display = 'none';
+
+    // Progress bar + elapsed timer
+    const loadBar = document.getElementById('loadBar');
+    const loadFill = document.getElementById('loadBarFill');
+    loadBar.style.display = 'block';
+    loadFill.style.width = '0%';
+    let progress = 0;
+    let elapsed = 0;
+    let done = false;
+    const progressTimer = setInterval(() => {
+      elapsed++;
+      const target = elapsed < 15 ? 35 : elapsed < 35 ? 65 : 85;
+      progress += Math.max(0.2, (target - progress) * 0.06);
+      progress = Math.min(85, progress);
+      loadFill.style.width = progress + '%';
+      // Update skeleton caption
+      const cap = document.getElementById('skelCaption');
+      if (cap) cap.textContent = `Fetching from Google Ad Manager… ${elapsed}s`;
+    }, 1000);
+
+    // Skeleton rows with caption
+    const skelRow = () => `<tr class="skel-row">
+      <td><span class="skel skel-short"></span></td>
+      <td><span class="skel skel-line"></span></td>
+      <td><span class="skel skel-thumb"></span></td>
+      <td class="num-cell"><span class="skel skel-num"></span></td>
+      <td class="num-cell"><span class="skel skel-num"></span></td>
+      <td class="num-cell"><span class="skel skel-num"></span></td>
+      <td class="num-cell"><span class="skel skel-num"></span></td>
+    </tr>`;
+    document.getElementById('tableBody').innerHTML =
+      `<tr><td colspan="7" style="padding:10px 16px 4px;font-size:.8rem;color:#888" id="skelCaption">Fetching from Google Ad Manager… 0s</td></tr>` +
+      Array(8).fill(0).map(skelRow).join('');
+
+    try {
+      const res = await fetch('/api/dashboard');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      done = true;
+      clearInterval(progressTimer);
+      loadFill.style.width = '100%';
+      allRows = data.results || [];
+
+      const ts = new Date(data.lastFetched);
+      document.getElementById('lastFetched').textContent =
+        'Last fetched: ' + ts.toLocaleString('en-GB');
+
+      updateStats();
+      renderTags();
+      renderTable();
+      loadActiveView();
+      loadVideoStats();
+    } catch (e) {
+      const banner = document.getElementById('errorBanner');
+      banner.style.display = 'block';
+      banner.textContent = 'Error: ' + e.message;
+    } finally {
+      clearInterval(progressTimer);
+      btn.disabled = false;
+      btn.classList.remove('loading');
+      setTimeout(() => { loadBar.style.display = 'none'; loadFill.style.width = '0%'; }, done ? 500 : 0);
+    }
+  }
+
+  function updateStats() {
+    const tabRows = allRows.filter(r =>
+      r.device === activeTab &&
+      (!activeCategory || getCategory(r.advertiser, r.netlifyUrl) === activeCategory)
+    );
+
+    // CTR — method selectable via dropdown (default: median)
+    const ctrRows = tabRows.filter(r => r.impressions > 0 && r.clicks > 0);
+    const ctrMethod = document.getElementById('ctrMethod').value;
+    let ctrVal = null;
+    console.log('[CTR debug] tab='+activeTab+', tabRows='+tabRows.length+', ctrRows (clicks>0)='+ctrRows.length);
+    console.table(ctrRows.map(r => ({ advertiser: r.advertiser, impressions: r.impressions, clicks: r.clicks, ctr: parseFloat(((r.clicks/r.impressions)*100).toFixed(4)) })));
+    if (ctrRows.length) {
+      if (ctrMethod === 'median') {
+        const sorted = ctrRows.map(r => (r.clicks / r.impressions) * 100).sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        ctrVal = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+        console.log('[CTR debug] method=median, sorted='+JSON.stringify(sorted.map(v=>+v.toFixed(4)))+', result='+ctrVal);
+      } else if (ctrMethod === 'average') {
+        ctrVal = ctrRows.reduce((s, r) => s + (r.clicks / r.impressions) * 100, 0) / ctrRows.length;
+        console.log('[CTR debug] method=average, result='+ctrVal);
+      } else {
+        const totalClicks = ctrRows.reduce((s, r) => s + r.clicks, 0);
+        const totalImps   = ctrRows.reduce((s, r) => s + r.impressions, 0);
+        ctrVal = (totalClicks / totalImps) * 100;
+        console.log('[CTR debug] method=aggregate, totalClicks='+totalClicks+', totalImps='+totalImps+', result='+ctrVal);
+      }
+    }
+    document.getElementById('statAvgCtr').textContent = ctrVal !== null ? parseFloat(ctrVal.toFixed(3)) + '%' : '—';
+    document.getElementById('statCtrN').textContent = ctrRows.length ? ctrRows.length + ' skin' + (ctrRows.length > 1 ? 's' : '') : '';
+
+    // Viewability — Σ(viewable) / Σ(measurable) weighted across unique URLs
+    const seenAvUrls = new Set();
+    let totalAvViewable = 0, totalAvMeasurable = 0;
+    for (const r of tabRows) {
+      if (r.activeViewMeasurable != null && !seenAvUrls.has(r.netlifyUrl)) {
+        seenAvUrls.add(r.netlifyUrl);
+        totalAvViewable   += r.activeViewViewable   ?? 0;
+        totalAvMeasurable += r.activeViewMeasurable ?? 0;
+      }
+    }
+    document.getElementById('statAvgView').textContent = totalAvMeasurable > 0
+      ? parseFloat(((totalAvViewable / totalAvMeasurable) * 100).toFixed(1)) + '%' : '—';
+
+    // Short-form / Long-form — video tab only
+    const isVideo = activeTab === 'video' || activeTab === 'video-mobile';
+    document.getElementById('cardAvgShort').style.display = isVideo ? '' : 'none';
+    document.getElementById('cardAvgLong').style.display  = isVideo ? '' : 'none';
+    if (isVideo) {
+      const shortRates = tabRows.filter(r => r.completionRate != null && durationBucket(r.durationSec) === '15s').map(r => r.completionRate);
+      const longRates  = tabRows.filter(r => r.completionRate != null && durationBucket(r.durationSec) === '30s').map(r => r.completionRate);
+      document.getElementById('statAvgShort').textContent = shortRates.length
+        ? parseFloat((shortRates.reduce((s, v) => s + v, 0) / shortRates.length).toFixed(1)) + '%' : '—';
+      document.getElementById('statAvgLong').textContent = longRates.length
+        ? parseFloat((longRates.reduce((s, v) => s + v, 0) / longRates.length).toFixed(1)) + '%' : '—';
+    }
+
+    if (isVideo) {
+      const urlMap = new Map();
+      for (const r of tabRows) {
+        const prev = urlMap.get(r.netlifyUrl) || 0;
+        urlMap.set(r.netlifyUrl, prev + (r.impressions || 0));
+      }
+      const groups = [...urlMap.values()];
+      const totalImps = groups.reduce((s, v) => s + v, 0);
+      const withData  = groups.filter(v => v > 0).length;
+      document.getElementById('statTotal').textContent  = urlMap.size.toLocaleString();
+      document.getElementById('statImps').textContent   = totalImps.toLocaleString();
+      document.getElementById('statActive').textContent = withData.toLocaleString();
+      document.getElementById('statNoData').textContent = (urlMap.size - withData).toLocaleString();
+      return;
+    }
+    const withData = tabRows.filter(r => r.impressions !== null && r.impressions > 0);
+    const totalImps = withData.reduce((s, r) => s + r.impressions, 0);
+    document.getElementById('statTotal').textContent   = tabRows.length.toLocaleString();
+    document.getElementById('statImps').textContent    = totalImps.toLocaleString();
+    document.getElementById('statActive').textContent  = withData.length.toLocaleString();
+    document.getElementById('statNoData').textContent  = (tabRows.length - withData.length).toLocaleString();
+  }
+
+  function durationBucket(durationSec) {
+    if (durationSec == null) return 'unknown';
+    return durationSec <= 17 ? '15s' : '30s';
+  }
+
+  function renderVideoCell(videos) {
+    const groups = { '15s': [], '30s': [], 'unknown': [] };
+    for (const v of videos) {
+      if (v.completionRate == null) continue;
+      groups[durationBucket(v.durationSec)].push(v);
+    }
+    const ORDER = ['15s', '30s', 'unknown'];
+    let html = '';
+    for (const bucket of ORDER) {
+      const vids = groups[bucket];
+      if (!vids.length) continue;
+      const label = bucket === '15s' ? 'Short-form (~15s)' : bucket === '30s' ? 'Long-form (~30s)' : 'Video';
+      const avg = parseFloat((vids.reduce((s, v) => s + v.completionRate, 0) / vids.length).toFixed(1));
+      html += `<div class="vid-dur-group">`;
+      html += `<div class="vid-sub-item"><span class="dur-label">${label}</span></div><div><span class="comp-pill">${avg}%</span></div>`;
+      html += `</div>`;
+    }
+    return `<td class="video-stack-cell">${html}</td>`;
+  }
+
+  function sortRows(rows, col, dir) {
+    return rows.slice().sort((a, b) => {
+      let av = a[col], bv = b[col];
+      if (col === 'impressions' || col === 'sortKey') {
+        av = av ?? -1; bv = bv ?? -1;
+        return (bv - av) * dir * -1;
+      }
+      av = (av || '').toString().toLowerCase();
+      bv = (bv || '').toString().toLowerCase();
+      if (av < bv) return -1 * dir;
+      if (av > bv) return  1 * dir;
+      return 0;
+    });
+  }
+
+  function renderTable() {
+    const search = document.getElementById('searchBox').value.trim().toLowerCase();
+    const isVideoTab = activeTab === 'video' || activeTab === 'video-mobile';
+    const tbody = document.getElementById('tableBody');
+
+    let rows = allRows.filter(r =>
+      r.device === activeTab &&
+      (!activeCategory || getCategory(r.advertiser, r.netlifyUrl) === activeCategory) &&
+      (!search ||
+        (r.advertiser || '').toLowerCase().includes(search) ||
+        (r.netlifyUrl || '').toLowerCase().includes(search) ||
+        (isVideoTab && (r.videoId || '').toLowerCase().includes(search)))
+    );
+
+    if (isVideoTab) {
+      // Group per-VIDEO_ID rows by netlifyUrl into compound rows
+      const urlMap = new Map();
+      for (const r of sortRows(rows, sortCol, sortDir)) {
+        if (!urlMap.has(r.netlifyUrl)) {
+          urlMap.set(r.netlifyUrl, {
+            netlifyUrl: r.netlifyUrl, advertiser: r.advertiser,
+            activeView: r.activeView, sortKey: r.sortKey,
+            impressions: 0, clicks: 0, videos: [], lineItemIds: new Set(),
+          });
+        }
+        const g = urlMap.get(r.netlifyUrl);
+        g.impressions += r.impressions || 0;
+        g.clicks      += r.clicks || 0;
+        if (r.videoId) g.videos.push({ videoId: r.videoId, completionRate: r.completionRate, durationSec: r.durationSec ?? null });
+        if ((r.sortKey || 0) > g.sortKey) g.sortKey = r.sortKey;
+        (r.lineItemIds || []).forEach(id => g.lineItemIds.add(id));
+      }
+
+      const groups = [...urlMap.values()];
+      if (!groups.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No results match your search</td></tr>';
+        return;
+      }
+      tbody.innerHTML = groups.map(g => {
+        const ctr = g.impressions && g.clicks ? parseFloat(((g.clicks / g.impressions) * 100).toFixed(2)) : null;
+        const imps   = g.impressions > 0 ? `<td class="num-cell has-data">${g.impressions.toLocaleString()}</td>` : `<td class="num-cell no-data">—</td>`;
+        const clks   = g.clicks > 0 ? `<td class="num-cell has-data">${g.clicks.toLocaleString()}</td>` : `<td class="num-cell no-data">—</td>`;
+        const ctrStr = ctr !== null ? `<td class="ctr-cell has-data">${ctr}%</td>` : `<td class="ctr-cell no-data">—</td>`;
+        const av     = g.activeView != null ? `<td class="ctr-cell has-data">${g.activeView}%</td>` : `<td class="ctr-cell no-data">—</td>`;
+        const encodedUrl = encodeURIComponent(g.netlifyUrl);
+        const thumb  = `<td class="thumb-cell"><img class="thumb-img lazy" data-src="/api/screenshot?url=${encodedUrl}&device=${activeTab}" data-advertiser-url="${encodedUrl}" alt="preview" /></td>`;
+        const vCat = getCategory(g.advertiser, g.netlifyUrl);
+        const vCatChip = vCat ? `<span class="row-cat-chip" style="--tc:${tagColor(vCat)}">${vCat}</span>` : '';
+        const vTagBtn = `<button class="row-tag-btn" data-url="${esc(g.netlifyUrl)}" onclick="event.stopPropagation();openTagPickerFromBtn(this)" title="Assign tag">＋</button>`;
+        return `<tr>
+          <td class="adv-cell" data-url="${encodedUrl}"><span class="adv-name">${esc(g.advertiser || '')}</span>${vCatChip}${vTagBtn}${liLinks([...g.lineItemIds])}</td>
+          <td class="url-cell"><a href="${esc(g.netlifyUrl)}" target="_blank" rel="noopener">${esc(shortUrl(g.netlifyUrl))}</a></td>
+          ${thumb}
+          ${renderVideoCell(g.videos)}
+          ${imps}${clks}${ctrStr}${av}
+        </tr>`;
+      }).join('');
+      observeLazyImages();
+      return;
+    }
+
+    // Desktop / Mobile tabs — original per-row rendering
+    rows = sortRows(rows, sortCol, sortDir);
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No results match your search</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => {
+      const imps   = r.impressions > 0 ? `<td class="num-cell has-data">${r.impressions.toLocaleString()}</td>` : `<td class="num-cell no-data">—</td>`;
+      const clks   = r.clicks > 0 ? `<td class="num-cell has-data">${r.clicks.toLocaleString()}</td>` : `<td class="num-cell no-data">—</td>`;
+      const ctrStr = r.ctr !== null ? `<td class="ctr-cell has-data">${r.ctr}%</td>` : `<td class="ctr-cell no-data">—</td>`;
+      const encodedUrl = encodeURIComponent(r.netlifyUrl);
+      const thumb  = `<td class="thumb-cell"><img class="thumb-img lazy" data-src="/api/screenshot?url=${encodedUrl}&device=${activeTab}" data-advertiser-url="${encodedUrl}" alt="preview" /></td>`;
+      const av     = r.activeView != null ? `<td class="ctr-cell has-data">${r.activeView}%</td>` : `<td class="ctr-cell no-data">—</td>`;
+      const cat = getCategory(r.advertiser, r.netlifyUrl);
+      const catChip = cat ? `<span class="row-cat-chip" style="--tc:${tagColor(cat)}">${cat}</span>` : '';
+      const tagBtn = `<button class="row-tag-btn" data-url="${esc(r.netlifyUrl)}" onclick="event.stopPropagation();openTagPickerFromBtn(this)" title="Assign tag">＋</button>`;
+      return `<tr>
+        <td class="adv-cell" data-url="${encodedUrl}"><span class="adv-name">${esc(r.advertiser || '')}</span>${catChip}${tagBtn}${liLinks(r.lineItemIds || [])}</td>
+        <td class="url-cell"><a href="${esc(r.netlifyUrl)}" target="_blank" rel="noopener">${esc(shortUrl(r.netlifyUrl))}</a></td>
+        ${thumb}
+        ${imps}${clks}${ctrStr}${av}
+      </tr>`;
+    }).join('');
+    observeLazyImages();
+  }
+
+  function sortBy(col) {
+    if (sortCol === col) {
+      sortDir *= -1;
+    } else {
+      sortCol = col;
+      sortDir = col === 'impressions' ? -1 : 1;
+    }
+    document.querySelectorAll('thead th').forEach(th => {
+      th.classList.remove('sorted');
+      th.querySelector('.sort-icon').textContent = '↕';
+    });
+    const h = document.querySelector(`th[data-col="${col}"]`);
+    if (h) {
+      h.classList.add('sorted');
+      h.querySelector('.sort-icon').textContent = sortDir === 1 ? '↑' : '↓';
+    }
+    renderTable();
+  }
+
+  function shortUrl(url) {
+    const m = url.match(/https?:\/\/[^\/]+\.netlify\.app\//);
+    return m ? m[0] : url;
+  }
+
+  function esc(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function liLinks(ids) {
+    if (!ids || !ids.length) return '';
+    const links = [...new Set(ids)].map(id =>
+      `<a class="li-link" href="https://admanager.google.com/176986657#delivery/line_item/detail/line_item_id=${id}" target="_blank" rel="noopener">${id}</a>`
+    ).join('');
+    return `<div class="li-links">${links}</div>`;
+  }
+
+  // Set initial sort indicator
+  const initH = document.querySelector(`th[data-col="${sortCol}"]`);
+  if (initH) {
+    initH.classList.add('sorted');
+    initH.querySelector('.sort-icon').textContent = '↓';
+  }
+
+  // Lazy-load thumbnails as rows scroll into view
+  const thumbObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const img = e.target;
+        img.src = img.dataset.src;
+        img.removeAttribute('data-src');
+        thumbObserver.unobserve(img);
+        // Upgrade advertiser name from page metadata once screenshot is fetched
+        const encodedUrl = img.dataset.advertiserUrl;
+        if (encodedUrl) {
+          fetch('/api/advertiser?url=' + encodedUrl)
+            .then(r => r.json())
+            .then(d => {
+              if (d.name) {
+                const row = img.closest('tr');
+                const cell = row && row.querySelector('.adv-cell');
+                const nameSpan = cell && cell.querySelector('.adv-name');
+                if (nameSpan && d.name !== nameSpan.textContent) nameSpan.textContent = d.name;
+              }
+            }).catch(() => {});
+        }
+      }
+    });
+  }, { rootMargin: '200px' });
+
+  function observeLazyImages() {
+    document.querySelectorAll('img.lazy[data-src]').forEach(img => thumbObserver.observe(img));
+  }
+
+  // Re-observe after each render
+  const origRender = renderTable;
+  renderTable = function() { origRender(); observeLazyImages(); };
+
+  // Click advertiser cell to edit name inline
+  document.getElementById('tableBody').addEventListener('click', e => {
+    const cell = e.target.closest('.adv-cell');
+    if (!cell || cell.querySelector('input')) return;
+    if (e.target.closest('.li-link')) return;
+    const url = decodeURIComponent(cell.dataset.url);
+    const nameSpan = cell.querySelector('.adv-name');
+    const prev = nameSpan ? nameSpan.textContent : cell.textContent;
+    const linksHtml = cell.querySelector('.li-links')?.outerHTML || '';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = prev;
+    cell.innerHTML = '';
+    cell.appendChild(input);
+    input.focus();
+    input.select();
+
+    async function save() {
+      const newName = input.value.trim() || prev;
+      cell.innerHTML = `<span class="adv-name">${esc(newName)}</span>${linksHtml}`;
+      if (newName !== prev) {
+        await fetch('/api/advertiser', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, name: newName }),
+        }).catch(() => {});
+        const row = allRows.find(r => r.netlifyUrl === url);
+        if (row) row.advertiser = newName;
+      }
+    }
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') input.blur();
+      if (e.key === 'Escape') { cell.innerHTML = `<span class="adv-name">${esc(prev)}</span>${linksHtml}`; }
+    });
+  });
+
+  async function loadActiveView() {
+    try {
+      console.log('[AV] fetching /api/active-view');
+      const res = await fetch('/api/active-view');
+      if (!res.ok) { console.warn('[AV] non-ok status', res.status); return; }
+      const avData = await res.json();
+      console.log('[AV] got data, URL count:', Object.keys(avData).filter(k => k !== '_ts').length);
+      // Update Active View cells without re-rendering the whole table
+      document.querySelectorAll('#tableBody tr').forEach(row => {
+        const urlCell = row.querySelector('.url-cell a');
+        if (!urlCell) return;
+        const url = urlCell.href.endsWith('/') ? urlCell.href : urlCell.href + '/';
+        const av   = avData[url];
+        const rate = av?.rate ?? av;
+        const cells = row.querySelectorAll('td');
+        const avCell = cells[cells.length - 1];
+        if (avCell && rate != null) {
+          avCell.className = 'ctr-cell has-data';
+          avCell.textContent = rate + '%';
+        }
+      });
+      // Update allRows with rate + raw counts so sort and weighted summary both work
+      allRows.forEach(r => {
+        const av = avData[r.netlifyUrl];
+        if (av != null) {
+          r.activeView          = av?.rate ?? av;
+          r.activeViewViewable  = av?.viewable  ?? null;
+          r.activeViewMeasurable= av?.measurable ?? null;
+        }
+      });
+      updateStats();
+    } catch(e) { console.error('[AV] error:', e); }
+  }
+
+  async function loadVideoStats() {
+    try {
+      const res = await fetch('/api/video-stats');
+      if (!res.ok) return;
+      const vsData = await res.json(); // { videoId: { completionRate, durationSec } }
+      allRows.forEach(r => {
+        if (!r.videoId) return;
+        const d = vsData[r.videoId];
+        if (!d) return;
+        if (d.completionRate != null) r.completionRate = d.completionRate;
+        if (d.durationSec != null) r.durationSec = d.durationSec;
+      });
+      if (activeTab === 'video' || activeTab === 'video-mobile') renderTable();
+    } catch(e) {}
+  }
+
+  // Auto-load on page open
+  loadTagRules();
+  loadData();
+</script>
+</body>
+</html>
