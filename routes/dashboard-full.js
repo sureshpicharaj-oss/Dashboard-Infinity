@@ -4,11 +4,13 @@
  * Full dashboard route — handles both desktop AND mobile skin creatives.
  *
  * This is the full-server equivalent of routes/dashboard.js (which is desktop-only).
- * It fetches three sets of creatives from GAM: desktop 970px template creatives,
- * mobile 300×250/251 companion creatives (carry the Netlify URL), and mobile
- * 320×50/51 master creatives (carry the LICA impressions). The companion→master
- * mapping from CreativeSetService joins the two mobile sets. Mobile URLs that already
- * appear in the desktop set are skipped to avoid duplicate rows.
+ * Performance-optimised flow:
+ *   Phase 1 (parallel): desktop creatives + 300×250/251 companions (filtered to 9 template IDs,
+ *     ~419 creatives) + ALL creative sets (no filter) + excluded creative IDs.
+ *   Phase 1b: cross-reference companion IDs that have Netlify URLs against the creative-set map
+ *     to derive the exact master IDs we need (~200–400 correlated 320×50/51 masters).
+ *   Phase 2: fetch only those specific masters by ID — avoids scanning all 17,133 320×50/51s.
+ * Mobile URLs that already appear in the desktop set are skipped to avoid duplicate rows.
  *
  * Side-effects: writes url_lineitem_cache.json, url_creative_cache.json,
  * url_lica_imps_cache.json, url_videoid_cache.json, and invalidates
@@ -19,7 +21,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { getToken } = require('../lib/auth');
-const { fetchCreativesViaSoap } = require('../lib/gam-creatives');
+const { fetchCreativesViaSoap, fetchCreativesByIds } = require('../lib/gam-creatives');
 const { fetchCompanionToMasterMap } = require('../lib/gam-companion');
 const { fetchCreativeLICAStats, fetchExcludedCreativeIds } = require('../lib/gam-lica');
 const { fetchLineItemStartDates } = require('../lib/gam-lineitems');
@@ -38,19 +40,18 @@ module.exports = function(SCREENSHOT_DIR) {
       if (!networkCode) return res.status(500).json({ error: 'GAM_NETWORK_CODE is not set' });
 
       const token = await getToken();
+      const t0 = Date.now();
 
-      const [desktopCreatives, mobileCompanions, mobileMasters, excludedCreativeIds] = await Promise.all([
+      // Phase 1 (parallel): companions carry Netlify URL; creative sets map companions→masters;
+      // desktop and excluded run alongside. We skip the bulk 320×50 master scan entirely —
+      // instead we derive the exact master IDs we need from creative sets × companion IDs.
+      const [desktopCreatives, mobileCompanions, companionToMaster, excludedCreativeIds] = await Promise.all([
         fetchCreativesViaSoap(networkCode, token, 'desktop'),
         fetchCreativesViaSoap(networkCode, token, 'mobile-companion'), // 300×250/251 — carry Netlify URL
-        fetchCreativesViaSoap(networkCode, token, 'mobile-master'),    // 320×50/51  — carry LICA stats
+        fetchCompanionToMasterMap(networkCode, token, null),           // ALL creative sets, no filter
         fetchExcludedCreativeIds(networkCode, token),
       ]);
-
-      console.log(`Fetched: ${desktopCreatives.length} desktop, ${mobileCompanions.length} mobile companions, ${mobileMasters.length} mobile masters`);
-
-      // Scope creative-sets query to only our 320×50/51 master IDs
-      const mobileMasterIdList = mobileMasters.map(c => c.id?.[0]).filter(Boolean);
-      const companionToMaster = await fetchCompanionToMasterMap(networkCode, token, mobileMasterIdList);
+      console.log(`Phase 1 (${Date.now() - t0}ms): ${desktopCreatives.length} desktop, ${mobileCompanions.length} companions, ${Object.keys(companionToMaster).length} creative-set pairs`);
 
       // Build companion → { netlifyUrl, videoId } from the 300×250/251 creatives
       const companionNetlifyMap = {};
@@ -62,13 +63,32 @@ module.exports = function(SCREENSHOT_DIR) {
         if (id) companionNetlifyMap[id] = { netlifyUrl, videoId: getTemplateVarValue(c, 'VIDEO_ID') };
       }
 
-      // Reverse companion→master to get master → { netlifyUrl, videoId }
-      const mobileMasterNetlifyMap = {};
+      // Derive the correlated master IDs — only masters whose companion has a Netlify URL
+      const masterNetlifyMap = {}; // masterId → { netlifyUrl, videoId }
       for (const [companionId, masterId] of Object.entries(companionToMaster)) {
-        if (companionNetlifyMap[companionId] && !mobileMasterNetlifyMap[masterId]) {
-          mobileMasterNetlifyMap[masterId] = companionNetlifyMap[companionId];
+        if (companionNetlifyMap[companionId] && !masterNetlifyMap[masterId]) {
+          masterNetlifyMap[masterId] = companionNetlifyMap[companionId];
         }
       }
+      // Pattern B: some 300×251 creatives are the MASTER in a creative set (the 320×51 is the
+      // companion). Their ID appears as a VALUE in companionToMaster, not a key. They carry the
+      // Netlify URL and LICA stats themselves — no separate master fetch needed.
+      const allMasterIdsInSets = new Set(Object.values(companionToMaster));
+      let patternBCount = 0;
+      for (const [companionId, data] of Object.entries(companionNetlifyMap)) {
+        if (allMasterIdsInSets.has(companionId) && !masterNetlifyMap[companionId]) {
+          masterNetlifyMap[companionId] = data;
+          patternBCount++;
+        }
+      }
+
+      const correlatedMasterIds = Object.keys(masterNetlifyMap);
+      console.log(`Phase 1b: ${Object.keys(companionNetlifyMap).length} companions with Netlify URLs → ${correlatedMasterIds.length} correlated master IDs (${patternBCount} Pattern B 300×251 masters)`);
+
+      // Phase 2: fetch only the correlated mobile masters by their specific IDs
+      const t1 = Date.now();
+      const mobileMasters = await fetchCreativesByIds(networkCode, token, correlatedMasterIds);
+      console.log(`Phase 2 (${Date.now() - t1}ms): ${mobileMasters.length} mobile masters fetched by ID`);
 
       // Desktop: Netlify URL lives on the 970px template creative itself
       const netlifyCreatives = [];
@@ -83,14 +103,14 @@ module.exports = function(SCREENSHOT_DIR) {
         netlifyCreatives.push({ creative: c, netlifyUrl, videoId: getTemplateVarValue(c, 'VIDEO_ID'), isMobile: false });
       }
 
-      // Mobile: stats come from the 320×50/51 master; URL comes from its 300×250/251 companion.
+      // Mobile: stats come from the 320×50/51 master; URL is from masterNetlifyMap (companion→master lookup).
       // Skip any companion URL that already appears in the desktop set (e.g. a desktop skin's companion).
       let mobileMatched = 0;
       for (const c of mobileMasters) {
         if (excludedCreativeIds.has(c.id?.[0])) continue;
         const id = c.id?.[0];
-        if (mobileMasterNetlifyMap[id]) {
-          const { netlifyUrl, videoId } = mobileMasterNetlifyMap[id];
+        if (masterNetlifyMap[id]) {
+          const { netlifyUrl, videoId } = masterNetlifyMap[id];
           let baseUrl;
           try { const u = new URL(netlifyUrl.trim()); baseUrl = `${u.protocol}//${u.host}/`; } catch(e) { baseUrl = netlifyUrl.trim(); }
           if (desktopBaseUrls.has(baseUrl)) continue;

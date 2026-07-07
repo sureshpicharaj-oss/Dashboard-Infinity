@@ -729,78 +729,73 @@
       (!activeCategory || getCategory(r.advertiser, r.netlifyUrl) === activeCategory)
     );
 
-    // CTR — method selectable via dropdown (default: median)
-    const ctrRows = tabRows.filter(r => r.impressions > 0 && r.clicks > 0);
-    const ctrMethod = document.getElementById('ctrMethod').value;
-    let ctrVal = null;
-    console.log('[CTR debug] tab='+activeTab+', tabRows='+tabRows.length+', ctrRows (clicks>0)='+ctrRows.length);
-    console.table(ctrRows.map(r => ({ advertiser: r.advertiser, impressions: r.impressions, clicks: r.clicks, ctr: parseFloat(((r.clicks/r.impressions)*100).toFixed(4)) })));
-    if (ctrRows.length) {
-      if (ctrMethod === 'median') {
-        const sorted = ctrRows.map(r => (r.clicks / r.impressions) * 100).sort((a, b) => a - b);
-        const mid = Math.floor(sorted.length / 2);
-        ctrVal = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-        console.log('[CTR debug] method=median, sorted='+JSON.stringify(sorted.map(v=>+v.toFixed(4)))+', result='+ctrVal);
-      } else if (ctrMethod === 'average') {
-        ctrVal = ctrRows.reduce((s, r) => s + (r.clicks / r.impressions) * 100, 0) / ctrRows.length;
-        console.log('[CTR debug] method=average, result='+ctrVal);
-      } else {
-        const totalClicks = ctrRows.reduce((s, r) => s + r.clicks, 0);
-        const totalImps   = ctrRows.reduce((s, r) => s + r.impressions, 0);
-        ctrVal = (totalClicks / totalImps) * 100;
-        console.log('[CTR debug] method=aggregate, totalClicks='+totalClicks+', totalImps='+totalImps+', result='+ctrVal);
-      }
-    }
-    document.getElementById('statAvgCtr').textContent = ctrVal !== null ? parseFloat(ctrVal.toFixed(3)) + '%' : '—';
-    document.getElementById('statCtrN').textContent = ctrRows.length ? ctrRows.length + ' skin' + (ctrRows.length > 1 ? 's' : '') : '';
-
-    // Viewability — Σ(viewable) / Σ(measurable) weighted across unique URLs
-    const seenAvUrls = new Set();
-    let totalAvViewable = 0, totalAvMeasurable = 0;
-    for (const r of tabRows) {
-      if (r.activeViewMeasurable != null && !seenAvUrls.has(r.netlifyUrl)) {
-        seenAvUrls.add(r.netlifyUrl);
-        totalAvViewable   += r.activeViewViewable   ?? 0;
-        totalAvMeasurable += r.activeViewMeasurable ?? 0;
-      }
-    }
-    document.getElementById('statAvgView').textContent = totalAvMeasurable > 0
-      ? parseFloat(((totalAvViewable / totalAvMeasurable) * 100).toFixed(1)) + '%' : '—';
-
-    // Short-form / Long-form — video tab only
     const isVideo = activeTab === 'video';
     document.getElementById('cardAvgShort').style.display = isVideo ? '' : 'none';
     document.getElementById('cardAvgLong').style.display  = isVideo ? '' : 'none';
+
+    // For the video tab, aggregate per-VIDEO_ID rows into per-URL groups before computing
+    // any stats — otherwise the CTR card counts VIDEO_ID rows instead of unique skin URLs.
+    let statRows;
     if (isVideo) {
+      const urlMap = new Map();
+      for (const r of tabRows) {
+        if (!urlMap.has(r.netlifyUrl)) {
+          urlMap.set(r.netlifyUrl, { impressions: 0, clicks: 0, netlifyUrl: r.netlifyUrl,
+            activeViewViewable: r.activeViewViewable, activeViewMeasurable: r.activeViewMeasurable });
+        }
+        const g = urlMap.get(r.netlifyUrl);
+        g.impressions += r.impressions || 0;
+        g.clicks      += r.clicks      || 0;
+        if (g.activeViewViewable   == null) g.activeViewViewable   = r.activeViewViewable;
+        if (g.activeViewMeasurable == null) g.activeViewMeasurable = r.activeViewMeasurable;
+      }
+      statRows = [...urlMap.values()];
+
       const shortRates = tabRows.filter(r => r.completionRate != null && durationBucket(r.durationSec) === '15s').map(r => r.completionRate);
       const longRates  = tabRows.filter(r => r.completionRate != null && durationBucket(r.durationSec) === '30s').map(r => r.completionRate);
       document.getElementById('statAvgShort').textContent = shortRates.length
         ? parseFloat((shortRates.reduce((s, v) => s + v, 0) / shortRates.length).toFixed(1)) + '%' : '—';
       document.getElementById('statAvgLong').textContent = longRates.length
         ? parseFloat((longRates.reduce((s, v) => s + v, 0) / longRates.length).toFixed(1)) + '%' : '—';
+    } else {
+      statRows = tabRows;
     }
 
-    if (isVideo) {
-      const urlMap = new Map();
-      for (const r of tabRows) {
-        const prev = urlMap.get(r.netlifyUrl) || 0;
-        urlMap.set(r.netlifyUrl, prev + (r.impressions || 0));
+    // CTR — computed on statRows (unique skin URLs in all tabs, including video)
+    const ctrRows = statRows.filter(r => r.impressions > 0 && r.clicks > 0);
+    const ctrMethod = document.getElementById('ctrMethod').value;
+    let ctrVal = null;
+    if (ctrRows.length) {
+      if (ctrMethod === 'median') {
+        const sorted = ctrRows.map(r => (r.clicks / r.impressions) * 100).sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        ctrVal = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+      } else if (ctrMethod === 'average') {
+        ctrVal = ctrRows.reduce((s, r) => s + (r.clicks / r.impressions) * 100, 0) / ctrRows.length;
+      } else {
+        const totalClicks = ctrRows.reduce((s, r) => s + r.clicks, 0);
+        const totalImps   = ctrRows.reduce((s, r) => s + r.impressions, 0);
+        ctrVal = (totalClicks / totalImps) * 100;
       }
-      const groups = [...urlMap.values()];
-      const totalImps = groups.reduce((s, v) => s + v, 0);
-      const withData  = groups.filter(v => v > 0).length;
-      document.getElementById('statTotal').textContent  = urlMap.size.toLocaleString();
-      document.getElementById('statImps').textContent   = totalImps.toLocaleString();
-      document.getElementById('statActive').textContent = withData.toLocaleString();
-      document.getElementById('statNoData').textContent = (urlMap.size - withData).toLocaleString();
-      return;
     }
-    const withData = tabRows.filter(r => r.impressions !== null && r.impressions > 0);
+    document.getElementById('statAvgCtr').textContent = ctrVal !== null ? parseFloat(ctrVal.toFixed(3)) + '%' : '—';
+    document.getElementById('statCtrN').textContent = ctrRows.length ? ctrRows.length + ' skin' + (ctrRows.length > 1 ? 's' : '') : '';
+
+    // Viewability — Σ(viewable) / Σ(measurable) weighted across unique URLs
+    let totalAvViewable = 0, totalAvMeasurable = 0;
+    for (const r of statRows) {
+      totalAvViewable   += r.activeViewViewable   ?? 0;
+      totalAvMeasurable += r.activeViewMeasurable ?? 0;
+    }
+    document.getElementById('statAvgView').textContent = totalAvMeasurable > 0
+      ? parseFloat(((totalAvViewable / totalAvMeasurable) * 100).toFixed(1)) + '%' : '—';
+
+    const withData  = statRows.filter(r => r.impressions > 0);
     const totalImps = withData.reduce((s, r) => s + r.impressions, 0);
-    document.getElementById('statTotal').textContent   = tabRows.length.toLocaleString();
+    document.getElementById('statTotal').textContent   = statRows.length.toLocaleString();
     document.getElementById('statImps').textContent    = totalImps.toLocaleString();
     document.getElementById('statActive').textContent  = withData.length.toLocaleString();
-    document.getElementById('statNoData').textContent  = (tabRows.length - withData.length).toLocaleString();
+    document.getElementById('statNoData').textContent  = (statRows.length - withData.length).toLocaleString();
   }
 
   function durationBucket(durationSec) {
