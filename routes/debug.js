@@ -884,6 +884,103 @@ module.exports = function() {
 
   /* Returns the GAM network object for the configured network code via the REST API.
    * Useful for verifying the OAuth token has access to the correct network. */
+  // Lists all creative templates whose names contain "mobile", "infinity", or "skin"
+  // (case-insensitive). Used to find the correct template IDs to add to mobile SOAP filters.
+  router.get('/api/mobile-template-names', async (req, res) => {
+    try {
+      const token = await getToken();
+      const networkCode = process.env.GAM_NETWORK_CODE;
+      const { GAM_SOAP_NS } = require('../config');
+      const soap = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <RequestHeader xmlns="${GAM_SOAP_NS}">
+      <networkCode>${networkCode}</networkCode>
+      <applicationName>Infinity-Dashboard</applicationName>
+    </RequestHeader>
+  </soapenv:Header>
+  <soapenv:Body>
+    <getCreativeTemplatesByStatement xmlns="${GAM_SOAP_NS}">
+      <filterStatement><query>LIMIT 500 OFFSET 0</query></filterStatement>
+    </getCreativeTemplatesByStatement>
+  </soapenv:Body>
+</soapenv:Envelope>`;
+      const response = await axios.post(
+        'https://ads.google.com/apis/ads/publisher/v202602/CreativeTemplateService',
+        soap,
+        { headers: { 'Content-Type': 'text/xml; charset=UTF-8', 'SOAPAction': '', 'Authorization': `Bearer ${token}` }, timeout: 30000 }
+      );
+      const parsed = await xml2js.parseStringPromise(response.data);
+      const all = parsed['soap:Envelope']?.['soap:Body']?.[0]
+        ?.['getCreativeTemplatesByStatementResponse']?.[0]?.rval?.[0]?.results || [];
+      const keywords = /mobile|infinity|skin|masthead|one.for.all|cartwright/i;
+      const matched = all
+        .filter(t => keywords.test(t.name?.[0] || ''))
+        .map(t => ({ id: t.id?.[0], name: t.name?.[0] }));
+      res.json({ matched, total: all.length });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Fetches the first page of mobile companion (300x250/251) creatives and returns the
+  // unique template IDs of those that have a Netlify URL — used to identify which
+  // template IDs to add as filters to the mobile SOAP queries.
+  router.get('/api/mobile-template-ids', async (req, res) => {
+    try {
+      const token = await getToken();
+      const networkCode = process.env.GAM_NETWORK_CODE;
+      const { GAM_SOAP_ENDPOINT, GAM_SOAP_NS } = require('../config');
+      // Paginate through ALL 300x250/251 template creatives and return every
+      // template ID that has at least one creative with a Netlify URL.
+      // This is a one-time discovery scan — takes a few minutes but gives the
+      // definitive list to hardcode into the mobile-companion SOAP filter.
+      const pageSize = 500;
+      const templateIds = {};
+      let offset = 0, total = null, totalFetched = 0;
+
+      while (total === null || offset < total) {
+        const soap = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header>
+    <RequestHeader xmlns="${GAM_SOAP_NS}">
+      <networkCode>${networkCode}</networkCode>
+      <applicationName>Infinity-Dashboard</applicationName>
+    </RequestHeader>
+  </soapenv:Header>
+  <soapenv:Body>
+    <getCreativesByStatement xmlns="${GAM_SOAP_NS}">
+      <filterStatement>
+        <query>WHERE ((width = 300 AND height = 250) OR (width = 300 AND height = 251)) LIMIT ${pageSize} OFFSET ${offset}</query>
+      </filterStatement>
+    </getCreativesByStatement>
+  </soapenv:Body>
+</soapenv:Envelope>`;
+        const response = await axios.post(GAM_SOAP_ENDPOINT, soap, {
+          headers: { 'Content-Type': 'text/xml; charset=UTF-8', 'SOAPAction': '', 'Authorization': `Bearer ${token}` },
+          timeout: 30000,
+        });
+        const parsed = await xml2js.parseStringPromise(response.data);
+        const rval = parsed['soap:Envelope']?.['soap:Body']?.[0]
+          ?.['getCreativesByStatementResponse']?.[0]?.rval?.[0];
+        if (!rval) break;
+        if (total === null) total = parseInt(rval.totalResultSetSize?.[0] || '0');
+        const results = rval.results || [];
+        totalFetched += results.length;
+        for (const c of results) {
+          if (!extractNetlifyUrl(c)) continue;
+          const tplId = c.creativeTemplateId?.[0];
+          if (tplId) templateIds[tplId] = (templateIds[tplId] || 0) + 1;
+        }
+        offset += pageSize;
+        if (results.length === 0) break;
+      }
+      res.json({ templateIds, netlifyCount: Object.values(templateIds).reduce((a,b)=>a+b,0), totalFetched, totalInGAM: total });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   router.get('/api/network', async (req, res) => {
     try {
       const token = await getToken();
