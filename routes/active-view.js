@@ -27,7 +27,7 @@ module.exports = function(SCREENSHOT_DIR) {
    *
    * When url_lica_imps_cache.json is available (primary path): matches each template
    * creative to its AV report row by comparing LICA impressions to report measurable
-   * impressions within a ±20 tolerance, then aggregates viewable/measurable across matches.
+   * impressions within a tight tolerance of max(50, 1% of imps) — exact creative match only, no fallback.
    * Falls back to line-item-level aggregation if the imps cache is absent (less accurate
    * because it includes all creatives on a line item, not just those for this URL). */
   router.get('/api/active-view', async (req, res) => {
@@ -84,8 +84,11 @@ module.exports = function(SCREENSHOT_DIR) {
             for (const [liId, imps] of Object.entries(perLI)) {
               const liCreatives = avByLIAndCreative[liId];
               if (!liCreatives) continue;
-              // The report creative whose measurable matches the LICA impressions is the one for this URL
-              const match = Object.values(liCreatives).find(av => Math.abs(Math.round(av.measurable) - imps) <= 20);
+              // Match the exact rendered creative: its measurable impressions must be
+              // within 1% (or 50 impressions) of the LICA count for this template creative.
+              // No closest-match fallback — wrong creative data is worse than no data.
+              const tol = Math.max(50, Math.round(imps * 0.01));
+              const match = Object.values(liCreatives).find(av => Math.abs(Math.round(av.measurable) - imps) <= tol);
               if (match) {
                 totalViewable   += match.viewable;
                 totalMeasurable += match.measurable;
@@ -181,7 +184,8 @@ module.exports = function(SCREENSHOT_DIR) {
       for (const [templateId, perLI] of Object.entries(licaImps)) {
         for (const [liId, imps] of Object.entries(perLI)) {
           const liCreatives = avByLIAndCreative[liId] || {};
-          const matchEntry  = Object.entries(liCreatives).find(([, av]) => Math.abs(Math.round(av.measurable) - imps) <= 20);
+          const tol2 = Math.max(50, Math.round(imps * 0.01));
+          const matchEntry = Object.entries(liCreatives).find(([, av]) => Math.abs(Math.round(av.measurable) - imps) <= tol2);
           const reportCreativeId = matchEntry ? matchEntry[0] : null;
           const av = matchEntry ? matchEntry[1] : null;
           if (av) { totalViewable += av.viewable; totalMeasurable += av.measurable; }
@@ -230,6 +234,226 @@ module.exports = function(SCREENSHOT_DIR) {
         return { lineItemId: cols[0], creativeId: cols[1], viewable: parseFloat(cols[2]||'0'), measurable: parseFloat(cols[3]||'0') };
       });
       res.json({ header: lines[0], rows });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+  });
+
+  /* Debug: returns the orderId for a given line item ID. */
+  router.get('/api/debug-lineitem-order', async (req, res) => {
+    const liId = req.query.id;
+    if (!liId) return res.status(400).json({ error: 'id param required' });
+    try {
+      const token = await getToken();
+      const networkCode = process.env.GAM_NETWORK_CODE;
+      const axios = require('axios');
+      const xml2js = require('xml2js');
+      const { GAM_SOAP_NS, GAM_LINEITEM_SOAP_ENDPOINT } = require('../config');
+      const soap = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header><RequestHeader xmlns="${GAM_SOAP_NS}"><networkCode>${networkCode}</networkCode><applicationName>Infinity-Dashboard</applicationName></RequestHeader></soapenv:Header>
+  <soapenv:Body><getLineItemsByStatement xmlns="${GAM_SOAP_NS}"><filterStatement><query>WHERE id = ${liId} LIMIT 1</query></filterStatement></getLineItemsByStatement></soapenv:Body>
+</soapenv:Envelope>`;
+      const r = await axios.post(GAM_LINEITEM_SOAP_ENDPOINT, soap, {
+        headers: { 'Content-Type': 'text/xml; charset=UTF-8', 'SOAPAction': '', 'Authorization': `Bearer ${token}` }, timeout: 15000,
+      });
+      const parsed = await xml2js.parseStringPromise(r.data);
+      const li = parsed['soap:Envelope']?.['soap:Body']?.[0]?.['getLineItemsByStatementResponse']?.[0]?.rval?.[0]?.results?.[0];
+      if (!li) return res.json({ error: 'line item not found' });
+      res.json({ lineItemId: li.id?.[0], orderId: li.orderId?.[0], name: li.name?.[0], status: li.status?.[0] });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+  });
+
+  /* Debug: fetches a creative by ID and shows its extracted Netlify URL + raw template vars.
+   * Accepts ?id=<creativeId>. */
+  router.get('/api/debug-creative-url', async (req, res) => {
+    const creativeId = req.query.id;
+    if (!creativeId) return res.status(400).json({ error: 'id param required' });
+    try {
+      const token = await getToken();
+      const networkCode = process.env.GAM_NETWORK_CODE;
+      const { fetchCreativesByIds } = require('../lib/gam-creatives');
+      const { extractNetlifyUrl } = require('../lib/utils');
+      const creatives = await fetchCreativesByIds(networkCode, token, [creativeId]);
+      if (!creatives.length) return res.json({ error: 'creative not found' });
+      const c = creatives[0];
+      const netlifyUrl = extractNetlifyUrl(c);
+      const rawVars = c.creativeTemplateVariableValues;
+      res.json({ id: c.id?.[0], name: c.name?.[0], templateId: c.creativeTemplateId?.[0], netlifyUrl, rawVars });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+  });
+
+  /* Debug: looks up the creative set for a given master creative ID and returns
+   * the companion IDs plus the companion template IDs. Accepts ?id=<masterCreativeId>. */
+  router.get('/api/debug-creativeset-for-master', async (req, res) => {
+    const masterId = req.query.id;
+    if (!masterId) return res.status(400).json({ error: 'id param required' });
+    try {
+      const token = await getToken();
+      const networkCode = process.env.GAM_NETWORK_CODE;
+      const { fetchCompanionToMasterMap } = require('../lib/gam-companion');
+      const companionToMaster = await fetchCompanionToMasterMap(networkCode, token, [masterId]);
+      const companions = Object.entries(companionToMaster)
+        .filter(([, m]) => m === masterId)
+        .map(([c]) => c);
+      // Fetch companion creative details to get template IDs
+      const { fetchCreativesByIds } = require('../lib/gam-creatives');
+      const companionCreatives = companions.length ? await fetchCreativesByIds(networkCode, token, companions) : [];
+      const companionDetails = companionCreatives.map(c => ({
+        id: c.id?.[0],
+        name: c.name?.[0],
+        templateId: c.creativeTemplateId?.[0] ?? null,
+        width: c.size?.[0]?.width?.[0] ?? null,
+        height: c.size?.[0]?.height?.[0] ?? null,
+      }));
+      res.json({ masterId, companions, companionDetails });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+  });
+
+  /* Debug: queries LICA directly for a specific creative ID to show its line item
+   * associations and impression counts. Accepts ?id=<creativeId>. */
+  router.get('/api/debug-lica-for-creative', async (req, res) => {
+    const creativeId = req.query.id;
+    if (!creativeId) return res.status(400).json({ error: 'id param required' });
+    try {
+      const token = await getToken();
+      const networkCode = process.env.GAM_NETWORK_CODE;
+      const { fetchCreativeLICAStats } = require('../lib/gam-lica');
+      const lica = await fetchCreativeLICAStats([creativeId], networkCode, token);
+      res.json({
+        creativeId,
+        totalImpressions: lica.statsByCreativeId[creativeId]?.impressions ?? 0,
+        totalClicks:      lica.statsByCreativeId[creativeId]?.clicks ?? 0,
+        lineItemIds:      lica.lineItemsByCreativeId[creativeId] ? [...lica.lineItemsByCreativeId[creativeId]] : [],
+        impsByLineItem:   lica.impsByCreativeAndLI[creativeId] ?? {},
+      });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+  });
+
+  /* Audit: scans 300×250/251 creatives modified in the last 180 days (no template-ID filter)
+   * to find any with Netlify URLs that use template IDs not in our companion scan list.
+   * For each companion found, resolves the master via creative sets and checks LICA
+   * impressions — surfacing any campaigns that are serving but not on the dashboard.
+   * Date-filtered so it covers only recent campaigns (~10-20s vs 90s+ for all-time scan). */
+  router.get('/api/audit-coverage', async (req, res) => {
+    try {
+      const token = await getToken();
+      const networkCode = process.env.GAM_NETWORK_CODE;
+      const axios = require('axios');
+      const xml2js = require('xml2js');
+      const { GAM_SOAP_ENDPOINT, GAM_SOAP_NS } = require('../config');
+      const { extractNetlifyUrl } = require('../lib/utils');
+      const { fetchCompanionToMasterMap } = require('../lib/gam-companion');
+      const { fetchCreativeLICAStats } = require('../lib/gam-lica');
+      const KNOWN_COMPANION_TEMPLATE_IDS = new Set([
+        '12338205','12350359','12381157','12415237','12439909',
+        '12517322','12522680','12522683','12528680',
+      ]);
+      const KNOWN_DESKTOP_TEMPLATE_IDS = new Set([
+        '12338205','12391253','12430810','12479439','12514886',
+        '12517019','12522683','12523354',
+      ]);
+
+      // Use lookback days from query param (default 180). Prevents scanning 36k+ all-time creatives.
+      const lookbackDays = Math.min(parseInt(req.query.days || '180', 10) || 180, 730);
+      const cutoff = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000);
+      const cutoffStr = cutoff.toISOString().replace('T', 'T').slice(0, 19); // 'YYYY-MM-DDTHH:MM:SS'
+
+      // Scan 300×250/251 creatives modified since the cutoff date — no template ID filter
+      const allCompanions = [];
+      let offset = 0, total = null;
+      while (total === null || offset < total) {
+        const soap = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header><RequestHeader xmlns="${GAM_SOAP_NS}"><networkCode>${networkCode}</networkCode><applicationName>Infinity-Dashboard</applicationName></RequestHeader></soapenv:Header>
+  <soapenv:Body><getCreativesByStatement xmlns="${GAM_SOAP_NS}"><filterStatement>
+    <query>WHERE ((width = 300 AND height = 250) OR (width = 300 AND height = 251)) AND lastModifiedDateTime >= '${cutoffStr}' LIMIT 500 OFFSET ${offset}</query>
+  </filterStatement></getCreativesByStatement></soapenv:Body>
+</soapenv:Envelope>`;
+        const r = await axios.post(GAM_SOAP_ENDPOINT, soap, {
+          headers: { 'Content-Type': 'text/xml; charset=UTF-8', 'SOAPAction': '', 'Authorization': `Bearer ${token}` }, timeout: 30000,
+        });
+        const parsed = await xml2js.parseStringPromise(r.data);
+        const rval = parsed['soap:Envelope']?.['soap:Body']?.[0]?.['getCreativesByStatementResponse']?.[0]?.rval?.[0];
+        if (!rval) break;
+        total = parseInt(rval.totalResultSetSize?.[0] || '0');
+        allCompanions.push(...(rval.results || []));
+        offset += 500;
+        if (!(rval.results?.length)) break;
+      }
+
+      // Filter to template creatives with Netlify URLs
+      const netlifyCompanions = allCompanions.filter(c => {
+        const tid = c.creativeTemplateId?.[0];
+        return tid && extractNetlifyUrl(c);
+      });
+
+      // Split into known vs unknown template IDs
+      const unknownTemplateIds = new Set();
+      const unknownCompanions = netlifyCompanions.filter(c => {
+        const tid = c.creativeTemplateId?.[0];
+        if (!KNOWN_COMPANION_TEMPLATE_IDS.has(tid) && !KNOWN_DESKTOP_TEMPLATE_IDS.has(tid)) {
+          unknownTemplateIds.add(tid);
+          return true;
+        }
+        return false;
+      });
+
+      // For all netlify companions, resolve masters via creative sets
+      const allCompanionIds = netlifyCompanions.map(c => c.id?.[0]).filter(Boolean);
+      const companionToMaster = await fetchCompanionToMasterMap(networkCode, token, null);
+      const masterIds = [...new Set(allCompanionIds.map(cid => companionToMaster[cid]).filter(Boolean))];
+
+      // LICA check on all masters
+      const lica = await fetchCreativeLICAStats(masterIds, networkCode, token);
+
+      // Load current dashboard creative cache to check what's already showing
+      const urlCreativePath = path.join(require('../server').__screenshotDir || '', 'url_creative_cache.json').replace(/undefined/, '');
+      const currentDashboardIds = new Set();
+      try {
+        const urlCreativeMap = JSON.parse(fs.readFileSync(
+          path.join(__dirname, '..', 'public', 'screenshots', 'url_creative_cache.json'), 'utf8'
+        ));
+        for (const ids of Object.values(urlCreativeMap)) for (const id of ids) currentDashboardIds.add(id);
+      } catch(e) {}
+
+      // Build results: unknown-template companions + masters with impressions not on dashboard
+      const blindSpots = [];
+      for (const c of netlifyCompanions) {
+        const companionId = c.id?.[0];
+        const masterId = companionToMaster[companionId];
+        const netlifyUrl = extractNetlifyUrl(c);
+        const templateId = c.creativeTemplateId?.[0];
+        const imps = masterId ? (lica.statsByCreativeId[masterId]?.impressions || 0) : 0;
+        const onDashboard = masterId ? currentDashboardIds.has(masterId) : false;
+        const isUnknownTemplate = !KNOWN_COMPANION_TEMPLATE_IDS.has(templateId);
+
+        if (isUnknownTemplate || (imps > 0 && !onDashboard)) {
+          blindSpots.push({
+            companionId,
+            masterId: masterId || null,
+            netlifyUrl,
+            templateId,
+            knownTemplate: KNOWN_COMPANION_TEMPLATE_IDS.has(templateId),
+            impressions: imps,
+            onDashboard,
+            issue: isUnknownTemplate && !KNOWN_COMPANION_TEMPLATE_IDS.has(templateId)
+              ? 'unknown_template_id'
+              : 'serving_but_missing',
+          });
+        }
+      }
+
+      res.json({
+        lookbackDays,
+        cutoffDate: cutoffStr,
+        scanned: allCompanions.length,
+        netlifyCompanions: netlifyCompanions.length,
+        unknownTemplateIds: [...unknownTemplateIds],
+        blindSpots: blindSpots.sort((a, b) => b.impressions - a.impressions),
+        summary: {
+          unknownTemplates: blindSpots.filter(b => b.issue === 'unknown_template_id').length,
+          servingButMissing: blindSpots.filter(b => b.issue === 'serving_but_missing').length,
+        },
+      });
     } catch(e) { res.status(500).json({ error: e.message }); }
   });
 

@@ -24,7 +24,7 @@ const { getToken } = require('../lib/auth');
 const { fetchCreativesViaSoap, fetchCreativesByIds } = require('../lib/gam-creatives');
 const { fetchCompanionToMasterMap } = require('../lib/gam-companion');
 const { fetchCreativeLICAStats, fetchExcludedCreativeIds } = require('../lib/gam-lica');
-const { fetchLineItemStartDates } = require('../lib/gam-lineitems');
+const { fetchLineItemMeta } = require('../lib/gam-lineitems');
 const { extractNetlifyUrl, getTemplateVarValue, slugToName } = require('../lib/utils');
 
 module.exports = function(SCREENSHOT_DIR) {
@@ -111,9 +111,6 @@ module.exports = function(SCREENSHOT_DIR) {
         const id = c.id?.[0];
         if (masterNetlifyMap[id]) {
           const { netlifyUrl, videoId } = masterNetlifyMap[id];
-          let baseUrl;
-          try { const u = new URL(netlifyUrl.trim()); baseUrl = `${u.protocol}//${u.host}/`; } catch(e) { baseUrl = netlifyUrl.trim(); }
-          if (desktopBaseUrls.has(baseUrl)) continue;
           netlifyCreatives.push({ creative: c, netlifyUrl, videoId, isMobile: true });
           mobileMatched++;
         }
@@ -136,10 +133,27 @@ module.exports = function(SCREENSHOT_DIR) {
       }
 
       // Build grouped map. Video skins split per VIDEO_ID; desktop/mobile kept separate via sizeKey.
+      // Build the set of desktop base URLs that have real LICA data — used to suppress mobile
+      // rows only when a genuinely live desktop creative shares the same URL. A phantom desktop
+      // creative (0 impressions, no line items) must NOT block a real mobile creative.
+      const activeDesktopBaseUrls = new Set();
+      for (const { creative, netlifyUrl, isMobile } of netlifyCreatives) {
+        if (isMobile) continue;
+        const id = creative.id?.[0];
+        const hasData = (statsByCreativeId[id]?.impressions || 0) > 0 || (lineItemsByCreativeId[id]?.size || 0) > 0;
+        if (hasData) {
+          let baseUrl;
+          try { const u = new URL(netlifyUrl.trim()); baseUrl = `${u.protocol}//${u.host}/`; } catch(e) { baseUrl = netlifyUrl.trim(); }
+          activeDesktopBaseUrls.add(baseUrl);
+        }
+      }
+
       const grouped = {};
       for (const { creative, netlifyUrl, videoId, isMobile } of netlifyCreatives) {
         let baseUrl;
         try { const u = new URL(netlifyUrl.trim()); baseUrl = `${u.protocol}//${u.host}/`; } catch(e) { baseUrl = netlifyUrl.trim(); }
+        // Skip mobile rows only if an active desktop creative covers the same URL
+        if (isMobile && activeDesktopBaseUrls.has(baseUrl)) continue;
         const id = creative.id?.[0];
         const s  = statsByCreativeId[id];
         const sizeKey = isMobile ? 'm' : 'd';
@@ -154,16 +168,27 @@ module.exports = function(SCREENSHOT_DIR) {
 
       console.log(`Dedup: ${netlifyCreatives.length} creatives → ${Object.keys(grouped).length} rows (video skins split by VIDEO_ID)`);
 
+      let statusByLI = {};
       try {
         const allLIIds = [...new Set(Object.values(grouped).flatMap(g => [...g.lineItemIds]))];
-        const startDateByLI = await fetchLineItemStartDates(allLIIds, networkCode, token);
+        const meta = await fetchLineItemMeta(allLIIds, networkCode, token);
+        statusByLI = meta.statusByLI;
         for (const g of Object.values(grouped)) {
-          // Use the earliest line item start date across all line items for this URL as the sort key
-          g.firstStartDate = Math.min(Infinity, ...[...g.lineItemIds].map(lid => startDateByLI[lid] || Infinity));
+          g.firstStartDate = Math.min(Infinity, ...[...g.lineItemIds].map(lid => meta.startDateByLI[lid] || Infinity));
           if (!isFinite(g.firstStartDate)) g.firstStartDate = 0;
         }
       } catch(e) {
-        console.warn('fetchLineItemStartDates failed:', e.message);
+        console.warn('fetchLineItemMeta failed:', e.message);
+      }
+
+      // Derive liveStatus per group before sorting so the sort can use it
+      for (const g of Object.values(grouped)) {
+        const liStatuses = [...g.lineItemIds].map(lid => statusByLI[lid]).filter(Boolean);
+        g.liveStatus = liStatuses.includes('DELIVERING') ? 'delivering'
+                     : liStatuses.includes('READY')      ? 'ready'
+                     : liStatuses.includes('PAUSED')     ? 'paused'
+                     : liStatuses.includes('INACTIVE')   ? 'inactive'
+                     : null;
       }
 
       // url_lineitem_cache.json — used by /api/active-view to know which line items to query
@@ -231,9 +256,16 @@ module.exports = function(SCREENSHOT_DIR) {
         if (fs.existsSync(vsPath)) videoStatsByVideoId = JSON.parse(fs.readFileSync(vsPath, 'utf8'));
       } catch(e) {}
 
-      // Sort by most recent line item start date so the newest creatives appear first
+      // Sort: READY → DELIVERING → PAUSED → INACTIVE → COMPLETED, newest first within each group
+      const STATUS_ORDER = { ready: 0, delivering: 1, paused: 2, inactive: 3 };
       const results = Object.values(grouped)
-        .sort((a, b) => b.firstStartDate - a.firstStartDate)
+        .filter(r => r.impressions > 0 || r.lineItemIds.size > 0)
+        .sort((a, b) => {
+          const aOrder = STATUS_ORDER[a.liveStatus] ?? 4;
+          const bOrder = STATUS_ORDER[b.liveStatus] ?? 4;
+          if (aOrder !== bOrder) return aOrder - bOrder;
+          return b.firstStartDate - a.firstStartDate;
+        })
         .map(r => {
           const device = r.isMobile
             ? (r.videoId ? 'video-mobile' : 'mobile')
@@ -243,6 +275,7 @@ module.exports = function(SCREENSHOT_DIR) {
             videoId:              r.videoId || null,
             advertiser:           slugToName(r.netlifyUrl),
             device,
+            liveStatus:           r.liveStatus,
             impressions:          r.impressions || null,
             clicks:               r.clicks      || null,
             ctr:                  r.impressions && r.clicks ? parseFloat(((r.clicks / r.impressions) * 100).toFixed(2)) : null,

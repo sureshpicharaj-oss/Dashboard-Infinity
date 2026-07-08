@@ -43,4 +43,18 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.listen(PORT, () => {
   console.log(`GAM Dashboard running at http://localhost:${PORT}`);
+  // Auto-refresh dashboard data every 4 hours so the cache never goes stale between
+  // manual refreshes — catches newly-trafficked campaigns and completed line items.
+  const FOUR_HOURS = 4 * 60 * 60 * 1000;
+  const autoRefresh = () => {
+    console.log('[auto-refresh] triggering scheduled dashboard refresh...');
+    const http = require('http');
+    const req = http.get(`http://localhost:${PORT}/api/dashboard`, res => {
+      res.resume();
+      res.on('end', () => console.log(`[auto-refresh] done (status ${res.statusCode})`));
+    });
+    req.on('error', err => console.warn('[auto-refresh] error:', err.message));
+    req.end();
+  };
+  setInterval(autoRefresh, FOUR_HOURS);
 });

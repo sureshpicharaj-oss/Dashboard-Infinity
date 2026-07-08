@@ -25,17 +25,20 @@ router.get('/auth', (req, res) => {
   res.redirect(url);
 });
 
-/* Serves the main dashboard HTML when no OAuth code is present.
- * When Google redirects back with ?code=..., exchanges it for tokens and renders
- * the refresh token so the user can add it to .env. */
-router.get('/', async (req, res, next) => {
+/* Serves the main dashboard HTML, or handles the OAuth2 callback when Google
+ * redirects back with ?code=... after the user approves access. */
+router.get('/', async (req, res) => {
   if (!req.query.code) return res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
-  const client = getOAuth2Client();
-  const { tokens } = await client.getToken(req.query.code);
-  res.send(`
-    <p>Authorised. Add this to your .env file then restart the server:</p>
-    <pre>GAM_REFRESH_TOKEN=${tokens.refresh_token}</pre>
-  `);
+  try {
+    const client = getOAuth2Client();
+    const { tokens } = await client.getToken(req.query.code);
+    res.send(`
+      <p>Authorised. Add this to your <code>.env</code> file then restart the server:</p>
+      <pre>GAM_REFRESH_TOKEN=${tokens.refresh_token}</pre>
+    `);
+  } catch (err) {
+    res.status(500).send(`Token exchange failed: ${err.message}`);
+  }
 });
 
 module.exports = router;
