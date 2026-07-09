@@ -427,7 +427,7 @@
     <h1>Infinity Dashboard</h1>
     <div class="meta" id="lastFetched">Not yet loaded</div>
   </div>
-  <button id="refreshBtn" onclick="loadData()">
+  <button id="refreshBtn" onclick="loadData(true)">
     <span class="spinner"></span>
     <span id="refreshLabel">&#x21bb; Refresh</span>
   </button>
@@ -728,8 +728,48 @@
     renderTable();
   }
 
-  async function loadData() {
+  async function loadData(isManualRefresh = false) {
     const btn = document.getElementById('refreshBtn');
+
+    // On Netlify (non-localhost): manual refresh triggers a GitHub Actions run in the background.
+    // The page auto-polls every 30s and reloads when new data is available.
+    if (isManualRefresh && window.location.hostname !== 'localhost') {
+      btn.disabled = true;
+      btn.classList.add('loading');
+      try {
+        await fetch('/api/trigger-refresh', { method: 'POST' });
+        const el = document.getElementById('lastFetched');
+        if (el) el.textContent = 'Refresh triggered — data will update in ~5 minutes';
+        let pollCount = 0;
+        const currentTs = allRows.length ? document.getElementById('lastFetched')?.dataset.ts : null;
+        const pollInterval = setInterval(async () => {
+          pollCount++;
+          if (pollCount > 20) { clearInterval(pollInterval); return; }
+          try {
+            const d = await fetch('/data/dashboard_cache.json?' + Date.now()).then(r => r.json());
+            if (d && d.lastFetched && d.lastFetched !== currentTs) {
+              clearInterval(pollInterval);
+              allRows = d.results || [];
+              const ts = new Date(d.lastFetched);
+              const ageHrs = (Date.now() - ts.getTime()) / 3600000;
+              const ageLabel = ageHrs < 1 ? 'just now' : ageHrs < 2 ? '~1 hour ago' : `~${Math.round(ageHrs)} hours ago`;
+              const elf = document.getElementById('lastFetched');
+              if (elf) { elf.textContent = 'Data as of: ' + ts.toLocaleString('en-GB') + ' (' + ageLabel + ')'; elf.dataset.ts = d.lastFetched; }
+              updateStats(); renderTags(); renderTable(); loadActiveView(); loadVideoStats();
+            }
+          } catch(e) {}
+        }, 30000);
+      } catch(e) {
+        const banner = document.getElementById('errorBanner');
+        banner.style.display = 'block';
+        banner.textContent = 'Could not trigger refresh: ' + e.message;
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+      }
+      return;
+    }
+
     btn.disabled = true;
     btn.classList.add('loading');
     document.getElementById('errorBanner').style.display = 'none';
@@ -748,12 +788,10 @@
       progress += Math.max(0.2, (target - progress) * 0.06);
       progress = Math.min(85, progress);
       loadFill.style.width = progress + '%';
-      // Update skeleton caption
       const cap = document.getElementById('skelCaption');
       if (cap) cap.textContent = `Fetching from Google Ad Manager… ${elapsed}s`;
     }, 1000);
 
-    // Skeleton rows with caption
     const skelRow = () => `<tr class="skel-row">
       <td><span class="skel skel-short"></span></td>
       <td><span class="skel skel-line"></span></td>
@@ -787,6 +825,7 @@
                      : ageHrs < 2 ? '~1 hour ago'
                      : `~${Math.round(ageHrs)} hours ago`;
       el.textContent = 'Data as of: ' + ts.toLocaleString('en-GB') + ' (' + ageLabel + ')';
+      el.dataset.ts = data.lastFetched;
       el.style.color = ageHrs > 6 ? '#f59e0b' : ageHrs > 4 ? '#fbbf24' : '';
 
       updateStats();

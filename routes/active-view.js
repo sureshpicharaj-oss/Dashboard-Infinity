@@ -16,20 +16,12 @@ const path = require('path');
 const fs = require('fs');
 const { getToken } = require('../lib/auth');
 const { fetchActiveViewByLineItem, fetchActiveViewByCreative } = require('../lib/gam-activeview');
+const { fetchActiveViewStats } = require('../lib/active-view-data');
 
 const router = express.Router();
 
 module.exports = function(SCREENSHOT_DIR) {
 
-  /* Returns Active View viewability stats keyed by Netlify base URL.
-   * No query params. Requires url_lineitem_cache.json to exist (written by /api/dashboard).
-   * Serves cached data for 6 hours; cache is invalidated on each dashboard refresh.
-   *
-   * When url_lica_imps_cache.json is available (primary path): matches each template
-   * creative to its AV report row by comparing LICA impressions to report measurable
-   * impressions within a tight tolerance of max(50, 1% of imps) — exact creative match only, no fallback.
-   * Falls back to line-item-level aggregation if the imps cache is absent (less accurate
-   * because it includes all creatives on a line item, not just those for this URL). */
   router.get('/api/active-view', async (req, res) => {
     const urlLineItemPath = path.join(SCREENSHOT_DIR, 'url_lineitem_cache.json');
     if (!fs.existsSync(urlLineItemPath)) {
@@ -40,7 +32,6 @@ module.exports = function(SCREENSHOT_DIR) {
     if (fs.existsSync(avCachePath)) {
       try {
         const cached = JSON.parse(fs.readFileSync(avCachePath, 'utf8'));
-        // 6-hour TTL matches the video-stats cache; AV report jobs take 30–90 s to run
         if (cached._ts && Date.now() - cached._ts < 6 * 60 * 60 * 1000) {
           const { _ts, ...data } = cached;
           return res.json(data);
@@ -50,66 +41,16 @@ module.exports = function(SCREENSHOT_DIR) {
 
     try {
       const urlLineItemMap = JSON.parse(fs.readFileSync(urlLineItemPath, 'utf8'));
-      const urlCreativePath = path.join(SCREENSHOT_DIR, 'url_creative_cache.json');
-      let urlCreativeMap = null;
-      if (fs.existsSync(urlCreativePath)) {
-        try { urlCreativeMap = JSON.parse(fs.readFileSync(urlCreativePath, 'utf8')); } catch(e) {}
-      }
-
-      const token = await getToken();
-      const networkCode = process.env.GAM_NETWORK_CODE;
-
-      // Load per-creative, per-line-item LICA impressions saved during Refresh.
-      // Structure: { url: { templateCreativeId: { lineItemId: impressions } } }
       const urlLicaImpsPath = path.join(SCREENSHOT_DIR, 'url_lica_imps_cache.json');
       let urlLicaImpsMap = null;
       if (fs.existsSync(urlLicaImpsPath)) {
         try { urlLicaImpsMap = JSON.parse(fs.readFileSync(urlLicaImpsPath, 'utf8')); } catch(e) {}
       }
 
-      const allLineItemIds = [...new Set(Object.values(urlLineItemMap).flat())];
-      const activeViewByUrl = {};
+      const token = await getToken();
+      const networkCode = process.env.GAM_NETWORK_CODE;
 
-      if (urlLicaImpsMap) {
-        // Impression-count matching: for each URL's template creative in a given line item,
-        // LICA impressions == report measurable. This directly identifies the correct 9-digit
-        // report creative without needing the creative set API.
-        const avByLIAndCreative = await fetchActiveViewByCreative(allLineItemIds, networkCode, token);
-
-        for (const [url] of Object.entries(urlLineItemMap)) {
-          const licaImps = urlLicaImpsMap[url];
-          if (!licaImps) continue;
-          let totalViewable = 0, totalMeasurable = 0;
-          for (const [, perLI] of Object.entries(licaImps)) {
-            for (const [liId, imps] of Object.entries(perLI)) {
-              const liCreatives = avByLIAndCreative[liId];
-              if (!liCreatives) continue;
-              // Match the exact rendered creative: its measurable impressions must be
-              // within 1% (or 50 impressions) of the LICA count for this template creative.
-              // No closest-match fallback — wrong creative data is worse than no data.
-              const tol = Math.max(50, Math.round(imps * 0.01));
-              const match = Object.values(liCreatives).find(av => Math.abs(Math.round(av.measurable) - imps) <= tol);
-              if (match) {
-                totalViewable   += match.viewable;
-                totalMeasurable += match.measurable;
-              }
-            }
-          }
-          if (totalMeasurable > 0) activeViewByUrl[url] = { rate: parseFloat(((totalViewable / totalMeasurable) * 100).toFixed(1)), viewable: totalViewable, measurable: totalMeasurable };
-        }
-      } else {
-        // Fallback only if Refresh has never run (no imps cache). Use line-item level but note
-        // this includes all creatives in the line item, not just those for this URL.
-        const activeViewByLineItem = await fetchActiveViewByLineItem(allLineItemIds, networkCode, token);
-        for (const [url, lineItemIds] of Object.entries(urlLineItemMap)) {
-          let totalViewable = 0, totalMeasurable = 0;
-          for (const lid of lineItemIds) {
-            const av = activeViewByLineItem[lid];
-            if (av) { totalViewable += av.viewable; totalMeasurable += av.measurable; }
-          }
-          if (totalMeasurable > 0) activeViewByUrl[url] = { rate: parseFloat(((totalViewable / totalMeasurable) * 100).toFixed(1)), viewable: totalViewable, measurable: totalMeasurable };
-        }
-      }
+      const activeViewByUrl = await fetchActiveViewStats(urlLineItemMap, urlLicaImpsMap, networkCode, token);
 
       activeViewByUrl._ts = Date.now();
       fs.writeFileSync(avCachePath, JSON.stringify(activeViewByUrl));

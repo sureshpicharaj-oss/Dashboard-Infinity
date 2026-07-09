@@ -1,0 +1,62 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Read-only data — serve committed JSON directly as static files
+[[redirects]]
+  from = "/api/dashboard"
+  to = "/data/dashboard_cache.json"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/video-stats"
+  to = "/data/video_stats_cache.json"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/active-view"
+  to = "/data/active_view_cache.json"
+  status = 200
+  force = true
+
+# Write operations and trigger — Netlify Functions
+[[redirects]]
+  from = "/api/tag-rules"
+  to = "/.netlify/functions/tag-rules"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/url-tags"
+  to = "/.netlify/functions/url-tags"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/advertiser"
+  to = "/.netlify/functions/advertiser"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/screenshot/upload"
+  to = "/.netlify/functions/screenshot-upload"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/screenshot"
+  to = "/.netlify/functions/screenshot"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/trigger-refresh"
+  to = "/.netlify/functions/trigger-refresh"
+  status = 200
+  force = true
