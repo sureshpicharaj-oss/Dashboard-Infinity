@@ -46,7 +46,7 @@ async function main() {
     durationSec:          r.videoId ? (videoStats[r.videoId]?.durationSec ?? null) : null,
   }));
 
-  const dataDir = path.join(__dirname, '..', 'data');
+  const dataDir = path.join(__dirname, '..', 'public', 'data');
   fs.mkdirSync(dataDir, { recursive: true });
 
   fs.writeFileSync(
@@ -62,7 +62,7 @@ async function main() {
     JSON.stringify(activeView)
   );
 
-  console.log('Refresh complete. Files written to data/');
+  console.log('Refresh complete. Files written to public/data/');
 }
 
 main().catch(err => {
