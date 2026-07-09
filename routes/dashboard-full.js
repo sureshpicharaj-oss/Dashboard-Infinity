@@ -29,11 +29,10 @@ module.exports = function(SCREENSHOT_DIR) {
         if (fs.existsSync(vsPath)) videoStatsByVideoId = JSON.parse(fs.readFileSync(vsPath, 'utf8'));
       } catch(e) {}
 
-      const mergedResults = results.map(r => ({
-        ...r,
-        completionRate: r.videoId ? (videoStatsByVideoId[r.videoId]?.completionRate ?? null) : null,
-        durationSec:    r.videoId ? (videoStatsByVideoId[r.videoId]?.durationSec ?? null) : null,
-      }));
+      const mergedResults = results.map(r => {
+        const vs = r.videoId ? (videoStatsByVideoId[r.videoId + '_' + r.device] ?? videoStatsByVideoId[r.videoId]) : null;
+        return { ...r, completionRate: vs?.completionRate ?? null, durationSec: vs?.durationSec ?? null };
+      });
 
       res.json({ total: mergedResults.length, lastFetched: new Date().toISOString(), results: mergedResults });
     } catch (err) {

@@ -29,8 +29,8 @@ async function main() {
   console.log(`Dashboard: ${results.length} rows`);
 
   console.log('Running video stats fetch…');
-  const videoStats = await fetchVideoStats(Object.keys(videoIdMap), networkCode, token);
-  console.log(`Video stats: ${Object.keys(videoStats).length} video IDs`);
+  const videoStats = await fetchVideoStats(videoIdMap, networkCode, token);
+  console.log(`Video stats: ${Object.keys(videoStats).length} keys`);
 
   console.log('Running active view fetch…');
   const activeView = await fetchActiveViewStats(urlLineItemMap, urlLicaImpsMap, networkCode, token);
@@ -42,8 +42,8 @@ async function main() {
     activeView:           activeView[r.netlifyUrl]?.rate ?? null,
     activeViewViewable:   activeView[r.netlifyUrl]?.viewable ?? null,
     activeViewMeasurable: activeView[r.netlifyUrl]?.measurable ?? null,
-    completionRate:       r.videoId ? (videoStats[r.videoId]?.completionRate ?? null) : null,
-    durationSec:          r.videoId ? (videoStats[r.videoId]?.durationSec ?? null) : null,
+    completionRate:       r.videoId ? ((videoStats[r.videoId + '_' + r.device] ?? videoStats[r.videoId])?.completionRate ?? null) : null,
+    durationSec:          r.videoId ? ((videoStats[r.videoId + '_' + r.device] ?? videoStats[r.videoId])?.durationSec ?? null) : null,
   }));
 
   const dataDir = path.join(__dirname, '..', 'public', 'data');
