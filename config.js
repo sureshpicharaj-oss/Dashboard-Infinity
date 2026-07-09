@@ -16,6 +16,7 @@ const GAM_LICA_SOAP_ENDPOINT = 'https://ads.google.com/apis/ads/publisher/v20260
 const GAM_SOAP_NS = 'https://www.google.com/apis/ads/publisher/v202602';
 const GAM_LINEITEM_SOAP_ENDPOINT = 'https://ads.google.com/apis/ads/publisher/v202602/LineItemService';
 const GAM_CUSTOM_TARGETING_ENDPOINT = 'https://ads.google.com/apis/ads/publisher/v202602/CustomTargetingService';
+const GAM_INVENTORY_SOAP_ENDPOINT = 'https://ads.google.com/apis/ads/publisher/v202602/InventoryService';
 const SCOPES = ['https://www.googleapis.com/auth/admanager'];
 
 // Orders whose creatives are completely excluded from the dashboard
@@ -34,6 +35,7 @@ module.exports = {
   GAM_SOAP_NS,
   GAM_LINEITEM_SOAP_ENDPOINT,
   GAM_CUSTOM_TARGETING_ENDPOINT,
+  GAM_INVENTORY_SOAP_ENDPOINT,
   SCOPES,
   EXCLUDED_ORDER_IDS,
   VIDEO_TARGETING_KEY_NAMES,

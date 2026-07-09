@@ -235,11 +235,13 @@ module.exports = function(SCREENSHOT_DIR) {
       // with fresh LICA impression counts from this refresh
       try { fs.unlinkSync(path.join(SCREENSHOT_DIR, 'active_view_cache.json')); } catch(e) {}
 
-      // url_videoid_cache.json — used by /api/video-stats to find video hosting line items
+      // url_videoid_cache.json — used by /api/video-stats to find video hosting line items.
+      // Stores { videoId: { netlifyUrl, isMobile } } so video-stats can pick the device-specific
+      // completion rate (desktop vs mobile) from the DEVICE_CATEGORY-segmented GAM report.
       const videoIdUrlMap = {};
       for (const g of Object.values(grouped)) {
         if (g.videoId && !videoIdUrlMap[g.videoId]) {
-          videoIdUrlMap[g.videoId] = g.netlifyUrl;
+          videoIdUrlMap[g.videoId] = { netlifyUrl: g.netlifyUrl, isMobile: !!g.isMobile };
         }
       }
       fs.writeFileSync(path.join(SCREENSHOT_DIR, 'url_videoid_cache.json'), JSON.stringify(videoIdUrlMap));

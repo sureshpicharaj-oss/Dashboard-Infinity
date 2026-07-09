@@ -751,12 +751,16 @@
       }
       statRows = [...urlMap.values()];
 
-      const shortRates = tabRows.filter(r => r.completionRate != null && durationBucket(r.durationSec) === '15s').map(r => r.completionRate);
-      const longRates  = tabRows.filter(r => r.completionRate != null && durationBucket(r.durationSec) === '30s').map(r => r.completionRate);
-      document.getElementById('statAvgShort').textContent = shortRates.length
-        ? parseFloat((shortRates.reduce((s, v) => s + v, 0) / shortRates.length).toFixed(1)) + '%' : '—';
-      document.getElementById('statAvgLong').textContent = longRates.length
-        ? parseFloat((longRates.reduce((s, v) => s + v, 0) / longRates.length).toFixed(1)) + '%' : '—';
+      const shortRows = tabRows.filter(r => r.completionRate != null && durationBucket(r.durationSec) === '15s');
+      const longRows  = tabRows.filter(r => r.completionRate != null && durationBucket(r.durationSec) === '30s');
+      const wAvg = rows => {
+        const ts = rows.reduce((s, r) => s + (r.videoStarts || 0), 0);
+        return ts > 0
+          ? parseFloat((rows.reduce((s, r) => s + r.completionRate * (r.videoStarts || 0), 0) / ts).toFixed(1))
+          : parseFloat((rows.reduce((s, r) => s + r.completionRate, 0) / rows.length).toFixed(1));
+      };
+      document.getElementById('statAvgShort').textContent = shortRows.length ? wAvg(shortRows) + '%' : '—';
+      document.getElementById('statAvgLong').textContent  = longRows.length  ? wAvg(longRows)  + '%' : '—';
     } else {
       statRows = tabRows;
     }
@@ -815,7 +819,10 @@
       const vids = groups[bucket];
       if (!vids.length) continue;
       const label = bucket === '15s' ? 'Short-form (~15s)' : bucket === '30s' ? 'Long-form (~30s)' : 'Video';
-      const avg = parseFloat((vids.reduce((s, v) => s + v.completionRate, 0) / vids.length).toFixed(1));
+      const totStarts = vids.reduce((s, v) => s + (v.videoStarts || 0), 0);
+      const avg = totStarts > 0
+        ? parseFloat((vids.reduce((s, v) => s + v.completionRate * (v.videoStarts || 0), 0) / totStarts).toFixed(1))
+        : parseFloat((vids.reduce((s, v) => s + v.completionRate, 0) / vids.length).toFixed(1));
       html += `<div class="vid-dur-group">`;
       html += `<div class="vid-sub-item"><span class="dur-label">${label}</span></div><div><span class="comp-pill">${avg}%</span></div>`;
       html += `</div>`;
@@ -866,7 +873,7 @@
         const g = urlMap.get(r.netlifyUrl);
         g.impressions += r.impressions || 0;
         g.clicks      += r.clicks || 0;
-        if (r.videoId) g.videos.push({ videoId: r.videoId, completionRate: r.completionRate, durationSec: r.durationSec ?? null });
+        if (r.videoId) g.videos.push({ videoId: r.videoId, completionRate: r.completionRate, durationSec: r.durationSec ?? null, videoStarts: r.videoStarts ?? null });
         if ((r.sortKey || 0) > g.sortKey) g.sortKey = r.sortKey;
         (r.lineItemIds || []).forEach(id => g.lineItemIds.add(id));
       }
@@ -1086,6 +1093,7 @@
         if (!d) return;
         if (d.completionRate != null) r.completionRate = d.completionRate;
         if (d.durationSec != null) r.durationSec = d.durationSec;
+        if (d.videoStarts != null) r.videoStarts = d.videoStarts;
       });
       if (activeTab === 'video') renderTable();
     } catch(e) {}
