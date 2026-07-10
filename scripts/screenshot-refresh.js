@@ -2,9 +2,9 @@
 
 /*
  * Screenshot refresh script — run by GitHub Actions after the daily GAM data refresh.
- * Only captures screenshots that are not already stored in Netlify Blobs — so once a
- * screenshot exists (auto-captured or manually uploaded) it persists until cleared.
- * Manual uploads always take read priority over auto-captured ones.
+ * Captures a screenshot of every unique Netlify creative URL in the dashboard cache
+ * and uploads to Netlify Blobs. Runs unconditionally so screenshots stay fresh as
+ * creatives update. Manual uploads (upload_ prefix) always take read priority.
  *
  * Usage: node scripts/screenshot-refresh.js
  * Env vars required: NETLIFY_SITE_URL  (e.g. https://your-site.netlify.app)
@@ -91,22 +91,8 @@ async function uploadScreenshot(baseUrl, device, buffer) {
   }
 }
 
-async function screenshotExists(baseUrl, device) {
-  const url = `${NETLIFY_SITE_URL}/api/screenshot?url=${encodeURIComponent(baseUrl)}&device=${encodeURIComponent(device)}`;
-  try {
-    const res = await fetch(url, { method: 'HEAD' });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
 async function processTarget(browser, { baseUrl, device }) {
   try {
-    if (await screenshotExists(baseUrl, device)) {
-      console.log(`  –  ${baseUrl} (${device}) — already stored, skipping`);
-      return true;
-    }
     const buffer = await takeScreenshot(browser, baseUrl, device);
     await uploadScreenshot(baseUrl, device, buffer);
     console.log(`  ✓  ${baseUrl} (${device})`);
