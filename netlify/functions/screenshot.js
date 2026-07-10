@@ -7,8 +7,12 @@ exports.handler = async (event) => {
   const { url, device } = event.queryStringParameters || {};
   if (!url) return { statusCode: 400, body: 'url param required' };
 
+  // Strip to base origin so hash matches uploads and local server
+  const decodedUrl = decodeURIComponent(url);
+  const baseUrl = decodedUrl.match(/https?:\/\/[^\s]+?\.netlify\.app\//)?.[0] || decodedUrl;
+
   const store = getStore('screenshots');
-  const key = crypto.createHash('md5').update(`${url}|${device || ''}`).digest('hex');
+  const key = crypto.createHash('md5').update(`${baseUrl}|${device || ''}`).digest('hex');
 
   // Manual uploads take priority over auto-generated screenshots
   let data = await store.get('upload_' + key, { type: 'arrayBuffer' }).catch(() => null);

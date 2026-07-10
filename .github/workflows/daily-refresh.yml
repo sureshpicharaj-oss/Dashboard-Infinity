@@ -34,3 +34,8 @@ jobs:
           git add public/data/
           git diff --staged --quiet || git commit -m "chore: auto-refresh GAM data [skip ci]"
           git push
+
+      - name: Refresh screenshots
+        run: node scripts/screenshot-refresh.js
+        env:
+          NETLIFY_SITE_URL: ${{ secrets.NETLIFY_SITE_URL }}

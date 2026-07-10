@@ -9,8 +9,12 @@ exports.handler = async (event) => {
   const { url, device } = event.queryStringParameters || {};
   if (!url) return { statusCode: 400, body: 'url param required' };
 
+  // Strip to base origin so hash matches the read function and local server
+  const decodedUrl = decodeURIComponent(url);
+  const baseUrl = decodedUrl.match(/https?:\/\/[^\s]+?\.netlify\.app\//)?.[0] || decodedUrl;
+
   const store = getStore('screenshots');
-  const key = 'upload_' + crypto.createHash('md5').update(`${url}|${device || ''}`).digest('hex');
+  const key = 'upload_' + crypto.createHash('md5').update(`${baseUrl}|${device || ''}`).digest('hex');
 
   const body = event.isBase64Encoded
     ? Buffer.from(event.body, 'base64')
