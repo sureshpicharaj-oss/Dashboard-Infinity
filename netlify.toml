@@ -4,6 +4,7 @@
 
 [functions]
   node_bundler = "esbuild"
+  external_node_modules = ["@netlify/blobs"]
 
 # Read-only data — serve committed JSON directly as static files
 [[redirects]]
