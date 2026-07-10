@@ -142,8 +142,7 @@
       display: flex;
       align-items: center;
     }
-    .stat-card.c-allimps {
-      background: linear-gradient(135deg, #1a3a6e 0%, #2563b8 60%, #3b82f6 100%);
+    .stat-card.c-allimps, .stat-card.c-allclicks {
       border-radius: 12px;
       padding: 18px 30px;
       min-width: 190px;
@@ -151,7 +150,9 @@
       position: relative;
       overflow: hidden;
     }
-    .stat-card.c-allimps::before {
+    .stat-card.c-allimps { background: linear-gradient(135deg, #1a3a6e 0%, #2563b8 60%, #3b82f6 100%); }
+    .stat-card.c-allclicks { background: linear-gradient(135deg, #134e4a 0%, #0d9488 60%, #2dd4bf 100%); }
+    .stat-card.c-allimps::before, .stat-card.c-allclicks::before {
       content: '';
       position: absolute;
       top: -30px; right: -30px;
@@ -159,20 +160,20 @@
       background: rgba(255,255,255,.07);
       border-radius: 50%;
     }
-    .stat-card.c-allimps .label {
+    .stat-card.c-allimps .label, .stat-card.c-allclicks .label {
       font-size: .68rem;
       color: rgba(255,255,255,.75);
       text-transform: uppercase;
       letter-spacing: .8px;
     }
-    .stat-card.c-allimps .value {
+    .stat-card.c-allimps .value, .stat-card.c-allclicks .value {
       font-size: 2rem;
       font-weight: 800;
       color: #fff;
       margin-top: 4px;
       letter-spacing: -.5px;
     }
-    .stat-card.c-allimps .sublabel {
+    .stat-card.c-allimps .sublabel, .stat-card.c-allclicks .sublabel {
       font-size: .62rem;
       color: rgba(255,255,255,.5);
       margin-top: 4px;
@@ -479,6 +480,11 @@
     <div class="stat-card c-allimps">
       <div class="label">Total Infinity Served</div>
       <div class="value" id="statAllImps">—</div>
+      <div class="sublabel">All sections combined</div>
+    </div>
+    <div class="stat-card c-allclicks">
+      <div class="label">Clicks Collected</div>
+      <div class="value" id="statAllClicks">—</div>
       <div class="sublabel">All sections combined</div>
     </div>
   </div>
@@ -927,12 +933,18 @@
     document.getElementById('statActive').textContent  = withData.length.toLocaleString();
     document.getElementById('statNoData').textContent  = (statRows.length - withData.length).toLocaleString();
 
-    // All-sections total — sums impressions across every tab regardless of active view
+    // All-sections totals — sums across every tab regardless of active view
     const allImps = allRows.filter(r => r.impressions > 0).reduce((s, r) => s + r.impressions, 0);
     const allImpsStr = allImps >= 1e9 ? (allImps / 1e9).toFixed(2) + 'B'
                      : allImps >= 1e6 ? (allImps / 1e6).toFixed(2) + 'M'
                      : allImps.toLocaleString();
     document.getElementById('statAllImps').textContent = allImpsStr;
+
+    const allClicks = allRows.filter(r => r.clicks > 0).reduce((s, r) => s + r.clicks, 0);
+    const allClicksStr = allClicks >= 1e9 ? (allClicks / 1e9).toFixed(2) + 'B'
+                       : allClicks >= 1e6 ? (allClicks / 1e6).toFixed(2) + 'M'
+                       : allClicks.toLocaleString();
+    document.getElementById('statAllClicks').textContent = allClicksStr;
   }
 
   function durationBucket(durationSec) {
