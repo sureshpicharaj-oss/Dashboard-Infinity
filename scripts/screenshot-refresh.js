@@ -78,7 +78,8 @@ async function takeScreenshot(browser, baseUrl, device) {
 }
 
 async function uploadScreenshot(baseUrl, device, buffer) {
-  const url = `${NETLIFY_SITE_URL}/api/screenshot/upload?url=${encodeURIComponent(baseUrl)}&device=${encodeURIComponent(device)}`;
+  // auto=true stores under bare key — manual uploads (upload_ prefix) always take read priority
+  const url = `${NETLIFY_SITE_URL}/api/screenshot/upload?url=${encodeURIComponent(baseUrl)}&device=${encodeURIComponent(device)}&auto=true`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'image/png' },
