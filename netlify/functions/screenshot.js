@@ -11,8 +11,16 @@ exports.handler = async (event) => {
   const decodedUrl = decodeURIComponent(url);
   const baseUrl = decodedUrl.match(/https?:\/\/[^\s]+?\.netlify\.app\//)?.[0] || decodedUrl;
 
+  const { check } = event.queryStringParameters || {};
   const store = getStore('screenshots');
   const key = crypto.createHash('md5').update(`${baseUrl}|${device || ''}`).digest('hex');
+
+  // ?check=1 — lightweight existence check used by the screenshot refresh script
+  if (check === '1') {
+    const exists = (await store.get('upload_' + key).catch(() => null)) !== null
+                || (await store.get(key).catch(() => null)) !== null;
+    return { statusCode: exists ? 200 : 404, body: '' };
+  }
 
   // Manual uploads take priority over auto-generated screenshots
   let data = await store.get('upload_' + key, { type: 'arrayBuffer' }).catch(() => null);
