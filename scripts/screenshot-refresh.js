@@ -2,9 +2,9 @@
 
 /*
  * Screenshot refresh script — run by GitHub Actions after the daily GAM data refresh.
- * Reads all Netlify creative URLs from the dashboard cache, takes Puppeteer screenshots
- * (desktop + mobile matching the same viewport/clip as the local server), and uploads
- * each to Netlify Blobs via the /api/screenshot/upload endpoint.
+ * Only captures screenshots that are not already stored in Netlify Blobs — so once a
+ * screenshot exists (auto-captured or manually uploaded) it persists until cleared.
+ * Manual uploads always take read priority over auto-captured ones.
  *
  * Usage: node scripts/screenshot-refresh.js
  * Env vars required: NETLIFY_SITE_URL  (e.g. https://your-site.netlify.app)
@@ -91,8 +91,22 @@ async function uploadScreenshot(baseUrl, device, buffer) {
   }
 }
 
+async function screenshotExists(baseUrl, device) {
+  const url = `${NETLIFY_SITE_URL}/api/screenshot?url=${encodeURIComponent(baseUrl)}&device=${encodeURIComponent(device)}`;
+  try {
+    const res = await fetch(url, { method: 'HEAD' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function processTarget(browser, { baseUrl, device }) {
   try {
+    if (await screenshotExists(baseUrl, device)) {
+      console.log(`  –  ${baseUrl} (${device}) — already stored, skipping`);
+      return true;
+    }
     const buffer = await takeScreenshot(browser, baseUrl, device);
     await uploadScreenshot(baseUrl, device, buffer);
     console.log(`  ✓  ${baseUrl} (${device})`);
