@@ -3,7 +3,7 @@
 const { getStore } = require('@netlify/blobs');
 
 exports.handler = async (event) => {
-  const store = getStore('user-data');
+  const store = getStore({ name: 'user-data', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
 
   if (event.httpMethod === 'GET') {
     const tags = await store.getJSON('url_tags').catch(() => null);
