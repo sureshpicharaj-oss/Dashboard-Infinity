@@ -14,8 +14,9 @@
  */
 
 require('dotenv').config();
-const fs   = require('fs');
-const path = require('path');
+const fs     = require('fs');
+const path   = require('path');
+const crypto = require('crypto');
 
 const cacheFile     = path.join(__dirname, '../public/data/dashboard_cache.json');
 const screenshotDir = path.join(__dirname, '../public/screenshots');
@@ -53,7 +54,6 @@ for (const row of results) {
 
 const pending = targets.filter(t => !fs.existsSync(screenshotPath(t.subdomain, t.device)));
 console.log(`Found ${targets.length} unique URLs — ${targets.length - pending.length} already captured, ${pending.length} to capture`);
-if (!pending.length) process.exit(0);
 
 const puppeteer = require('puppeteer');
 
@@ -96,7 +96,43 @@ async function processTarget(browser, { subdomain, device, netlifyUrl }) {
   }
 }
 
+// Sync manual uploads from Netlify Blobs — overwrites static PNGs where an upload_ entry exists
+async function syncManualUploads() {
+  const siteID = process.env.NETLIFY_SITE_ID || process.env.SITE_ID;
+  const token  = process.env.NETLIFY_AUTH_TOKEN;
+  if (!siteID || !token) return 0;
+
+  let store;
+  try {
+    const { getStore } = require('@netlify/blobs');
+    store = getStore({ name: 'screenshots', siteID, token });
+  } catch {
+    return 0;
+  }
+
+  let synced = 0;
+  for (const { subdomain, device, netlifyUrl } of targets) {
+    const baseUrl = netlifyUrl.match(/https?:\/\/[^\s]+?\.netlify\.app\//)?.[0] || netlifyUrl;
+    const hash    = crypto.createHash('md5').update(`${baseUrl}|${device}`).digest('hex');
+    const data    = await store.get('upload_' + hash, { type: 'arrayBuffer' }).catch(() => null);
+    if (!data) continue;
+    fs.writeFileSync(screenshotPath(subdomain, device), Buffer.from(data));
+    console.log(`  ↑  ${subdomain} (${device}) — manual upload applied`);
+    synced++;
+  }
+  return synced;
+}
+
 async function main() {
+  // Sync any manual uploads from Blobs first (overrides existing static files)
+  const synced = await syncManualUploads();
+  if (synced > 0) console.log(`Synced ${synced} manual upload(s) to static files\n`);
+
+  if (!pending.length) {
+    console.log('No new URLs to capture');
+    return;
+  }
+
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
