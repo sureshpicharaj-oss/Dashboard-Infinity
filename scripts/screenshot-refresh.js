@@ -1,79 +1,63 @@
 'use strict';
 
 /*
- * Screenshot refresh script — run by GitHub Actions after the daily GAM data refresh.
- * Writes screenshots directly to Netlify Blobs using explicit credentials, bypassing
- * the Netlify Function upload endpoint entirely (avoids MissingBlobsEnvironmentError).
- * Skips URLs that already have a screenshot stored. Manual uploads (upload_ prefix)
- * always take read priority over auto-captured ones (bare key).
+ * Screenshot refresh script — run locally or via GitHub Actions.
+ * Saves screenshots as static PNG files to public/screenshots/ which are
+ * committed to git and served directly by Netlify CDN (no Blobs needed).
+ * Skips URLs that already have a file on disk.
+ *
+ * Filename format: <netlify-subdomain>-<device>.png
+ * e.g. ecvoters-welsh-mobile-200226-mobile.png
  *
  * Usage: node scripts/screenshot-refresh.js
- * Env vars required: NETLIFY_SITE_ID, NETLIFY_AUTH_TOKEN
+ * No env vars required beyond what dotenv provides.
  */
 
 require('dotenv').config();
-const fs     = require('fs');
-const path   = require('path');
-const crypto = require('crypto');
+const fs   = require('fs');
+const path = require('path');
 
-const NETLIFY_SITE_ID    = process.env.NETLIFY_SITE_ID;
-const NETLIFY_AUTH_TOKEN = process.env.NETLIFY_AUTH_TOKEN;
+const cacheFile     = path.join(__dirname, '../public/data/dashboard_cache.json');
+const screenshotDir = path.join(__dirname, '../public/screenshots');
 
-if (!NETLIFY_SITE_ID || !NETLIFY_AUTH_TOKEN) {
-  console.log('NETLIFY_SITE_ID or NETLIFY_AUTH_TOKEN not set — skipping screenshot refresh');
-  process.exit(0);
-}
-
-const cacheFile = path.join(__dirname, '../public/data/dashboard_cache.json');
 if (!fs.existsSync(cacheFile)) {
   console.log('No dashboard cache found — skipping screenshot refresh');
   process.exit(0);
 }
 
+fs.mkdirSync(screenshotDir, { recursive: true });
+
 const { results = [] } = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
 
-function toBaseUrl(rawUrl) {
-  return rawUrl.match(/https?:\/\/[^\s]+?\.netlify\.app\//)?.[0] || rawUrl;
+function toSubdomain(netlifyUrl) {
+  return netlifyUrl.match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || null;
 }
 
-// Deduplicate by stripped base URL + device
+function screenshotPath(subdomain, device) {
+  return path.join(screenshotDir, `${subdomain}-${device}.png`);
+}
+
+// Deduplicate by subdomain + device
 const seen    = new Set();
 const targets = [];
 for (const row of results) {
   if (!row.netlifyUrl) continue;
-  const baseUrl = toBaseUrl(row.netlifyUrl);
-  const device  = row.device || 'desktop';
-  const key     = `${baseUrl}|${device}`;
+  const subdomain = toSubdomain(row.netlifyUrl);
+  if (!subdomain) continue;
+  const device = row.device || 'desktop';
+  const key    = `${subdomain}|${device}`;
   if (seen.has(key)) continue;
   seen.add(key);
-  targets.push({ baseUrl, device });
+  targets.push({ subdomain, device, netlifyUrl: row.netlifyUrl });
 }
 
-console.log(`Found ${targets.length} unique URL/device combinations`);
-if (!targets.length) process.exit(0);
+const pending = targets.filter(t => !fs.existsSync(screenshotPath(t.subdomain, t.device)));
+console.log(`Found ${targets.length} unique URLs — ${targets.length - pending.length} already captured, ${pending.length} to capture`);
+if (!pending.length) process.exit(0);
 
-const { getStore } = require('@netlify/blobs');
-const puppeteer    = require('puppeteer');
+const puppeteer = require('puppeteer');
 
-// Connect directly to Blobs with explicit credentials — works from any environment
-const store = getStore({ name: 'screenshots', siteID: NETLIFY_SITE_ID, token: NETLIFY_AUTH_TOKEN });
-
-function blobKey(baseUrl, device) {
-  return crypto.createHash('md5').update(`${baseUrl}|${device}`).digest('hex');
-}
-
-async function screenshotExists(baseUrl, device) {
-  const hash = blobKey(baseUrl, device);
-  // Check manual upload first, then auto-capture
-  if ((await store.get('upload_' + hash).catch(() => null)) !== null) return true;
-  return (await store.get(hash).catch(() => null)) !== null;
-}
-
-async function saveScreenshot(baseUrl, device, buffer) {
-  await store.set(blobKey(baseUrl, device), buffer);
-}
-
-async function takeScreenshot(browser, baseUrl, device) {
+async function takeScreenshot(browser, netlifyUrl, device) {
   const isMobile = device === 'mobile' || device === 'video-mobile';
   const page = await browser.newPage();
   try {
@@ -88,7 +72,7 @@ async function takeScreenshot(browser, baseUrl, device) {
       if (r.resourceType() === 'media') r.abort();
       else r.continue();
     });
-    await page.goto(baseUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+    await page.goto(netlifyUrl, { waitUntil: 'load', timeout: 60000 });
     await new Promise(r => setTimeout(r, 2500));
     const clipWidth  = isMobile ? 390 : 1920;
     const clipY      = isMobile ? 720 : 0;
@@ -99,18 +83,15 @@ async function takeScreenshot(browser, baseUrl, device) {
   }
 }
 
-async function processTarget(browser, { baseUrl, device }) {
+async function processTarget(browser, { subdomain, device, netlifyUrl }) {
+  const outPath = screenshotPath(subdomain, device);
   try {
-    if (await screenshotExists(baseUrl, device)) {
-      console.log(`  –  ${baseUrl} (${device}) — already stored, skipping`);
-      return true;
-    }
-    const buffer = await takeScreenshot(browser, baseUrl, device);
-    await saveScreenshot(baseUrl, device, buffer);
-    console.log(`  ✓  ${baseUrl} (${device})`);
+    const buffer = await takeScreenshot(browser, netlifyUrl, device);
+    fs.writeFileSync(outPath, buffer);
+    console.log(`  ✓  ${subdomain} (${device})`);
     return true;
   } catch (err) {
-    console.error(`  ✗  ${baseUrl} (${device}) — ${err.message}`);
+    console.error(`  ✗  ${subdomain} (${device}) — ${err.message}`);
     return false;
   }
 }
@@ -119,13 +100,14 @@ async function main() {
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    protocolTimeout: 60000,
   });
 
   let ok = 0, fail = 0;
   try {
     const CONCURRENCY = 3;
-    for (let i = 0; i < targets.length; i += CONCURRENCY) {
-      const batch   = targets.slice(i, i + CONCURRENCY);
+    for (let i = 0; i < pending.length; i += CONCURRENCY) {
+      const batch   = pending.slice(i, i + CONCURRENCY);
       const results = await Promise.all(batch.map(t => processTarget(browser, t)));
       ok   += results.filter(Boolean).length;
       fail += results.filter(v => !v).length;
@@ -134,7 +116,7 @@ async function main() {
     await browser.close();
   }
 
-  console.log(`\nScreenshot refresh complete: ${ok} uploaded, ${fail} failed`);
+  console.log(`\nScreenshot refresh complete: ${ok} captured, ${fail} failed`);
   if (fail > 0 && ok === 0) process.exit(1);
 }
 

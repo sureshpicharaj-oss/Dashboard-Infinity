@@ -4,9 +4,6 @@ node_modules/
 service-account.json
 *.json.key
 
-# Screenshots and cache — all regenerated at runtime, never commit
-public/screenshots/
-public/screenshots-desktop/
 
 # OS / editor noise
 .DS_Store
