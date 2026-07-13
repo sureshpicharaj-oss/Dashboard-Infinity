@@ -25,23 +25,6 @@
     header h1 { font-size: 1.3rem; font-weight: 600; }
     .meta { font-size: .78rem; color: #aab; margin-top: 3px; }
 
-    #refreshBtn {
-      background: #4f7fff;
-      color: #fff;
-      border: none;
-      padding: 9px 20px;
-      border-radius: 6px;
-      font-size: .88rem;
-      font-weight: 500;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      transition: background .15s;
-    }
-    #refreshBtn:hover { background: #3a6be8; }
-    #refreshBtn:disabled { background: #556; cursor: not-allowed; }
-
     .spinner {
       width: 14px; height: 14px;
       border: 2px solid rgba(255,255,255,.35);
@@ -50,8 +33,6 @@
       animation: spin .7s linear infinite;
       display: none;
     }
-    .loading .spinner { display: block; }
-    .loading #refreshLabel { display: none; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* Skeleton loading */
@@ -428,10 +409,6 @@
     <h1>Infinity Dashboard</h1>
     <div class="meta" id="lastFetched">Not yet loaded</div>
   </div>
-  <button id="refreshBtn" onclick="loadData(true)">
-    <span class="spinner"></span>
-    <span id="refreshLabel">&#x21bb; Refresh</span>
-  </button>
 </header>
 <div id="loadBar"><div id="loadBarFill"></div></div>
 
@@ -535,7 +512,7 @@
       </tr>
     </thead>
     <tbody id="tableBody">
-      <tr><td colspan="7" class="empty-state">Click Refresh to load data</td></tr>
+      <tr><td colspan="7" class="empty-state">Loading data…</td></tr>
     </tbody>
   </table>
 </div>
