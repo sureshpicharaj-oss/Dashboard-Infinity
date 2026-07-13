@@ -2,21 +2,25 @@
 
 /*
  * Screenshot refresh script — run by GitHub Actions after the daily GAM data refresh.
- * Skips URLs that already have a screenshot stored in Netlify Blobs — once captured
- * (auto or manual) a screenshot persists. Manual uploads (upload_ prefix) always
- * take read priority over auto-captured ones (bare key).
+ * Writes screenshots directly to Netlify Blobs using explicit credentials, bypassing
+ * the Netlify Function upload endpoint entirely (avoids MissingBlobsEnvironmentError).
+ * Skips URLs that already have a screenshot stored. Manual uploads (upload_ prefix)
+ * always take read priority over auto-captured ones (bare key).
  *
  * Usage: node scripts/screenshot-refresh.js
- * Env vars required: NETLIFY_SITE_URL  (e.g. https://your-site.netlify.app)
+ * Env vars required: NETLIFY_SITE_ID, NETLIFY_AUTH_TOKEN
  */
 
 require('dotenv').config();
-const fs   = require('fs');
-const path = require('path');
+const fs     = require('fs');
+const path   = require('path');
+const crypto = require('crypto');
 
-const NETLIFY_SITE_URL = process.env.NETLIFY_SITE_URL;
-if (!NETLIFY_SITE_URL) {
-  console.log('NETLIFY_SITE_URL not set — skipping screenshot refresh');
+const NETLIFY_SITE_ID    = process.env.NETLIFY_SITE_ID;
+const NETLIFY_AUTH_TOKEN = process.env.NETLIFY_AUTH_TOKEN;
+
+if (!NETLIFY_SITE_ID || !NETLIFY_AUTH_TOKEN) {
+  console.log('NETLIFY_SITE_ID or NETLIFY_AUTH_TOKEN not set — skipping screenshot refresh');
   process.exit(0);
 }
 
@@ -28,7 +32,6 @@ if (!fs.existsSync(cacheFile)) {
 
 const { results = [] } = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
 
-// Strip URL to base origin (same logic as routes/screenshot.js)
 function toBaseUrl(rawUrl) {
   return rawUrl.match(/https?:\/\/[^\s]+?\.netlify\.app\//)?.[0] || rawUrl;
 }
@@ -49,7 +52,26 @@ for (const row of results) {
 console.log(`Found ${targets.length} unique URL/device combinations`);
 if (!targets.length) process.exit(0);
 
-const puppeteer = require('puppeteer');
+const { getStore } = require('@netlify/blobs');
+const puppeteer    = require('puppeteer');
+
+// Connect directly to Blobs with explicit credentials — works from any environment
+const store = getStore({ name: 'screenshots', siteID: NETLIFY_SITE_ID, token: NETLIFY_AUTH_TOKEN });
+
+function blobKey(baseUrl, device) {
+  return crypto.createHash('md5').update(`${baseUrl}|${device}`).digest('hex');
+}
+
+async function screenshotExists(baseUrl, device) {
+  const hash = blobKey(baseUrl, device);
+  // Check manual upload first, then auto-capture
+  if ((await store.get('upload_' + hash).catch(() => null)) !== null) return true;
+  return (await store.get(hash).catch(() => null)) !== null;
+}
+
+async function saveScreenshot(baseUrl, device, buffer) {
+  await store.set(blobKey(baseUrl, device), buffer);
+}
 
 async function takeScreenshot(browser, baseUrl, device) {
   const isMobile = device === 'mobile' || device === 'video-mobile';
@@ -60,7 +82,7 @@ async function takeScreenshot(browser, baseUrl, device) {
     } else {
       await page.setViewport({ width: 1920, height: 1080 });
     }
-    // Block media so banners show their static state (faster networkidle2 too)
+    // Block media so banners render in their static state
     await page.setRequestInterception(true);
     page.on('request', r => {
       if (r.resourceType() === 'media') r.abort();
@@ -77,30 +99,6 @@ async function takeScreenshot(browser, baseUrl, device) {
   }
 }
 
-async function uploadScreenshot(baseUrl, device, buffer) {
-  // auto=true stores under bare key — manual uploads (upload_ prefix) always take read priority
-  const url = `${NETLIFY_SITE_URL}/api/screenshot/upload?url=${encodeURIComponent(baseUrl)}&device=${encodeURIComponent(device)}&auto=true`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'image/png' },
-    body: buffer,
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`HTTP ${res.status}: ${text}`);
-  }
-}
-
-async function screenshotExists(baseUrl, device) {
-  const url = `${NETLIFY_SITE_URL}/api/screenshot?url=${encodeURIComponent(baseUrl)}&device=${encodeURIComponent(device)}&check=1`;
-  try {
-    const res = await fetch(url);
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
 async function processTarget(browser, { baseUrl, device }) {
   try {
     if (await screenshotExists(baseUrl, device)) {
@@ -108,7 +106,7 @@ async function processTarget(browser, { baseUrl, device }) {
       return true;
     }
     const buffer = await takeScreenshot(browser, baseUrl, device);
-    await uploadScreenshot(baseUrl, device, buffer);
+    await saveScreenshot(baseUrl, device, buffer);
     console.log(`  ✓  ${baseUrl} (${device})`);
     return true;
   } catch (err) {
@@ -125,7 +123,6 @@ async function main() {
 
   let ok = 0, fail = 0;
   try {
-    // Run in small batches to avoid overwhelming Puppeteer
     const CONCURRENCY = 3;
     for (let i = 0; i < targets.length; i += CONCURRENCY) {
       const batch   = targets.slice(i, i + CONCURRENCY);

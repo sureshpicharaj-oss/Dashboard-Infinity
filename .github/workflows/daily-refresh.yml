@@ -1,8 +1,8 @@
 name: Daily GAM Refresh
 
 on:
-  # schedule:
-  #   - cron: '0 6 * * *'
+  schedule:
+    - cron: '0 6 * * *'
   workflow_dispatch:
 
 jobs:
@@ -50,4 +50,5 @@ jobs:
       - name: Refresh screenshots
         run: node scripts/screenshot-refresh.js
         env:
-          NETLIFY_SITE_URL: ${{ secrets.NETLIFY_SITE_URL }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
