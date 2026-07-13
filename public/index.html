@@ -717,8 +717,7 @@
     // On Netlify (non-localhost): manual refresh triggers a GitHub Actions run in the background.
     // The page auto-polls every 30s and reloads when new data is available.
     if (isManualRefresh && window.location.hostname !== 'localhost') {
-      btn.disabled = true;
-      btn.classList.add('loading');
+      if (btn) { btn.disabled = true; btn.classList.add('loading'); }
       try {
         await fetch('/api/trigger-refresh', { method: 'POST' });
         const el = document.getElementById('lastFetched');
@@ -747,14 +746,12 @@
         banner.style.display = 'block';
         banner.textContent = 'Could not trigger refresh: ' + e.message;
       } finally {
-        btn.disabled = false;
-        btn.classList.remove('loading');
+        if (btn) { btn.disabled = false; btn.classList.remove('loading'); }
       }
       return;
     }
 
-    btn.disabled = true;
-    btn.classList.add('loading');
+    if (btn) { btn.disabled = true; btn.classList.add('loading'); }
     document.getElementById('errorBanner').style.display = 'none';
 
     // Progress bar + elapsed timer
@@ -822,8 +819,7 @@
       banner.textContent = 'Error: ' + e.message;
     } finally {
       clearInterval(progressTimer);
-      btn.disabled = false;
-      btn.classList.remove('loading');
+      if (btn) { btn.disabled = false; btn.classList.remove('loading'); }
       setTimeout(() => { loadBar.style.display = 'none'; loadFill.style.width = '0%'; }, done ? 500 : 0);
     }
   }
