@@ -13,7 +13,7 @@ exports.handler = async (event) => {
   const decodedUrl = decodeURIComponent(url);
   const baseUrl = decodedUrl.match(/https?:\/\/[^\s]+?\.netlify\.app\//)?.[0] || decodedUrl;
 
-  const store = getStore({ name: 'screenshots', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
+  const store = getStore({ name: 'screenshots', siteID: process.env.NETLIFY_SITE_ID || process.env.SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
   const hash = crypto.createHash('md5').update(`${baseUrl}|${device || ''}`).digest('hex');
   // auto=true → bare key (auto-generated, replaced daily, never overwrites manual uploads)
   // default   → upload_ prefix (manual upload, takes read priority over auto-generated)

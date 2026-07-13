@@ -13,7 +13,7 @@ exports.handler = async (event) => {
 
   const { check } = event.queryStringParameters || {};
   // Use explicit credentials — NETLIFY_SITE_ID is auto-injected by Netlify; NETLIFY_AUTH_TOKEN set in site env vars
-  const store = getStore({ name: 'screenshots', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
+  const store = getStore({ name: 'screenshots', siteID: process.env.NETLIFY_SITE_ID || process.env.SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
   const key = crypto.createHash('md5').update(`${baseUrl}|${device || ''}`).digest('hex');
 
   // ?check=1 — lightweight existence check used by the screenshot refresh script

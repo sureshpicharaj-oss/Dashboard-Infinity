@@ -8,7 +8,7 @@ function urlKey(url) {
 }
 
 exports.handler = async (event) => {
-  const store = getStore({ name: 'user-data', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
+  const store = getStore({ name: 'user-data', siteID: process.env.NETLIFY_SITE_ID || process.env.SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
 
   if (event.httpMethod === 'GET') {
     const url = event.queryStringParameters?.url;
