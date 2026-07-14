@@ -13,8 +13,10 @@ exports.handler = async (event) => {
   const decodedUrl = decodeURIComponent(url);
   const baseUrl = decodedUrl.match(/https?:\/\/[^\s]+?\.netlify\.app\//)?.[0] || decodedUrl;
 
-  // Use auto-detected Netlify runtime credentials — no explicit token needed for deployed functions
-  const store = getStore('screenshots');
+  const siteID = process.env.NETLIFY_SITE_ID || process.env.SITE_ID;
+  const token  = process.env.NETLIFY_AUTH_TOKEN;
+  if (!siteID || !token) return { statusCode: 503, body: JSON.stringify({ error: 'Blobs not configured', siteID: !!siteID, token: !!token }) };
+  const store = getStore({ name: 'screenshots', siteID, token });
   const hash = crypto.createHash('md5').update(`${baseUrl}|${device || ''}`).digest('hex');
   // auto=true → bare key (auto-generated, replaced daily, never overwrites manual uploads)
   // default   → upload_ prefix (manual upload, takes read priority over auto-generated)

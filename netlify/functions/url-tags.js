@@ -3,8 +3,10 @@
 const { getStore } = require('@netlify/blobs');
 
 exports.handler = async (event) => {
-  // Use auto-detected Netlify runtime credentials — no explicit token needed for deployed functions
-  const store = getStore('user-data');
+  const siteID = process.env.NETLIFY_SITE_ID || process.env.SITE_ID;
+  const token  = process.env.NETLIFY_AUTH_TOKEN;
+  if (!siteID || !token) return { statusCode: 503, body: JSON.stringify({ error: 'Blobs not configured', siteID: !!siteID, token: !!token }) };
+  const store = getStore({ name: 'user-data', siteID, token });
 
   if (event.httpMethod === 'GET') {
     const tags = await store.getJSON('url_tags').catch(() => null);

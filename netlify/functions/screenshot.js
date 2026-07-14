@@ -12,9 +12,10 @@ exports.handler = async (event) => {
   const baseUrl = decodedUrl.match(/https?:\/\/[^\s]+?\.netlify\.app\//)?.[0] || decodedUrl;
 
   const { check } = event.queryStringParameters || {};
-
-  // Use auto-detected Netlify runtime credentials — no explicit token needed for deployed functions
-  const store = getStore('screenshots');
+  const siteID = process.env.NETLIFY_SITE_ID || process.env.SITE_ID;
+  const token  = process.env.NETLIFY_AUTH_TOKEN;
+  if (!siteID || !token) return { statusCode: 503, body: JSON.stringify({ error: 'Blobs not configured', siteID: !!siteID, token: !!token }) };
+  const store = getStore({ name: 'screenshots', siteID, token });
   const key = crypto.createHash('md5').update(`${baseUrl}|${device || ''}`).digest('hex');
 
   // ?check=1 — lightweight existence check used by the screenshot refresh script
