@@ -22,19 +22,22 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Shared directory for screenshot PNGs and JSON caches written by route handlers.
-// Created eagerly so routes don't need to guard against its absence.
+// PNG screenshots directory
 const SCREENSHOT_DIR = path.join(__dirname, 'public', 'screenshots');
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
+
+// JSON data cache directory — shared with scripts/refresh.js
+const DATA_DIR = path.join(__dirname, 'public', 'data');
+fs.mkdirSync(DATA_DIR, { recursive: true });
 
 // API routes first — if express.static came before these, a file named
 // after a route path could shadow the API endpoint.
 app.use(require('./routes/auth-full'));
-app.use(require('./routes/dashboard-full')(SCREENSHOT_DIR));
+app.use(require('./routes/dashboard-full')(DATA_DIR));
 app.use(require('./routes/screenshot')(SCREENSHOT_DIR));
 app.use(require('./routes/advertiser')(SCREENSHOT_DIR));
-app.use(require('./routes/active-view')(SCREENSHOT_DIR));
-app.use(require('./routes/video-stats')(SCREENSHOT_DIR));
+app.use(require('./routes/active-view')(DATA_DIR));
+app.use(require('./routes/video-stats')(DATA_DIR));
 app.use(require('./routes/tags')(SCREENSHOT_DIR));
 app.use(require('./routes/debug')());
 
