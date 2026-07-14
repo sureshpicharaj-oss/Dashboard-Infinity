@@ -9,17 +9,18 @@ exports.handler = async (event) => {
   const store = getStore({ name: 'user-data', siteID, token });
 
   if (event.httpMethod === 'GET') {
-    const rules = await store.getJSON('tag_rules').catch(() => null);
+    const raw = await store.get('tag_rules', { type: 'text' }).catch(() => null);
+    const rules = raw ? JSON.parse(raw) : {};
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(rules || {}),
+      body: JSON.stringify(rules),
     };
   }
 
   if (event.httpMethod === 'POST') {
     const rules = JSON.parse(event.body || '{}');
-    await store.setJSON('tag_rules', rules);
+    await store.set('tag_rules', JSON.stringify(rules));
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
