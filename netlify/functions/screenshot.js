@@ -39,7 +39,7 @@ exports.handler = async (event) => {
   let data = await store.get('upload_' + key, { type: 'arrayBuffer' }).catch(() => null);
   if (!data) data = await store.get(key, { type: 'arrayBuffer' }).catch(() => null);
 
-  if (!data) return { statusCode: 404, body: 'Screenshot not found' };
+  if (!data) return { statusCode: 404, body: 'Screenshot not found', headers: { 'Cache-Control': 'public, max-age=300' } };
 
   return {
     statusCode: 200,
