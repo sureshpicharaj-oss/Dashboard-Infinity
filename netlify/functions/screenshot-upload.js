@@ -13,7 +13,8 @@ exports.handler = async (event) => {
   const decodedUrl = decodeURIComponent(url);
   const baseUrl = decodedUrl.match(/https?:\/\/[^\s]+?\.netlify\.app\//)?.[0] || decodedUrl;
 
-  const store = getStore({ name: 'screenshots', siteID: process.env.NETLIFY_SITE_ID || process.env.SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
+  // Use auto-detected Netlify runtime credentials — no explicit token needed for deployed functions
+  const store = getStore('screenshots');
   const hash = crypto.createHash('md5').update(`${baseUrl}|${device || ''}`).digest('hex');
   // auto=true → bare key (auto-generated, replaced daily, never overwrites manual uploads)
   // default   → upload_ prefix (manual upload, takes read priority over auto-generated)
