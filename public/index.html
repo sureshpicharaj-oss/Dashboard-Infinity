@@ -209,6 +209,14 @@
     .adv-tag[style*="--tc"].active { background: var(--tc); border-color: var(--tc); color: #fff; }
     .tag-edit-btn { color: #888; border-color: #ccc; margin-left: 4px; }
     .tag-edit-btn:hover { color: #4f7fff; border-color: #4f7fff; background: #eef1ff; }
+    .au-wrap { position: relative; display: inline-block; }
+    .au-dropdown { display: none; position: absolute; top: calc(100% + 4px); left: 0; z-index: 200; background: #fff; border: 1px solid #dde; border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,.1); min-width: 190px; padding: 6px 0; }
+    .au-item { display: flex; align-items: center; gap: 8px; padding: 6px 14px; font-size: .82rem; color: #333; cursor: pointer; white-space: nowrap; }
+    .au-item:hover { background: #f0f2ff; }
+    .au-item input { accent-color: #4f7fff; cursor: pointer; }
+    .au-clear { border-top: 1px solid #eee; margin-top: 4px; padding: 6px 14px 2px; }
+    .au-clear button { background: none; border: none; font-size: .78rem; color: #888; cursor: pointer; padding: 0; }
+    .au-clear button:hover { color: #c0392b; }
     .te-cat { border: 1px solid #2e3650; border-radius: 6px; padding: 12px 14px; }
     .te-cat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
     .te-cat-name { font-weight: 600; font-size: 13px; }
@@ -469,6 +477,10 @@
 
 <div class="toolbar">
   <input id="searchBox" type="search" placeholder="Search by name or URL…" oninput="renderTable()" />
+  <div class="au-wrap">
+    <button class="adv-tag" id="adUnitBtn" onclick="toggleAdUnitDropdown()">Ad Units<span id="adUnitCount"></span></button>
+    <div class="au-dropdown" id="adUnitDropdown"></div>
+  </div>
   <div id="advertiserTags"></div>
 </div>
 
@@ -523,6 +535,58 @@
   let sortCol = 'sortKey';
   let sortDir = -1;
   let activeCategory = null;
+  let activeAdUnits = new Set();
+
+  const AD_UNIT_OPTIONS = ['BBCGoodFood.com','GardenersWorld.com','madeformums.com','olivemagazine.com','RadioTimes.com','TopGear.com','Historyextra.com'];
+
+  function initAdUnitDropdown() {
+    const dd = document.getElementById('adUnitDropdown');
+    dd.innerHTML = AD_UNIT_OPTIONS.map(name =>
+      `<label class="au-item"><input type="checkbox" value="${name}" onchange="toggleAdUnit(this)">${name}</label>`
+    ).join('') + `<div class="au-clear"><button onclick="clearAdUnits()">Clear all</button></div>`;
+  }
+
+  function toggleAdUnitDropdown() {
+    const dd = document.getElementById('adUnitDropdown');
+    const open = dd.style.display === 'block';
+    dd.style.display = open ? 'none' : 'block';
+  }
+
+  function toggleAdUnit(cb) {
+    if (cb.checked) activeAdUnits.add(cb.value);
+    else activeAdUnits.delete(cb.value);
+    updateAdUnitBtn();
+    updateStats();
+    renderTable();
+  }
+
+  function clearAdUnits() {
+    activeAdUnits.clear();
+    document.querySelectorAll('#adUnitDropdown input[type=checkbox]').forEach(cb => cb.checked = false);
+    updateAdUnitBtn();
+    updateStats();
+    renderTable();
+  }
+
+  function getFilteredStats(r) {
+    if (!activeAdUnits.size) return { impressions: r.impressions, clicks: r.clicks };
+    const imps = r.impsByAdUnit;
+    // No per-ad-unit breakdown (no fingerprint match) — show nothing rather than
+    // unfiltered totals, which would inflate filtered sums.
+    if (!imps || !Object.keys(imps).length) return { impressions: 0, clicks: 0 };
+    let impressions = 0, clicks = 0;
+    for (const name of activeAdUnits) {
+      const s = imps[name];
+      if (s) { impressions += s.impressions || 0; clicks += s.clicks || 0; }
+    }
+    return { impressions, clicks };
+  }
+
+  function updateAdUnitBtn() {
+    const count = activeAdUnits.size;
+    document.getElementById('adUnitCount').textContent = count ? ` (${count})` : '';
+    document.getElementById('adUnitBtn').classList.toggle('active', count > 0);
+  }
 
   // Tag rules loaded from server: { category: [keywords] }
   let tagRules = {};
@@ -601,6 +665,10 @@
   }
   document.addEventListener('click', e => {
     if (!e.target.closest('#tagPicker') && !e.target.closest('.row-tag-btn')) closeTagPicker();
+    if (!e.target.closest('.au-wrap')) {
+      const dd = document.getElementById('adUnitDropdown');
+      if (dd) dd.style.display = 'none';
+    }
   });
 
   async function saveTagRules() {
@@ -827,6 +895,7 @@
   function updateStats() {
     const tabRows = allRows.filter(r =>
       r.device === activeTab &&
+      (!activeAdUnits.size || (r.adUnitNames || []).some(n => activeAdUnits.has(n))) &&
       (!activeCategory || getCategory(r.advertiser, r.netlifyUrl) === activeCategory)
     );
 
@@ -845,8 +914,9 @@
             activeViewViewable: r.activeViewViewable, activeViewMeasurable: r.activeViewMeasurable });
         }
         const g = urlMap.get(r.netlifyUrl);
-        g.impressions += r.impressions || 0;
-        g.clicks      += r.clicks      || 0;
+        const _sfs = getFilteredStats(r);
+        g.impressions += _sfs.impressions || 0;
+        g.clicks      += _sfs.clicks      || 0;
         // Keep the first non-null AV values (same URL shares one AV result)
         if (g.activeViewViewable   == null) g.activeViewViewable   = r.activeViewViewable;
         if (g.activeViewMeasurable == null) g.activeViewMeasurable = r.activeViewMeasurable;
@@ -866,7 +936,7 @@
       document.getElementById('statAvgLong').textContent  = longRows.length  ? wAvg(longRows)  + '%' : '—';
     } else {
       // Desktop / Mobile: server already returns one row per unique URL
-      statRows = tabRows;
+      statRows = tabRows.map(r => { const _sfs = getFilteredStats(r); return Object.assign({}, r, { impressions: _sfs.impressions, clicks: _sfs.clicks }); });
     }
 
     // CTR — computed on statRows (unique skin URLs in all tabs, including video)
@@ -889,9 +959,12 @@
     document.getElementById('statAvgCtr').textContent = ctrVal !== null ? parseFloat(ctrVal.toFixed(3)) + '%' : '—';
     document.getElementById('statCtrN').textContent = ctrRows.length ? ctrRows.length + ' skin' + (ctrRows.length > 1 ? 's' : '') : '';
 
-    // Viewability — Σ(viewable) / Σ(measurable) weighted across unique URLs
+    // Viewability — Σ(viewable) / Σ(measurable) weighted across unique URLs.
+    // AV isn't ad-unit-scoped, so with a filter active only count rows that have
+    // filtered impressions (statRows impressions are already filtered values).
     let totalAvViewable = 0, totalAvMeasurable = 0;
     for (const r of statRows) {
+      if (activeAdUnits.size && !(r.impressions > 0)) continue;
       totalAvViewable   += r.activeViewViewable   ?? 0;
       totalAvMeasurable += r.activeViewMeasurable ?? 0;
     }
@@ -976,6 +1049,7 @@
 
     let rows = allRows.filter(r =>
       r.device === activeTab &&
+      (!activeAdUnits.size || (r.adUnitNames || []).some(n => activeAdUnits.has(n))) &&
       (!activeCategory || getCategory(r.advertiser, r.netlifyUrl) === activeCategory) &&
       (!search ||
         (r.advertiser || '').toLowerCase().includes(search) ||
@@ -995,8 +1069,9 @@
           });
         }
         const g = urlMap.get(r.netlifyUrl);
-        g.impressions += r.impressions || 0;
-        g.clicks      += r.clicks || 0;
+        const _rfs = getFilteredStats(r);
+        g.impressions += _rfs.impressions || 0;
+        g.clicks      += _rfs.clicks      || 0;
         if (r.videoId) g.videos.push({ videoId: r.videoId, completionRate: r.completionRate, durationSec: r.durationSec ?? null, videoStarts: r.videoStarts ?? null });
         if ((r.sortKey || 0) > g.sortKey) g.sortKey = r.sortKey;
         (r.lineItemIds || []).forEach(id => g.lineItemIds.add(id));
@@ -1014,7 +1089,7 @@
         const imps   = g.impressions > 0 ? `<td class="num-cell has-data">${g.impressions.toLocaleString()}</td>` : `<td class="num-cell no-data">—</td>`;
         const clks   = g.clicks > 0 ? `<td class="num-cell has-data">${g.clicks.toLocaleString()}</td>` : `<td class="num-cell no-data">—</td>`;
         const ctrStr = ctr !== null ? `<td class="ctr-cell has-data">${ctr}%</td>` : `<td class="ctr-cell no-data">—</td>`;
-        const av     = g.activeView != null ? `<td class="ctr-cell has-data">${g.activeView}%</td>` : `<td class="ctr-cell no-data">—</td>`;
+        const av     = (g.activeView != null && (!activeAdUnits.size || g.impressions > 0)) ? `<td class="ctr-cell has-data">${g.activeView}%</td>` : `<td class="ctr-cell no-data">—</td>`;
         const encodedUrl = encodeURIComponent(g.netlifyUrl);
         const isPortrait = activeTab === 'mobile' || activeTab === 'video-mobile';
         const thumbSubdomain = (g.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
@@ -1043,14 +1118,16 @@
       return;
     }
     tbody.innerHTML = rows.map(r => {
-      const imps   = r.impressions > 0 ? `<td class="num-cell has-data">${r.impressions.toLocaleString()}</td>` : `<td class="num-cell no-data">—</td>`;
-      const clks   = r.clicks > 0 ? `<td class="num-cell has-data">${r.clicks.toLocaleString()}</td>` : `<td class="num-cell no-data">—</td>`;
-      const ctrStr = r.ctr !== null ? `<td class="ctr-cell has-data">${r.ctr}%</td>` : `<td class="ctr-cell no-data">—</td>`;
+      const _rfs   = getFilteredStats(r);
+      const imps   = _rfs.impressions > 0 ? `<td class="num-cell has-data">${_rfs.impressions.toLocaleString()}</td>` : `<td class="num-cell no-data">—</td>`;
+      const clks   = _rfs.clicks > 0 ? `<td class="num-cell has-data">${_rfs.clicks.toLocaleString()}</td>` : `<td class="num-cell no-data">—</td>`;
+      const _fCtr  = _rfs.impressions && _rfs.clicks ? parseFloat(((_rfs.clicks / _rfs.impressions) * 100).toFixed(2)) : null;
+      const ctrStr = _fCtr !== null ? `<td class="ctr-cell has-data">${_fCtr}%</td>` : `<td class="ctr-cell no-data">—</td>`;
       const encodedUrl = encodeURIComponent(r.netlifyUrl);
       const isPortrait = activeTab === 'mobile' || activeTab === 'video-mobile';
       const thumbSubdomain = (r.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
       const thumb  = `<td class="thumb-cell${isPortrait ? ' thumb-cell-portrait' : ''}"><div class="thumb-wrap"><img class="thumb-img lazy${isPortrait ? ' thumb-portrait' : ''}" data-src="/api/screenshot?url=${encodedUrl}&device=${activeTab}" data-fallback="/screenshots/${thumbSubdomain}-${activeTab}.png" data-advertiser-url="${encodedUrl}" alt="preview" /><button class="thumb-replace-btn" data-url="${encodedUrl}" data-device="${activeTab}" title="Replace screenshot">↑</button></div></td>`;
-      const av     = r.activeView != null ? `<td class="ctr-cell has-data">${r.activeView}%</td>` : `<td class="ctr-cell no-data">—</td>`;
+      const av     = (r.activeView != null && (!activeAdUnits.size || _rfs.impressions > 0)) ? `<td class="ctr-cell has-data">${r.activeView}%</td>` : `<td class="ctr-cell no-data">—</td>`;
       const cat = getCategory(r.advertiser, r.netlifyUrl);
       const catChip = cat ? `<span class="row-cat-chip" style="--tc:${tagColor(cat)}">${cat}</span>` : '';
       const tagBtn = `<button class="row-tag-btn" data-url="${esc(r.netlifyUrl)}" onclick="event.stopPropagation();openTagPickerFromBtn(this)" title="Assign tag">＋</button>`;
@@ -1275,6 +1352,7 @@
   }
 
   // Auto-load on page open
+  initAdUnitDropdown();
   loadTagRules();
   loadData();
 </script>
