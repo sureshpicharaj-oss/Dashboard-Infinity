@@ -469,7 +469,7 @@
 
 <div class="toolbar">
   <input id="searchBox" type="search" placeholder="Search by name or URL…" oninput="renderTable()" />
-  <div id="advertiserTags"></div>
+<div id="advertiserTags"></div>
 </div>
 
 <div id="errorBanner"></div>
@@ -866,7 +866,7 @@
       document.getElementById('statAvgLong').textContent  = longRows.length  ? wAvg(longRows)  + '%' : '—';
     } else {
       // Desktop / Mobile: server already returns one row per unique URL
-      statRows = tabRows;
+      statRows = [...tabRows];
     }
 
     // CTR — computed on statRows (unique skin URLs in all tabs, including video)
@@ -890,15 +890,18 @@
     document.getElementById('statCtrN').textContent = ctrRows.length ? ctrRows.length + ' skin' + (ctrRows.length > 1 ? 's' : '') : '';
 
     // Viewability — Σ(viewable) / Σ(measurable) weighted across unique URLs
+    // Only include rows that have filtered impressions (skip empty ad-unit rows)
     let totalAvViewable = 0, totalAvMeasurable = 0;
     for (const r of statRows) {
-      totalAvViewable   += r.activeViewViewable   ?? 0;
-      totalAvMeasurable += r.activeViewMeasurable ?? 0;
+      if ((r.impressions || 0) > 0) {
+        totalAvViewable   += r.activeViewViewable   ?? 0;
+        totalAvMeasurable += r.activeViewMeasurable ?? 0;
+      }
     }
     document.getElementById('statAvgView').textContent = totalAvMeasurable > 0
       ? parseFloat(((totalAvViewable / totalAvMeasurable) * 100).toFixed(1)) + '%' : '—';
 
-    // Totals bar
+    // Totals bar — sum of what is currently displayed (filtered impressions)
     const withData  = statRows.filter(r => r.impressions > 0);
     const totalImps = withData.reduce((s, r) => s + r.impressions, 0);
     document.getElementById('statTotal').textContent   = statRows.length.toLocaleString();
@@ -906,7 +909,7 @@
     document.getElementById('statActive').textContent  = withData.length.toLocaleString();
     document.getElementById('statNoData').textContent  = (statRows.length - withData.length).toLocaleString();
 
-    // All-sections totals — sums across every tab regardless of active view
+    // All-sections totals — always raw totals, unaffected by any filter
     const allImps = allRows.filter(r => r.impressions > 0).reduce((s, r) => s + r.impressions, 0);
     const allImpsStr = allImps >= 1e9 ? (allImps / 1e9).toFixed(2) + 'B'
                      : allImps >= 1e6 ? (allImps / 1e6).toFixed(2) + 'M'
@@ -996,7 +999,7 @@
         }
         const g = urlMap.get(r.netlifyUrl);
         g.impressions += r.impressions || 0;
-        g.clicks      += r.clicks || 0;
+        g.clicks      += r.clicks      || 0;
         if (r.videoId) g.videos.push({ videoId: r.videoId, completionRate: r.completionRate, durationSec: r.durationSec ?? null, videoStarts: r.videoStarts ?? null });
         if ((r.sortKey || 0) > g.sortKey) g.sortKey = r.sortKey;
         (r.lineItemIds || []).forEach(id => g.lineItemIds.add(id));
@@ -1014,7 +1017,7 @@
         const imps   = g.impressions > 0 ? `<td class="num-cell has-data">${g.impressions.toLocaleString()}</td>` : `<td class="num-cell no-data">—</td>`;
         const clks   = g.clicks > 0 ? `<td class="num-cell has-data">${g.clicks.toLocaleString()}</td>` : `<td class="num-cell no-data">—</td>`;
         const ctrStr = ctr !== null ? `<td class="ctr-cell has-data">${ctr}%</td>` : `<td class="ctr-cell no-data">—</td>`;
-        const av     = g.activeView != null ? `<td class="ctr-cell has-data">${g.activeView}%</td>` : `<td class="ctr-cell no-data">—</td>`;
+        const av     = (g.impressions > 0 && g.activeView != null) ? `<td class="ctr-cell has-data">${g.activeView}%</td>` : `<td class="ctr-cell no-data">—</td>`;
         const encodedUrl = encodeURIComponent(g.netlifyUrl);
         const isPortrait = activeTab === 'mobile' || activeTab === 'video-mobile';
         const thumbSubdomain = (g.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
@@ -1045,12 +1048,13 @@
     tbody.innerHTML = rows.map(r => {
       const imps   = r.impressions > 0 ? `<td class="num-cell has-data">${r.impressions.toLocaleString()}</td>` : `<td class="num-cell no-data">—</td>`;
       const clks   = r.clicks > 0 ? `<td class="num-cell has-data">${r.clicks.toLocaleString()}</td>` : `<td class="num-cell no-data">—</td>`;
-      const ctrStr = r.ctr !== null ? `<td class="ctr-cell has-data">${r.ctr}%</td>` : `<td class="ctr-cell no-data">—</td>`;
+      const _fCtr  = r.impressions && r.clicks ? parseFloat(((r.clicks / r.impressions) * 100).toFixed(2)) : null;
+      const ctrStr = _fCtr !== null ? `<td class="ctr-cell has-data">${_fCtr}%</td>` : `<td class="ctr-cell no-data">—</td>`;
       const encodedUrl = encodeURIComponent(r.netlifyUrl);
       const isPortrait = activeTab === 'mobile' || activeTab === 'video-mobile';
       const thumbSubdomain = (r.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
       const thumb  = `<td class="thumb-cell${isPortrait ? ' thumb-cell-portrait' : ''}"><div class="thumb-wrap"><img class="thumb-img lazy${isPortrait ? ' thumb-portrait' : ''}" data-src="/api/screenshot?url=${encodedUrl}&device=${activeTab}" data-fallback="/screenshots/${thumbSubdomain}-${activeTab}.png" data-advertiser-url="${encodedUrl}" alt="preview" /><button class="thumb-replace-btn" data-url="${encodedUrl}" data-device="${activeTab}" title="Replace screenshot">↑</button></div></td>`;
-      const av     = r.activeView != null ? `<td class="ctr-cell has-data">${r.activeView}%</td>` : `<td class="ctr-cell no-data">—</td>`;
+      const av     = (r.impressions > 0 && r.activeView != null) ? `<td class="ctr-cell has-data">${r.activeView}%</td>` : `<td class="ctr-cell no-data">—</td>`;
       const cat = getCategory(r.advertiser, r.netlifyUrl);
       const catChip = cat ? `<span class="row-cat-chip" style="--tc:${tagColor(cat)}">${cat}</span>` : '';
       const tagBtn = `<button class="row-tag-btn" data-url="${esc(r.netlifyUrl)}" onclick="event.stopPropagation();openTagPickerFromBtn(this)" title="Assign tag">＋</button>`;
