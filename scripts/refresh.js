@@ -36,15 +36,24 @@ async function main() {
   const activeView = await fetchActiveViewStats(urlLineItemMap, urlLicaImpsMap, networkCode, token);
   console.log(`Active view: ${Object.keys(activeView).length} URLs`);
 
-  // Merge video stats and active view into results
-  const mergedResults = results.map(r => ({
-    ...r,
-    activeView:           activeView[r.netlifyUrl]?.rate ?? null,
-    activeViewViewable:   activeView[r.netlifyUrl]?.viewable ?? null,
-    activeViewMeasurable: activeView[r.netlifyUrl]?.measurable ?? null,
-    completionRate:       r.videoId ? ((videoStats[r.videoId + '_' + r.device] ?? videoStats[r.videoId])?.completionRate ?? null) : null,
-    durationSec:          r.videoId ? ((videoStats[r.videoId + '_' + r.device] ?? videoStats[r.videoId])?.durationSec ?? null) : null,
-  }));
+  // Merge video stats and active view into results. Active view is keyed by the same
+  // composite group key as rows (netlifyUrl##videoId##device) so a URL with both a desktop
+  // skin and video creatives gets independent viewability per row instead of one blended
+  // number stamped onto everything sharing that URL.
+  const mergedResults = results.map(r => {
+    const avKey = `${r.netlifyUrl}##${r.videoId || ''}##${r.device}`;
+    const av = activeView[avKey];
+    const vs = r.videoId ? (videoStats[r.videoId + '_' + r.device] ?? videoStats[r.videoId]) : null;
+    return {
+      ...r,
+      activeView:           av?.rate ?? null,
+      activeViewViewable:   av?.viewable ?? null,
+      activeViewMeasurable: av?.measurable ?? null,
+      completionRate:       vs?.completionRate ?? null,
+      durationSec:          vs?.durationSec ?? null,
+      videoStarts:          vs?.videoStarts ?? null,
+    };
+  });
 
   const dataDir = path.join(__dirname, '..', 'public', 'data');
   fs.mkdirSync(dataDir, { recursive: true });

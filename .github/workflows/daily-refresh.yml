@@ -32,6 +32,7 @@ jobs:
         run: npm ci
 
       - name: Run GAM data refresh
+        id: refresh
         run: node scripts/refresh.js
         env:
           GAM_NETWORK_CODE: ${{ secrets.GAM_NETWORK_CODE }}
@@ -41,8 +42,13 @@ jobs:
 
       - name: Capture new screenshots
         run: node scripts/screenshot-refresh.js
+        continue-on-error: true
 
+      # Commits the freshly-fetched GAM data even if the screenshot step above failed —
+      # a screenshot/Puppeteer flake is unrelated to GAM data quality and must not silently
+      # discard a full day's refresh. Still gated on the GAM refresh itself having succeeded.
       - name: Commit and push updated data and screenshots
+        if: always() && steps.refresh.outcome == 'success'
         run: |
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"

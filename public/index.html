@@ -343,6 +343,8 @@
     .num-cell { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .num-cell.has-data { font-weight: 600; color: #1a1a2e; }
     .num-cell.no-data  { color: #bbb; }
+    .num-cell.unmatched { color: #b8860b; font-style: italic; }
+    .partial-mark { color: #b8860b; font-weight: 700; cursor: help; margin-left: 1px; }
     .ctr-cell  { text-align: right; white-space: nowrap; }
     .ctr-cell.has-data { font-weight: 600; color: #1aab6d; }
     .ctr-cell.no-data  { color: #bbb; }
@@ -569,17 +571,22 @@
   }
 
   function getFilteredStats(r) {
-    if (!activeAdUnits.size) return { impressions: r.impressions, clicks: r.clicks };
+    if (!activeAdUnits.size) return { impressions: r.impressions, clicks: r.clicks, partial: false, unmatched: false };
     const imps = r.impsByAdUnit;
-    // No per-ad-unit breakdown (no fingerprint match) — show nothing rather than
-    // unfiltered totals, which would inflate filtered sums.
-    if (!imps || !Object.keys(imps).length) return { impressions: 0, clicks: 0 };
+    // No per-ad-unit breakdown at all (fingerprint fully unmatched) — the row may still have
+    // real delivery in the selected ad unit(s), just not reflected here. Flagged as
+    // "unmatched" so the UI can distinguish this from a row with genuinely zero impressions,
+    // rather than showing raw unfiltered totals (which would inflate filtered sums).
+    if (!imps || !Object.keys(imps).length) return { impressions: 0, clicks: 0, partial: false, unmatched: (r.impressions || 0) > 0 };
     let impressions = 0, clicks = 0;
     for (const name of activeAdUnits) {
       const s = imps[name];
       if (s) { impressions += s.impressions || 0; clicks += s.clicks || 0; }
     }
-    return { impressions, clicks };
+    // Partial coverage: some of this row's real delivery isn't reflected in impsByAdUnit at
+    // all (ambiguous/unmatched (creative, LI) pairs), so this filtered figure may undercount.
+    const partial = (r.adUnitCoverage ?? 1) < 0.999;
+    return { impressions, clicks, partial, unmatched: false };
   }
 
   function updateAdUnitBtn() {
@@ -911,15 +918,16 @@
       for (const r of tabRows) {
         if (!urlMap.has(r.netlifyUrl)) {
           urlMap.set(r.netlifyUrl, { impressions: 0, clicks: 0, netlifyUrl: r.netlifyUrl,
-            activeViewViewable: r.activeViewViewable, activeViewMeasurable: r.activeViewMeasurable });
+            activeViewViewable: 0, activeViewMeasurable: 0 });
         }
         const g = urlMap.get(r.netlifyUrl);
         const _sfs = getFilteredStats(r);
         g.impressions += _sfs.impressions || 0;
         g.clicks      += _sfs.clicks      || 0;
-        // Keep the first non-null AV values (same URL shares one AV result)
-        if (g.activeViewViewable   == null) g.activeViewViewable   = r.activeViewViewable;
-        if (g.activeViewMeasurable == null) g.activeViewMeasurable = r.activeViewMeasurable;
+        // Each VIDEO_ID carries its own (url, videoId, device) active-view result — sum
+        // viewable/measurable across every video sharing this URL, not just the first row's.
+        g.activeViewViewable   += r.activeViewViewable   || 0;
+        g.activeViewMeasurable += r.activeViewMeasurable || 0;
       }
       statRows = [...urlMap.values()];
 
@@ -939,19 +947,21 @@
       statRows = tabRows.map(r => { const _sfs = getFilteredStats(r); return Object.assign({}, r, { impressions: _sfs.impressions, clicks: _sfs.clicks }); });
     }
 
-    // CTR — computed on statRows (unique skin URLs in all tabs, including video)
-    const ctrRows = statRows.filter(r => r.impressions > 0 && r.clicks > 0);
+    // CTR — computed on statRows (unique skin URLs in all tabs, including video). Includes
+    // every impression-bearing row, even ones with zero clicks — dropping them entirely
+    // (rather than counting them as a true 0% row) inflates aggregate/average/median CTR.
+    const ctrRows = statRows.filter(r => r.impressions > 0);
     const ctrMethod = document.getElementById('ctrMethod').value;
     let ctrVal = null;
     if (ctrRows.length) {
       if (ctrMethod === 'median') {
-        const sorted = ctrRows.map(r => (r.clicks / r.impressions) * 100).sort((a, b) => a - b);
+        const sorted = ctrRows.map(r => ((r.clicks || 0) / r.impressions) * 100).sort((a, b) => a - b);
         const mid = Math.floor(sorted.length / 2);
         ctrVal = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
       } else if (ctrMethod === 'average') {
-        ctrVal = ctrRows.reduce((s, r) => s + (r.clicks / r.impressions) * 100, 0) / ctrRows.length;
+        ctrVal = ctrRows.reduce((s, r) => s + ((r.clicks || 0) / r.impressions) * 100, 0) / ctrRows.length;
       } else {
-        const totalClicks = ctrRows.reduce((s, r) => s + r.clicks, 0);
+        const totalClicks = ctrRows.reduce((s, r) => s + (r.clicks || 0), 0);
         const totalImps   = ctrRows.reduce((s, r) => s + r.impressions, 0);
         ctrVal = (totalClicks / totalImps) * 100;
       }
@@ -1064,14 +1074,20 @@
         if (!urlMap.has(r.netlifyUrl)) {
           urlMap.set(r.netlifyUrl, {
             netlifyUrl: r.netlifyUrl, advertiser: r.advertiser,
-            activeView: r.activeView, sortKey: r.sortKey, liveStatus: null,
-            impressions: 0, clicks: 0, videos: [], lineItemIds: new Set(),
+            avViewable: 0, avMeasurable: 0, sortKey: r.sortKey, liveStatus: null,
+            impressions: 0, clicks: 0, videos: [], lineItemIds: new Set(), partial: false, anyUnmatched: false,
           });
         }
         const g = urlMap.get(r.netlifyUrl);
         const _rfs = getFilteredStats(r);
         g.impressions += _rfs.impressions || 0;
         g.clicks      += _rfs.clicks      || 0;
+        if (_rfs.partial) g.partial = true;
+        if (_rfs.unmatched) g.anyUnmatched = true;
+        // Each VIDEO_ID carries its own (url, videoId, device) active-view result — sum
+        // viewable/measurable across the group's videos rather than taking one arbitrary row's rate.
+        g.avViewable   += r.activeViewViewable   || 0;
+        g.avMeasurable += r.activeViewMeasurable || 0;
         if (r.videoId) g.videos.push({ videoId: r.videoId, completionRate: r.completionRate, durationSec: r.durationSec ?? null, videoStarts: r.videoStarts ?? null });
         if ((r.sortKey || 0) > g.sortKey) g.sortKey = r.sortKey;
         (r.lineItemIds || []).forEach(id => g.lineItemIds.add(id));
@@ -1079,15 +1095,21 @@
         if ((STATUS_ORDER[r.liveStatus] ?? 99) < (STATUS_ORDER[g.liveStatus] ?? 99)) g.liveStatus = r.liveStatus;
       }
 
-      const groups = [...urlMap.values()];
+      const groups = [...urlMap.values()].map(g => ({
+        ...g,
+        activeView: g.avMeasurable > 0 ? parseFloat(((g.avViewable / g.avMeasurable) * 100).toFixed(1)) : null,
+      }));
       if (!groups.length) {
         tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No results match your search</td></tr>';
         return;
       }
       tbody.innerHTML = groups.map(g => {
         const ctr = g.impressions && g.clicks ? parseFloat(((g.clicks / g.impressions) * 100).toFixed(2)) : null;
-        const imps   = g.impressions > 0 ? `<td class="num-cell has-data">${g.impressions.toLocaleString()}</td>` : `<td class="num-cell no-data">—</td>`;
-        const clks   = g.clicks > 0 ? `<td class="num-cell has-data">${g.clicks.toLocaleString()}</td>` : `<td class="num-cell no-data">—</td>`;
+        const _gPartialMark = g.partial ? '<span class="partial-mark" title="Partial ad-unit coverage — some of this row\'s delivery could not be matched to a publication, so this figure may undercount">+</span>' : '';
+        const imps   = g.impressions > 0 ? `<td class="num-cell has-data">${g.impressions.toLocaleString()}${_gPartialMark}</td>`
+                     : g.anyUnmatched ? `<td class="num-cell unmatched" title="Delivers on this site but couldn't be matched to a publication yet">unmatched</td>`
+                     : `<td class="num-cell no-data">—</td>`;
+        const clks   = g.clicks > 0 ? `<td class="num-cell has-data">${g.clicks.toLocaleString()}${_gPartialMark}</td>` : `<td class="num-cell no-data">—</td>`;
         const ctrStr = ctr !== null ? `<td class="ctr-cell has-data">${ctr}%</td>` : `<td class="ctr-cell no-data">—</td>`;
         const av     = (g.activeView != null && (!activeAdUnits.size || g.impressions > 0)) ? `<td class="ctr-cell has-data">${g.activeView}%</td>` : `<td class="ctr-cell no-data">—</td>`;
         const encodedUrl = encodeURIComponent(g.netlifyUrl);
@@ -1119,8 +1141,11 @@
     }
     tbody.innerHTML = rows.map(r => {
       const _rfs   = getFilteredStats(r);
-      const imps   = _rfs.impressions > 0 ? `<td class="num-cell has-data">${_rfs.impressions.toLocaleString()}</td>` : `<td class="num-cell no-data">—</td>`;
-      const clks   = _rfs.clicks > 0 ? `<td class="num-cell has-data">${_rfs.clicks.toLocaleString()}</td>` : `<td class="num-cell no-data">—</td>`;
+      const _partialMark = _rfs.partial ? '<span class="partial-mark" title="Partial ad-unit coverage — some of this row\'s delivery could not be matched to a publication, so this figure may undercount">+</span>' : '';
+      const imps   = _rfs.impressions > 0 ? `<td class="num-cell has-data">${_rfs.impressions.toLocaleString()}${_partialMark}</td>`
+                   : _rfs.unmatched ? `<td class="num-cell unmatched" title="Delivers on this site but couldn't be matched to a publication yet">unmatched</td>`
+                   : `<td class="num-cell no-data">—</td>`;
+      const clks   = _rfs.clicks > 0 ? `<td class="num-cell has-data">${_rfs.clicks.toLocaleString()}${_partialMark}</td>` : `<td class="num-cell no-data">—</td>`;
       const _fCtr  = _rfs.impressions && _rfs.clicks ? parseFloat(((_rfs.clicks / _rfs.impressions) * 100).toFixed(2)) : null;
       const ctrStr = _fCtr !== null ? `<td class="ctr-cell has-data">${_fCtr}%</td>` : `<td class="ctr-cell no-data">—</td>`;
       const encodedUrl = encodeURIComponent(r.netlifyUrl);
@@ -1306,24 +1331,13 @@
       const res = await fetch('/api/active-view');
       if (!res.ok) { console.warn('[AV] non-ok status', res.status); return; }
       const avData = await res.json();
-      console.log('[AV] got data, URL count:', Object.keys(avData).filter(k => k !== '_ts').length);
-      // Update Active View cells without re-rendering the whole table
-      document.querySelectorAll('#tableBody tr').forEach(row => {
-        const urlCell = row.querySelector('.url-cell a');
-        if (!urlCell) return;
-        const url = urlCell.href.endsWith('/') ? urlCell.href : urlCell.href + '/';
-        const av   = avData[url];
-        const rate = av?.rate ?? av;
-        const cells = row.querySelectorAll('td');
-        const avCell = cells[cells.length - 1];
-        if (avCell && rate != null) {
-          avCell.className = 'ctr-cell has-data';
-          avCell.textContent = rate + '%';
-        }
-      });
-      // Update allRows with rate + raw counts so sort and weighted summary both work
+      console.log('[AV] got data, entry count:', Object.keys(avData).filter(k => k !== '_ts').length);
+      // Look up each row by its own (url, videoId, device) key — a URL with both a desktop
+      // skin and video creatives gets independent viewability instead of one number blended
+      // across all of them. Re-render via renderTable() rather than patching cells directly,
+      // so the ad-unit filter's "—" gate (getFilteredStats) still applies correctly.
       allRows.forEach(r => {
-        const av = avData[r.netlifyUrl];
+        const av = avData[`${r.netlifyUrl}##${r.videoId || ''}##${r.device}`];
         if (av != null) {
           r.activeView          = av?.rate ?? av;
           r.activeViewViewable  = av?.viewable  ?? null;
@@ -1331,6 +1345,7 @@
         }
       });
       updateStats();
+      renderTable();
     } catch(e) { console.error('[AV] error:', e); }
   }
 
@@ -1338,15 +1353,16 @@
     try {
       const res = await fetch('/api/video-stats');
       if (!res.ok) return;
-      const vsData = await res.json(); // { videoId: { completionRate, durationSec } }
+      const vsData = await res.json(); // { videoId: {...} } or { videoId_device: {...} } for multi-device videos
       allRows.forEach(r => {
         if (!r.videoId) return;
-        const d = vsData[r.videoId];
+        const d = vsData[r.videoId + '_' + r.device] ?? vsData[r.videoId];
         if (!d) return;
         if (d.completionRate != null) r.completionRate = d.completionRate;
         if (d.durationSec != null) r.durationSec = d.durationSec;
         if (d.videoStarts != null) r.videoStarts = d.videoStarts;
       });
+      updateStats();
       if (activeTab === 'video' || activeTab === 'video-mobile') renderTable();
     } catch(e) {}
   }

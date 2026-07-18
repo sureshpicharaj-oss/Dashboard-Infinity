@@ -233,7 +233,7 @@ module.exports = function(SCREENSHOT_DIR) {
       const { fetchCompanionToMasterMap } = require('../lib/gam-companion');
       const companionToMaster = await fetchCompanionToMasterMap(networkCode, token, [masterId]);
       const companions = Object.entries(companionToMaster)
-        .filter(([, m]) => m === masterId)
+        .filter(([, masterIds]) => masterIds.has(masterId))
         .map(([c]) => c);
       // Fetch companion creative details to get template IDs
       const { fetchCreativesByIds } = require('../lib/gam-creatives');
@@ -338,20 +338,22 @@ module.exports = function(SCREENSHOT_DIR) {
         return false;
       });
 
-      // For all netlify companions, resolve masters via creative sets
+      // For all netlify companions, resolve masters via creative sets. A companion can now
+      // map to more than one master (companionToMaster values are Sets — see gam-companion.js).
       const allCompanionIds = netlifyCompanions.map(c => c.id?.[0]).filter(Boolean);
       const companionToMaster = await fetchCompanionToMasterMap(networkCode, token, null);
-      const masterIds = [...new Set(allCompanionIds.map(cid => companionToMaster[cid]).filter(Boolean))];
+      const masterIds = [...new Set(allCompanionIds.flatMap(cid => companionToMaster[cid] ? [...companionToMaster[cid]] : []))];
 
       // LICA check on all masters
       const lica = await fetchCreativeLICAStats(masterIds, networkCode, token);
 
-      // Load current dashboard creative cache to check what's already showing
-      const urlCreativePath = path.join(require('../server').__screenshotDir || '', 'url_creative_cache.json').replace(/undefined/, '');
+      // Load current dashboard creative cache to check what's already showing.
+      // Uses SCREENSHOT_DIR (the same directory dashboard-full.js writes this cache to) —
+      // not a hardcoded path — so this reflects the actual running server's data.
       const currentDashboardIds = new Set();
       try {
         const urlCreativeMap = JSON.parse(fs.readFileSync(
-          path.join(__dirname, '..', 'public', 'screenshots', 'url_creative_cache.json'), 'utf8'
+          path.join(SCREENSHOT_DIR, 'url_creative_cache.json'), 'utf8'
         ));
         for (const ids of Object.values(urlCreativeMap)) for (const id of ids) currentDashboardIds.add(id);
       } catch(e) {}
@@ -360,17 +362,17 @@ module.exports = function(SCREENSHOT_DIR) {
       const blindSpots = [];
       for (const c of netlifyCompanions) {
         const companionId = c.id?.[0];
-        const masterId = companionToMaster[companionId];
+        const masterIdsForCompanion = [...(companionToMaster[companionId] || [])];
         const netlifyUrl = extractNetlifyUrl(c);
         const templateId = c.creativeTemplateId?.[0];
-        const imps = masterId ? (lica.statsByCreativeId[masterId]?.impressions || 0) : 0;
-        const onDashboard = masterId ? currentDashboardIds.has(masterId) : false;
+        const imps = masterIdsForCompanion.reduce((sum, mId) => sum + (lica.statsByCreativeId[mId]?.impressions || 0), 0);
+        const onDashboard = masterIdsForCompanion.some(mId => currentDashboardIds.has(mId));
         const isUnknownTemplate = !KNOWN_COMPANION_TEMPLATE_IDS.has(templateId);
 
         if (isUnknownTemplate || (imps > 0 && !onDashboard)) {
           blindSpots.push({
             companionId,
-            masterId: masterId || null,
+            masterIds: masterIdsForCompanion,
             netlifyUrl,
             templateId,
             knownTemplate: KNOWN_COMPANION_TEMPLATE_IDS.has(templateId),

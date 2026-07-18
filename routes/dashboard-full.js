@@ -31,7 +31,7 @@ module.exports = function(SCREENSHOT_DIR) {
 
       const mergedResults = results.map(r => {
         const vs = r.videoId ? (videoStatsByVideoId[r.videoId + '_' + r.device] ?? videoStatsByVideoId[r.videoId]) : null;
-        return { ...r, completionRate: vs?.completionRate ?? null, durationSec: vs?.durationSec ?? null };
+        return { ...r, completionRate: vs?.completionRate ?? null, durationSec: vs?.durationSec ?? null, videoStarts: vs?.videoStarts ?? null };
       });
 
       res.json({ total: mergedResults.length, lastFetched: new Date().toISOString(), results: mergedResults });
