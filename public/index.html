@@ -230,6 +230,35 @@
     .adv-cell:hover .row-tag-btn { display:inline; }
     .row-tag-btn:hover { background:#4f7fff;border-color:#4f7fff;color:#fff; }
     .row-cat-chip { display:inline-block;font-size:10px;font-weight:600;padding:1px 7px;border-radius:10px;margin-left:5px;vertical-align:middle;background:color-mix(in srgb,var(--tc) 15%,transparent);color:var(--tc);border:1px solid color-mix(in srgb,var(--tc) 35%,transparent); }
+    .row-split-btn { display:none;background:none;border:1px solid #3a4a6a;color:#6e93b0;border-radius:10px;font-size:11px;padding:1px 6px;cursor:pointer;margin-left:5px;vertical-align:middle;line-height:1.4; }
+    .adv-cell:hover .row-split-btn { display:inline; }
+    .row-split-btn:hover { background:#4f7fff;border-color:#4f7fff;color:#fff; }
+    /* Dedicated actions column — tag + splits buttons, always reachable regardless of name length. */
+    .action-cell { white-space:nowrap; }
+    .action-cell .row-tag-btn, .action-cell .row-split-btn { display:inline-block;margin:0 4px 0 0; }
+
+    /* Creative-splits modal — light + colour-coded to match the dashboard stat cards */
+    #splitBody { color:#1a1a2e;font-size:13px; }
+    #splitBody .split-sub { color:#8a93a6;font-size:12px;margin:0 0 14px; }
+    .split-preview { margin:0 0 16px;border:1px solid #e6e9f0;border-radius:8px;overflow:hidden;background:#f4f6fa;max-width:520px; }
+    .split-preview img { display:block;width:100%;height:auto;max-height:230px;object-fit:contain;background:#fff; }
+    .split-group-title { font-size:12px;font-weight:700;letter-spacing:.02em;color:#2563b8;margin:20px 0 8px;padding:4px 11px;background:#eef3ff;border-radius:6px;display:inline-block; }
+    .split-table { width:100%;border-collapse:collapse;margin-bottom:12px; }
+    .split-table th, .split-table td { padding:8px 11px;text-align:left;border-bottom:1px solid #eef0f5;white-space:nowrap; }
+    .split-table th { font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8a93a6;background:#f8f9fc;position:sticky;top:0;z-index:1; }
+    .split-table td.num { text-align:right;font-variant-numeric:tabular-nums;font-weight:600; }
+    .split-table tbody tr:nth-child(even) td { background:#fbfcfe; }
+    .split-table tbody tr:hover td { background:#eef3ff; }
+    .split-imp  { color:#2563b8; }
+    .split-clk  { color:#0d9488; }
+    .split-ctr  { color:#7b5ea7; }
+    .split-view { color:#1aab6d; }
+    .split-comp { color:#d98324; }
+    .split-name { max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:#1a1a2e; }
+    .split-kv { display:inline-block;font-size:10px;padding:1px 7px;margin:1px 4px 1px 0;border-radius:10px;background:#eef1f8;border:1px solid #dfe4ee;color:#42506b; }
+    .split-dash { color:#c0c6d2; }
+    .split-total-row td { font-weight:800;color:#1a1a2e;border-top:2px solid #d5dced;border-bottom:none;background:#f0f4ff; }
+    .split-total-row td:first-child { color:#2563b8; }
     .live-dot { display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle;flex-shrink:0; }
     .live-dot.delivering { background:#f59e0b;box-shadow:0 0 0 0 rgba(245,158,11,.6);animation:pulse-yellow 1.6s infinite; }
     .live-dot.ready      { background:#3b82f6;box-shadow:0 0 4px rgba(59,130,246,.7); }
@@ -524,11 +553,23 @@
   </div>
 </div>
 
+<!-- Creative splits drill-down modal -->
+<div id="splitOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,22,40,.5);z-index:1001;align-items:center;justify-content:center;backdrop-filter:blur(3px)" onclick="if(event.target===this)closeSplitModal()">
+  <div style="background:#fff;border-radius:12px;width:75vw;height:75vh;max-width:75vw;max-height:75vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px rgba(20,30,60,.4)">
+    <div style="padding:16px 22px;background:linear-gradient(135deg,#1a3a6e,#2563b8,#3b82f6);display:flex;align-items:center;justify-content:space-between">
+      <span id="splitTitle" style="font-size:15px;font-weight:700;color:#fff">Creative splits</span>
+      <button onclick="closeSplitModal()" title="Close" style="background:rgba(255,255,255,.18);border:none;color:#fff;font-size:18px;cursor:pointer;line-height:1;width:28px;height:28px;border-radius:6px">×</button>
+    </div>
+    <div id="splitBody" style="padding:18px 22px;overflow:auto;flex:1;background:#fff"></div>
+  </div>
+</div>
+
 <div class="table-wrapper">
   <table>
     <thead>
       <tr>
         <th onclick="sortBy('advertiser')" data-col="advertiser" style="width:160px">Advertiser <span class="sort-icon">↕</span></th>
+        <th style="width:64px">Actions</th>
         <th onclick="sortBy('netlifyUrl')" data-col="netlifyUrl" style="width:220px">Netlify URL <span class="sort-icon">↕</span></th>
         <th style="width:320px">Preview</th>
         <th id="thVideos" style="display:none;width:180px">Videos</th>
@@ -539,7 +580,7 @@
       </tr>
     </thead>
     <tbody id="tableBody">
-      <tr><td colspan="7" class="empty-state">Loading data…</td></tr>
+      <tr><td colspan="8" class="empty-state">Loading data…</td></tr>
     </tbody>
   </table>
 </div>
@@ -726,6 +767,117 @@
     document.getElementById('tagEditorOverlay').style.display = 'none';
   }
 
+  // ── Creative splits drill-down ────────────────────────────────────────────
+  // splits_cache.json (built by the daily refresh) maps each composite group key
+  // (netlifyUrl##videoId##device) → the individual creatives that make up the row's
+  // combined totals. Fetched lazily once, then reused.
+  let splitsData = null;
+  let splitsLoading = null;
+  function loadSplits() {
+    if (splitsData) return Promise.resolve(splitsData);
+    if (splitsLoading) return splitsLoading;
+    splitsLoading = fetch('/data/splits_cache.json?' + Date.now())
+      .then(r => r.ok ? r.json() : {})
+      .catch(() => ({}))
+      .then(d => { splitsData = d || {}; return splitsData; });
+    return splitsLoading;
+  }
+
+  function openSplitFromBtn(btn) {
+    openSplitModal(decodeURIComponent(btn.dataset.url || ''), btn.dataset.device || '');
+  }
+
+  async function openSplitModal(url, device) {
+    const overlay = document.getElementById('splitOverlay');
+    const body = document.getElementById('splitBody');
+    const title = document.getElementById('splitTitle');
+    // Recover the contributing rows from allRows — video tabs group several VIDEO_IDs
+    // under one URL, so a single click can span multiple group keys.
+    const rowsForKey = allRows.filter(r => r.netlifyUrl === url && r.device === device);
+    title.textContent = 'Creative splits — ' + (rowsForKey[0]?.advertiser || shortUrl(url));
+    body.innerHTML = '<p class="split-sub">Loading…</p>';
+    overlay.style.display = 'flex';
+    const data = await loadSplits();
+    const groupKeys = rowsForKey.length
+      ? rowsForKey.map(r => `${r.netlifyUrl}##${r.videoId || ''}##${r.device}`)
+      : [`${url}##${''}##${device}`];
+    renderSplits(body, url, device, groupKeys, data);
+  }
+
+  function renderSplits(body, url, device, groupKeys, data) {
+    const isVideo = device === 'video' || device === 'video-mobile';
+    const enc = encodeURIComponent(url);
+    const sub = (url || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
+    // Same screenshot the row shows (keyed by URL + device) — one preview for the whole row.
+    let html = `<div class="split-preview"><img src="/api/screenshot?url=${enc}&device=${device}" onerror="this.onerror=null;this.src='/screenshots/${sub}-${device}.png'" alt="preview" /></div>`;
+    html += `<p class="split-sub">${esc(shortUrl(url))} · ${esc(device)} — individual creatives that make up the combined row.</p>`;
+    let any = false;
+    for (const gk of groupKeys) {
+      const splits = (data[gk] || []).slice().sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
+      if (!splits.length) continue;
+      any = true;
+      const vid = gk.split('##')[1];
+      if (isVideo && vid) html += `<div class="split-group-title">VIDEO_ID: ${esc(vid)}</div>`;
+      html += splitTable(splits, isVideo);
+    }
+    body.innerHTML = any
+      ? html
+      : `<p class="split-sub">No per-creative split data available for this row yet. Splits are produced by the daily refresh, so a newly-trafficked row may not have them until the next run.</p>`;
+  }
+
+  function splitTable(splits, isVideo) {
+    const dash = '<span class="split-dash">—</span>';
+    const num = n => (n != null && n !== '') ? Number(n).toLocaleString() : dash;
+    const pct = n => (n != null) ? n + '%' : dash;
+    let tImp = 0, tClk = 0;
+    const rows = splits.map(s => {
+      tImp += s.impressions || 0; tClk += s.clicks || 0;
+      const ctr = (s.impressions && s.clicks) ? ((s.clicks / s.impressions) * 100).toFixed(2) + '%' : dash;
+      const kv = (s.keyValues || []).length
+        ? s.keyValues.map(k => `<span class="split-kv">${esc(k.key)}: ${esc(k.value)}</span>`).join('')
+        : dash;
+      return `<tr>
+        <td class="split-name" title="${esc(s.name || ('#' + s.creativeId))}">${esc(s.name || ('#' + s.creativeId))}</td>
+        <td class="num split-imp">${num(s.impressions)}</td>
+        <td class="num split-clk">${num(s.clicks)}</td>
+        <td class="num split-ctr">${ctr}</td>
+        <td class="num split-view">${pct(s.viewability)}</td>
+        ${isVideo ? `<td class="num split-comp">${pct(s.completionRate)}</td>` : ''}
+        <td>${kv}</td>
+      </tr>`;
+    }).join('');
+    const totCtr = (tImp && tClk) ? ((tClk / tImp) * 100).toFixed(2) + '%' : dash;
+    const totalRow = `<tr class="split-total-row">
+      <td>Combined (${splits.length})</td>
+      <td class="num">${tImp.toLocaleString()}</td>
+      <td class="num">${tClk.toLocaleString()}</td>
+      <td class="num">${totCtr}</td>
+      <td class="num">${dash}</td>
+      ${isVideo ? `<td class="num">${dash}</td>` : ''}
+      <td></td>
+    </tr>`;
+    return `<table class="split-table"><thead><tr>
+      <th>Creative</th>
+      <th style="text-align:right">Impressions</th>
+      <th style="text-align:right">Clicks</th>
+      <th style="text-align:right">CTR</th>
+      <th style="text-align:right">Viewability</th>
+      ${isVideo ? '<th style="text-align:right">Completion</th>' : ''}
+      <th>Key values</th>
+    </tr></thead><tbody>${rows}${totalRow}</tbody></table>`;
+  }
+
+  function closeSplitModal() {
+    document.getElementById('splitOverlay').style.display = 'none';
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      const ov = document.getElementById('splitOverlay');
+      if (ov && ov.style.display === 'flex') closeSplitModal();
+    }
+  });
+
   function renderTagEditor() {
     const list = document.getElementById('tagRulesList');
     if (!Object.keys(tagRules).length) {
@@ -863,6 +1015,7 @@
 
     const skelRow = () => `<tr class="skel-row">
       <td><span class="skel skel-short"></span></td>
+      <td><span class="skel skel-short"></span></td>
       <td><span class="skel skel-line"></span></td>
       <td><span class="skel skel-thumb"></span></td>
       <td class="num-cell"><span class="skel skel-num"></span></td>
@@ -871,7 +1024,7 @@
       <td class="num-cell"><span class="skel skel-num"></span></td>
     </tr>`;
     document.getElementById('tableBody').innerHTML =
-      `<tr><td colspan="7" style="padding:10px 16px 4px;font-size:.8rem;color:#888" id="skelCaption">Fetching from Google Ad Manager… 0s</td></tr>` +
+      `<tr><td colspan="8" style="padding:10px 16px 4px;font-size:.8rem;color:#888" id="skelCaption">Fetching from Google Ad Manager… 0s</td></tr>` +
       Array(8).fill(0).map(skelRow).join('');
 
     try {
@@ -1124,7 +1277,7 @@
         activeView: g.avMeasurable > 0 ? parseFloat(((g.avViewable / g.avMeasurable) * 100).toFixed(1)) : null,
       }));
       if (!groups.length) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No results match your search</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No results match your search</td></tr>';
         return;
       }
       tbody.innerHTML = groups.map(g => {
@@ -1143,10 +1296,12 @@
         const vCat = getCategory(g.advertiser, g.netlifyUrl);
         const vCatChip = vCat ? `<span class="row-cat-chip" style="--tc:${tagColor(vCat)}">${vCat}</span>` : '';
         const vTagBtn = `<button class="row-tag-btn" data-url="${esc(g.netlifyUrl)}" onclick="event.stopPropagation();openTagPickerFromBtn(this)" title="Assign tag">＋</button>`;
+        const vSplitBtn = `<button class="row-split-btn" data-url="${encodedUrl}" data-device="${activeTab}" onclick="event.stopPropagation();openSplitFromBtn(this)" title="Show creative splits">⊞</button>`;
         const DOT_LABEL = { delivering: 'Delivering', ready: 'Ready', paused: 'Paused', inactive: 'Inactive' };
         const vDot = g.liveStatus ? `<span class="live-dot ${g.liveStatus}" title="${DOT_LABEL[g.liveStatus] || g.liveStatus}"></span>` : '';
         return `<tr>
-          <td class="adv-cell" data-url="${encodedUrl}">${vDot}<span class="adv-name">${esc(g.advertiser || '')}</span>${vCatChip}${vTagBtn}${liLinks([...g.lineItemIds])}</td>
+          <td class="adv-cell" data-url="${encodedUrl}">${vDot}<span class="adv-name">${esc(g.advertiser || '')}</span>${vCatChip}${liLinks([...g.lineItemIds])}</td>
+          <td class="action-cell">${vTagBtn}${vSplitBtn}</td>
           <td class="url-cell"><a href="${esc(g.netlifyUrl)}" target="_blank" rel="noopener">${esc(shortUrl(g.netlifyUrl))}</a></td>
           ${thumb}
           ${renderVideoCell(g.videos)}
@@ -1160,7 +1315,7 @@
     // Desktop / Mobile tabs — original per-row rendering
     rows = sortRows(rows, sortCol, sortDir);
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No results match your search</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No results match your search</td></tr>';
       return;
     }
     tbody.innerHTML = rows.map(r => {
@@ -1180,10 +1335,12 @@
       const cat = getCategory(r.advertiser, r.netlifyUrl);
       const catChip = cat ? `<span class="row-cat-chip" style="--tc:${tagColor(cat)}">${cat}</span>` : '';
       const tagBtn = `<button class="row-tag-btn" data-url="${esc(r.netlifyUrl)}" onclick="event.stopPropagation();openTagPickerFromBtn(this)" title="Assign tag">＋</button>`;
+      const splitBtn = `<button class="row-split-btn" data-url="${encodedUrl}" data-device="${activeTab}" onclick="event.stopPropagation();openSplitFromBtn(this)" title="Show creative splits">⊞</button>`;
       const DOT_LABEL = { delivering: 'Delivering', ready: 'Ready', paused: 'Paused', inactive: 'Inactive' };
       const dot = r.liveStatus ? `<span class="live-dot ${r.liveStatus}" title="${DOT_LABEL[r.liveStatus] || r.liveStatus}"></span>` : '';
       return `<tr>
-        <td class="adv-cell" data-url="${encodedUrl}">${dot}<span class="adv-name">${esc(r.advertiser || '')}</span>${catChip}${tagBtn}${liLinks(r.lineItemIds || [])}</td>
+        <td class="adv-cell" data-url="${encodedUrl}">${dot}<span class="adv-name">${esc(r.advertiser || '')}</span>${catChip}${liLinks(r.lineItemIds || [])}</td>
+        <td class="action-cell">${tagBtn}${splitBtn}</td>
         <td class="url-cell"><a href="${esc(r.netlifyUrl)}" target="_blank" rel="noopener">${esc(shortUrl(r.netlifyUrl))}</a></td>
         ${thumb}
         ${imps}${clks}${ctrStr}${av}
