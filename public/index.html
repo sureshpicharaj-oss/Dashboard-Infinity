@@ -360,6 +360,18 @@
       font-size: .88rem;
     }
 
+    #cachedBanner {
+      display: none;
+      margin: 0 32px 16px;
+      background: #fef3cd;
+      color: #8a6d1b;
+      border: 1px solid #f5e6a8;
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-size: .88rem;
+    }
+    #cachedBanner strong { color: #7a5c00; }
+
     .empty-state {
       padding: 60px 32px;
       text-align: center;
@@ -487,6 +499,7 @@
 </div>
 
 <div id="errorBanner"></div>
+<div id="cachedBanner"></div>
 
 <!-- Inline tag picker -->
 <div id="tagPicker" style="display:none;position:absolute;z-index:999;background:#1a1e2e;border:1px solid #2e3650;border-radius:6px;padding:12px 14px;min-width:200px;max-width:260px;box-shadow:0 4px 20px rgba(0,0,0,.5)"></div>
@@ -828,6 +841,7 @@
 
     if (btn) { btn.disabled = true; btn.classList.add('loading'); }
     document.getElementById('errorBanner').style.display = 'none';
+    document.getElementById('cachedBanner').style.display = 'none';
 
     // Progress bar + elapsed timer
     const loadBar = document.getElementById('loadBar');
@@ -882,6 +896,16 @@
       el.textContent = 'Data as of: ' + ts.toLocaleString('en-GB') + ' (' + ageLabel + ')';
       el.dataset.ts = data.lastFetched;
       el.style.color = ageHrs > 6 ? '#f59e0b' : ageHrs > 4 ? '#fbbf24' : '';
+
+      // The server sets `cached` when it couldn't reach GAM live and served the last
+      // saved snapshot instead — most often because the local refresh token has expired.
+      const cachedBanner = document.getElementById('cachedBanner');
+      if (data.cached) {
+        cachedBanner.style.display = 'block';
+        cachedBanner.innerHTML = '⚠ <strong>Showing cached data.</strong> The live Google Ad Manager refresh is unavailable (the local token has expired), so this is the last saved snapshot from <strong>' + ts.toLocaleString('en-GB') + '</strong>. The live site and the daily refresh are unaffected.';
+      } else {
+        cachedBanner.style.display = 'none';
+      }
 
       updateStats();
       renderTags();
