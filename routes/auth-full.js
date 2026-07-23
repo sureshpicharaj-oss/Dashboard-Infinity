@@ -53,8 +53,16 @@ router.get('/', async (req, res) => {
       wrote = true;
     } catch (e) {}
     if (wrote) {
-      res.send('<p style="font:16px system-ui;max-width:640px;margin:40px auto">✅ <strong>Authorised — new refresh token saved to <code>.env</code> automatically.</strong></p>'
-        + '<p style="font:15px system-ui;max-width:640px;margin:0 auto;color:#444">Now restart the server (press <code>Ctrl+C</code> in the terminal, then run <code>node server.js</code>) and reload the dashboard — you should see live data with no cached-data banner.</p>');
+      res.send(`
+      <div style="font:15px/1.55 system-ui;max-width:700px;margin:40px auto;color:#1a1a2e;padding:0 20px">
+        <p>✅ <strong>Authorised — new refresh token saved to <code>.env</code> automatically.</strong></p>
+        <p style="color:#444">Copy this token into the <strong>GitHub Actions secret</strong> <code>GAM_REFRESH_TOKEN</code> (and Netlify, if you use it) so the daily refresh keeps working under this OAuth client:</p>
+        <div style="display:flex;gap:8px;align-items:stretch;margin:12px 0">
+          <code id="tok" style="flex:1;display:block;background:#f4f6fa;border:1px solid #dfe4ee;border-radius:6px;padding:10px 12px;font-size:12px;word-break:break-all;user-select:all">${refreshToken}</code>
+          <button onclick="navigator.clipboard.writeText(document.getElementById('tok').innerText).then(()=>{this.innerText='Copied ✓';this.style.background='#1aab6d'})" style="background:#2563b8;color:#fff;border:none;border-radius:6px;padding:0 16px;font-size:13px;cursor:pointer;white-space:nowrap">Copy</button>
+        </div>
+        <p style="color:#444">Then <strong>restart the server</strong> (<code>Ctrl+C</code>, then <code>node server.js</code>) and reload the dashboard — you should see live data with no cached-data banner.</p>
+      </div>`);
     } else {
       res.send(`<p>Authorised, but couldn't write .env automatically. Add this line to .env then restart:</p><pre>GAM_REFRESH_TOKEN=${refreshToken}</pre>`);
     }
