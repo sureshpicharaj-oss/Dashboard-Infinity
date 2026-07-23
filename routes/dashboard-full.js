@@ -38,7 +38,18 @@ module.exports = function(SCREENSHOT_DIR) {
     } catch (err) {
       const message = err.response?.data || err.message;
       console.error('Dashboard error:', message);
-      res.status(500).json({ error: typeof message === 'string' ? message : JSON.stringify(message) });
+      // Fallback: serve the last committed dashboard_cache.json (written by
+      // scripts/refresh.js and refreshed daily by the GitHub Actions workflow) so the
+      // dashboard still renders when the live GAM fetch fails — most commonly an expired
+      // local refresh token during local development. The `cached` flag lets the client
+      // show a "showing cached data" hint if it wants; lastFetched already conveys age.
+      try {
+        const cached = JSON.parse(fs.readFileSync(path.join(SCREENSHOT_DIR, 'dashboard_cache.json'), 'utf8'));
+        console.warn('Serving cached dashboard_cache.json as fallback (live GAM fetch failed)');
+        return res.json({ ...cached, cached: true, cacheReason: typeof message === 'string' ? message : 'live GAM fetch failed' });
+      } catch (cacheErr) {
+        return res.status(500).json({ error: typeof message === 'string' ? message : JSON.stringify(message) });
+      }
     }
   });
 
