@@ -197,7 +197,7 @@ async function main() {
         for (const id of (s.keyValueIds || [])) {
           const lbl = kvLabels[id];
           if (!lbl) continue;
-          const dedup = `${lbl.key} ${lbl.value}`;
+          const dedup = `${lbl.key} ${lbl.value}`;
           if (seen.has(dedup)) continue;
           seen.add(dedup);
           keyValues.push(lbl);
