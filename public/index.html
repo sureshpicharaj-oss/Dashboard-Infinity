@@ -281,6 +281,14 @@
     .seg-item-ctr { font-weight:700;font-variant-numeric:tabular-nums; }
     .seg-win ~ .seg-item .seg-item-ctr, .seg-item.win .seg-item-ctr { color:#158a5a; }
     .seg-item-imp { color:#98a0b0;font-size:11px;font-variant-numeric:tabular-nums; }
+    /* Performance-by-segment summary one-liners */
+    .seg-summary { background:#f6f8fc;border:1px solid #e6e9f0;border-radius:8px;padding:10px 14px;margin:0 0 18px; }
+    .seg-sum-row { font-size:13px;line-height:1.5;padding:3px 0;color:#1a1a2e; }
+    .seg-sum-tag { display:inline-block;min-width:74px;text-align:center;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:10px;margin-right:10px;vertical-align:middle; }
+    .seg-sum-tag.ctx { background:#eef3ff;color:#2563b8; }
+    .seg-sum-tag.aud { background:#fef0e7;color:#d9822b; }
+    .seg-sum-tag.perm { background:#f0eefb;color:#7b5ea7; }
+    .seg-summary b { color:#158a5a;font-variant-numeric:tabular-nums; }
     .live-dot { display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle;flex-shrink:0; }
     .live-dot.delivering { background:#f59e0b;box-shadow:0 0 0 0 rgba(245,158,11,.6);animation:pulse-yellow 1.6s infinite; }
     .live-dot.ready      { background:#3b82f6;box-shadow:0 0 4px rgba(59,130,246,.7); }
@@ -843,7 +851,13 @@
       if (isVideo && vid) html += `<div class="split-group-title">VIDEO_ID: ${esc(vid)}</div>`;
       html += splitTable(splits, isVideo);
     }
-    const segHtml = segSectionHtml(groupKeys);
+    // Row-level CTR baseline for the "performing segments" threshold (segments must reach
+    // ≥90% of it to show). Sum across the contributing rows (video tab spans several).
+    const rowsForKey = allRows.filter(r => r.netlifyUrl === url && r.device === device);
+    const totImp = rowsForKey.reduce((a, r) => a + (r.impressions || 0), 0);
+    const totClk = rowsForKey.reduce((a, r) => a + (r.clicks || 0), 0);
+    const rowCtr = totImp > 0 ? (totClk / totImp) * 100 : 0;
+    const segHtml = segSectionHtml(groupKeys, rowCtr);
     body.innerHTML = (any || segHtml)
       ? html + segHtml
       : `<p class="split-sub">No per-creative split data available for this row yet. Splits are produced by the daily refresh, so a newly-trafficked row may not have them until the next run.</p>`;
@@ -945,38 +959,70 @@
     const val = v.value.length > 30 ? v.value.slice(0, 29) + '…' : v.value;
     return `<div class="seg-item${win ? ' win' : ''}"><span class="seg-item-val" title="${esc(v.value)}">${esc(val)}</span><span class="seg-item-ctr" style="color:${win ? '#158a5a' : '#c0392b'}">${v.ctr}%</span><span class="seg-item-imp">${(v.impressions || 0).toLocaleString()} imp</span></div>`;
   }
-  function segSectionHtml(groupKeys) {
+  const AUD_AP_KEYS = ['ap_gen','ap_stda','ap_inc','ap_hhs','ap_emp','ap_edu','ap_chi'];
+  function segSectionHtml(groupKeys, rowCtr) {
     if (!perfData) return '';
-    // Iterate the keys actually present for this row (already site-filtered in the cache),
-    // ordered for readability (categorisation keys first, audience last).
+    // Merge each key's values across the row's group keys, deduped, ranked by CTR desc.
     const present = new Set();
+    const ranked = {}; // key -> [{value,impressions,clicks,ctr}] desc by ctr
     for (const gk of groupKeys) {
       const bk = perfData[gk] && perfData[gk].byKey;
-      if (bk) Object.keys(bk).forEach(k => present.add(k));
-    }
-    const orderedKeys = [...SEG_KEY_ORDER.filter(k => present.has(k)), ...[...present].filter(k => !SEG_KEY_ORDER.includes(k))];
-    let blocks = '';
-    for (const key of orderedKeys) {
-      const label = SEG_KEY_LABEL[key] || key;
-      const seen = new Map();
-      for (const gk of groupKeys) {
-        const bk = perfData[gk] && perfData[gk].byKey && perfData[gk].byKey[key];
-        if (!bk) continue;
-        for (const v of [...(bk.top || []), ...(bk.bottom || [])]) {
+      if (!bk) continue;
+      for (const [key, lists] of Object.entries(bk)) {
+        present.add(key);
+        const seen = ranked[key] ? ranked[key]._m : (ranked[key] = Object.assign([], { _m: new Map() }))._m;
+        for (const v of [...(lists.top || []), ...(lists.bottom || [])]) {
           const ex = seen.get(v.value);
           if (!ex || v.impressions > ex.impressions) seen.set(v.value, v);
         }
       }
-      const all = [...seen.values()].sort((a, b) => b.ctr - a.ctr);
-      if (!all.length) continue;
-      const top = all.slice(0, 3);
-      const bottom = all.length > 3 ? all.slice(-3).reverse() : [];
-      let cols = `<div><div class="seg-sub-h seg-win">Top by CTR</div>${top.map(v => segRow(v, true)).join('')}</div>`;
-      if (bottom.length) cols += `<div><div class="seg-sub-h seg-lose">Underperformed</div>${bottom.map(v => segRow(v, false)).join('')}</div>`;
-      blocks += `<div class="seg-key-block"><div class="seg-key-title">${esc(label)}</div><div class="seg-cols">${cols}</div></div>`;
     }
-    if (!blocks) return '';
-    return `<div class="seg-section"><div class="split-group-title" style="background:#e7f7ef;color:#158a5a">Performance by segment — CTR (last 90 days)</div>${blocks}</div>`;
+    if (!present.size) return '';
+    for (const key of present) ranked[key] = [...ranked[key]._m.values()].sort((a, b) => b.ctr - a.ctr);
+
+    // Only show segments performing at ≥90% of the row's overall CTR ("pulling their weight").
+    const threshold = rowCtr * 0.9;
+    const isAud = k => AUD_AP_KEYS.includes(k);
+    const isCtx = k => !isAud(k) && k !== 'permutive';
+
+    // ---- Summary one-liners ----
+    // Content: strongest contextual segments (≥ threshold), across all contextual keys.
+    const ctxAll = [];
+    for (const k of present) if (isCtx(k)) for (const v of ranked[k]) ctxAll.push(v);
+    ctxAll.sort((a, b) => b.ctr - a.ctr);
+    const ctxTop = ctxAll.filter(v => v.ctr >= threshold).slice(0, 3);
+    // Audience: the best-performing value in each ap_ demographic (the winning profile).
+    const audBits = [];
+    for (const k of AUD_AP_KEYS) if (ranked[k] && ranked[k].length) audBits.push(ranked[k][0].value);
+    // Permutive: top named cohort.
+    const permTop = ranked['permutive'] && ranked['permutive'][0];
+
+    const dash = '<span class="split-dash">—</span>';
+    let summary = `<div class="seg-summary">`;
+    summary += `<div class="seg-sum-row"><span class="seg-sum-tag ctx">Content</span>${ctxTop.length ? ctxTop.map(v => `${esc(v.value)} <b>${v.ctr}%</b>`).join('  ·  ') : '<span class="split-dash">no standout</span>'}</div>`;
+    summary += `<div class="seg-sum-row"><span class="seg-sum-tag aud">Audience</span>${audBits.length ? esc(audBits.join('  ·  ')) : dash}</div>`;
+    summary += `<div class="seg-sum-row"><span class="seg-sum-tag perm">Permutive</span>${permTop ? esc(permTop.value) + ` <b>${permTop.ctr}%</b>` : '<span class="split-dash">no named cohort</span>'}</div>`;
+    summary += `</div>`;
+
+    // ---- Per-key detail ----
+    // Top by CTR: only segments performing at ≥90% of the row CTR (the "pulling their weight"
+    // filter you asked for). Underperformed: the lowest-CTR segments — NO threshold, always
+    // shown, so "what didn't work" is never hidden.
+    const N = 4;
+    const orderedKeys = [...SEG_KEY_ORDER.filter(k => present.has(k)), ...[...present].filter(k => !SEG_KEY_ORDER.includes(k))];
+    let blocks = '';
+    for (const key of orderedKeys) {
+      const winners = ranked[key].filter(v => v.ctr >= threshold).slice(0, N);
+      const losers = ranked[key].filter(v => v.ctr < threshold).slice(-N).reverse();
+      if (!winners.length && !losers.length) continue;
+      let cols = '';
+      if (winners.length) cols += `<div><div class="seg-sub-h seg-win">Top by CTR (≥90% of avg)</div>${winners.map(v => segRow(v, true)).join('')}</div>`;
+      if (losers.length) cols += `<div><div class="seg-sub-h seg-lose">Underperformed</div>${losers.map(v => segRow(v, false)).join('')}</div>`;
+      blocks += `<div class="seg-key-block"><div class="seg-key-title">${esc(SEG_KEY_LABEL[key] || key)}</div><div class="seg-cols">${cols}</div></div>`;
+    }
+
+    const hdr = `<div class="split-group-title" style="background:#e7f7ef;color:#158a5a">Performance by segment — CTR (row average ${rowCtr.toFixed(2)}%)</div>`;
+    return `<div class="seg-section">${hdr}${summary}${blocks}</div>`;
   }
 
   function renderTagEditor() {
