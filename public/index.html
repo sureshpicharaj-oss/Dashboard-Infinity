@@ -1004,19 +1004,20 @@
     summary += `<div class="seg-sum-row"><span class="seg-sum-tag perm">Permutive</span>${permTop ? esc(permTop.value) + ` <b>${permTop.ctr}%</b>` : '<span class="split-dash">no named cohort</span>'}</div>`;
     summary += `</div>`;
 
-    // ---- Per-key detail (unchanged behaviour) ----
-    // Top by CTR: the best-performing segments. Underperformed: the lowest. No threshold on
-    // either — the ≥90%-of-CTR filter lives only in the "Content" summary line above.
+    // ---- Per-key detail ----
+    // Top by CTR = only segments performing at ≥90% of the row's overall CTR — a segment
+    // pulling half the row CTR isn't a "good performer", so it doesn't belong here.
+    // Underperformed = the lowest-CTR segments, NO threshold, always shown (what didn't work).
     const N = 4;
     const orderedKeys = [...SEG_KEY_ORDER.filter(k => present.has(k)), ...[...present].filter(k => !SEG_KEY_ORDER.includes(k))];
     let blocks = '';
     for (const key of orderedKeys) {
-      const top = ranked[key].slice(0, N);
-      const topVals = new Set(top.map(v => v.value));
-      const bottom = ranked[key].filter(v => !topVals.has(v.value)).slice(-N).reverse();
-      if (!top.length) continue;
-      let cols = `<div><div class="seg-sub-h seg-win">Top by CTR</div>${top.map(v => segRow(v, true)).join('')}</div>`;
-      if (bottom.length) cols += `<div><div class="seg-sub-h seg-lose">Underperformed</div>${bottom.map(v => segRow(v, false)).join('')}</div>`;
+      const winners = ranked[key].filter(v => v.ctr >= threshold).slice(0, N);
+      const losers = ranked[key].filter(v => v.ctr < threshold).slice(-N).reverse();
+      if (!winners.length && !losers.length) continue;
+      let cols = '';
+      if (winners.length) cols += `<div><div class="seg-sub-h seg-win">Top by CTR (≥90% of avg)</div>${winners.map(v => segRow(v, true)).join('')}</div>`;
+      if (losers.length) cols += `<div><div class="seg-sub-h seg-lose">Underperformed</div>${losers.map(v => segRow(v, false)).join('')}</div>`;
       blocks += `<div class="seg-key-block"><div class="seg-key-title">${esc(SEG_KEY_LABEL[key] || key)}</div><div class="seg-cols">${cols}</div></div>`;
     }
 
