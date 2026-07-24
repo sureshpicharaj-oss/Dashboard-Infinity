@@ -282,6 +282,11 @@
     .seg-item-ctr { font-weight:700;font-variant-numeric:tabular-nums; }
     .seg-win ~ .seg-item .seg-item-ctr, .seg-item.win .seg-item-ctr { color:#158a5a; }
     .seg-item-imp { color:#98a0b0;font-size:11px;font-variant-numeric:tabular-nums; }
+    /* Reach pill — share of the creative's delivered volume a segment carries */
+    .seg-reach { font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;white-space:nowrap;font-variant-numeric:tabular-nums;flex-shrink:0; }
+    .seg-reach.ok  { background:#e7f7ef;color:#158a5a;border:1px solid #bfe8d3; }
+    .seg-reach.mid { background:#fef3e7;color:#c47d1a;border:1px solid #f3dcc0; }
+    .seg-reach.low { background:#fdece9;color:#c0392b;border:1px solid #f2c9c2; }
     /* Performance-by-segment summary one-liners */
     .seg-summary { background:#f6f8fc;border:1px solid #e6e9f0;border-radius:8px;padding:10px 14px;margin:0 0 18px; }
     .seg-sum-row { font-size:13px;line-height:1.5;padding:3px 0;color:#1a1a2e; }
@@ -290,6 +295,14 @@
     .seg-sum-tag.aud { background:#fef0e7;color:#d9822b; }
     .seg-sum-tag.perm { background:#f0eefb;color:#7b5ea7; }
     .seg-summary b { color:#158a5a;font-variant-numeric:tabular-nums; }
+    .seg-sum-tag.safe { background:#e7f7ef;color:#158a5a; }
+    /* Reach caption, colour legend and honesty footnote */
+    .seg-caption { font-size:12px;color:#5b6472;line-height:1.45;margin:-6px 0 12px;font-style:italic; }
+    .seg-caption b { color:#158a5a;font-style:normal; }
+    .seg-legend { font-size:11px;color:#6b7280;line-height:1.5;margin:2px 0 14px; }
+    .seg-legend .lg { display:inline-block;width:9px;height:9px;border-radius:3px;margin:0 4px 0 12px;vertical-align:middle;border:1px solid rgba(0,0,0,.08); }
+    .seg-legend .lg.ok { background:#158a5a; } .seg-legend .lg.mid { background:#c47d1a; } .seg-legend .lg.low { background:#c0392b; }
+    .seg-foot { font-size:11px;color:#98a0b0;line-height:1.5;margin:14px 0 0;border-top:1px solid #eef1f6;padding-top:8px; }
     .live-dot { display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle;flex-shrink:0; }
     .live-dot.delivering { background:#f59e0b;box-shadow:0 0 0 0 rgba(245,158,11,.6);animation:pulse-yellow 1.6s infinite; }
     .live-dot.ready      { background:#3b82f6;box-shadow:0 0 4px rgba(59,130,246,.7); }
@@ -858,7 +871,7 @@
     const totImp = rowsForKey.reduce((a, r) => a + (r.impressions || 0), 0);
     const totClk = rowsForKey.reduce((a, r) => a + (r.clicks || 0), 0);
     const rowCtr = totImp > 0 ? (totClk / totImp) * 100 : 0;
-    const segHtml = segSectionHtml(groupKeys, rowCtr);
+    const segHtml = segSectionHtml(groupKeys, rowCtr, totImp);
     body.innerHTML = (any || segHtml)
       ? html + segHtml
       : `<p class="split-sub">No per-creative split data available for this row yet. Splits are produced by the daily refresh, so a newly-trafficked row may not have them until the next run.</p>`;
@@ -956,12 +969,31 @@
     permutive:'Permutive (audience)'
   };
   const SEG_KEY_ORDER = ['cat','subcat','primary_cat','diet','meal-type','occasion','cuisine','garden','content-classification','category','make','range','cars_body_style','price_brackets','topic','mission','person','location','author','title','titles','content_type','tag','tags','channel','posttag','categories','ap_gen','ap_stda','ap_inc','ap_hhs','ap_emp','ap_edu','ap_chi','permutive'];
-  function segRow(v, win) {
+  // Reach = a segment's share of the creative's delivered impressions. It answers the user's
+  // worry directly: "if I narrow to this segment, how much of what this creative delivers do I
+  // keep?" A dazzling CTR on a segment carrying 3% of volume is a trap — narrowing to it would
+  // starve delivery. Green ≥20% is broad enough to lean on; red <5% is high-CTR-but-tiny.
+  const REACH_GREEN = 20;        // % of the creative's volume → safe to lean on
+  const REACH_RED = 5;           // % below which a segment is too narrow to target alone
+  const SAFE_REACH_TARGET = 60;  // Safe-pick bundle aims to retain at least this % of volume
+  function reachTier(pct) { return pct >= REACH_GREEN ? 'ok' : pct < REACH_RED ? 'low' : 'mid'; }
+  function segRow(v, win, totImp) {
     const val = v.value.length > 30 ? v.value.slice(0, 29) + '…' : v.value;
-    return `<div class="seg-item${win ? ' win' : ''}"><span class="seg-item-val" title="${esc(v.value)}">${esc(val)}</span><span class="seg-item-ctr" style="color:${win ? '#158a5a' : '#c0392b'}">${v.ctr}%</span><span class="seg-item-imp">${(v.impressions || 0).toLocaleString()} imp</span></div>`;
+    const reach = totImp > 0 ? Math.min(100, (v.impressions / totImp) * 100) : 0;
+    // Colour the pill by the SAME rounded number we display, so the label and the traffic-light
+    // never disagree at a boundary (a "20%" pill is never amber, a "5%" pill never red).
+    const rp = reach >= 1 ? Math.round(reach) : parseFloat(reach.toFixed(1));
+    const tier = reachTier(rp);
+    const rLabel = tier === 'low' ? `${rp}% reach · narrow` : `${rp}% reach`;
+    const rTitle = tier === 'low'
+      ? `Only ${rp}% of this creative's impressions — targeting this alone risks underdelivery`
+      : tier === 'ok'
+        ? `${rp}% of this creative's impressions — broad enough to lean on`
+        : `${rp}% of this creative's impressions — moderate reach`;
+    return `<div class="seg-item${win ? ' win' : ''}"><span class="seg-item-val" title="${esc(v.value)}">${esc(val)}</span><span class="seg-item-ctr" style="color:${win ? '#158a5a' : '#c0392b'}">${v.ctr}%</span><span class="seg-reach ${tier}" title="${esc(rTitle)}">${rLabel}</span><span class="seg-item-imp">${(v.impressions || 0).toLocaleString()} imp</span></div>`;
   }
   const AUD_AP_KEYS = ['ap_gen','ap_stda','ap_inc','ap_hhs','ap_emp','ap_edu','ap_chi'];
-  function segSectionHtml(groupKeys, rowCtr) {
+  function segSectionHtml(groupKeys, rowCtr, totImp) {
     if (!perfData) return '';
     // Merge each key's values across the row's group keys, deduped, ranked by CTR desc.
     const present = new Set();
@@ -998,11 +1030,40 @@
     // Permutive: top named cohort.
     const permTop = ranked['permutive'] && ranked['permutive'][0];
 
+    // Safe pick: the broadest within-ONE-key bundle of ≥threshold winners. Values of a single
+    // key are mutually exclusive per impression, so their reach sums honestly (a union); mixing
+    // different keys would double-count overlapping impressions, so we never combine across keys.
+    // Grow the bundle by CTR until it retains ≥SAFE_REACH_TARGET% of volume, then pick the key
+    // whose winning bundle keeps the MOST volume — the safest strong option, not the narrowest.
+    // Because every member clears the 90%-of-avg bar, the impression-weighted blend stays ≥ it.
+    let bundle = null;
+    for (const k of present) {
+      if (!isCtx(k)) continue;
+      const wins = ranked[k].filter(v => v.ctr >= threshold); // already sorted CTR desc
+      if (!wins.length) continue;
+      let imp = 0, clk = 0; const chosen = [];
+      for (const v of wins) {
+        chosen.push(v); imp += v.impressions || 0; clk += v.clicks || 0;
+        if (totImp > 0 && (imp / totImp) * 100 >= SAFE_REACH_TARGET) break; // enough volume
+      }
+      const reach = totImp > 0 ? Math.min(100, (imp / totImp) * 100) : 0;
+      if (!bundle || reach > bundle.reach) bundle = { key: k, chosen, imp, clk, reach };
+    }
+
     const dash = '<span class="split-dash">—</span>';
     let summary = `<div class="seg-summary">`;
     summary += `<div class="seg-sum-row"><span class="seg-sum-tag ctx">Content</span>${ctxTop.length ? ctxTop.map(v => `${esc(v.value)} <b>${v.ctr}%</b>`).join('  ·  ') : '<span class="split-dash">no standout</span>'}</div>`;
     summary += `<div class="seg-sum-row"><span class="seg-sum-tag aud">Audience</span>${audBits.length ? esc(audBits.join('  ·  ')) : dash}</div>`;
     summary += `<div class="seg-sum-row"><span class="seg-sum-tag perm">Permutive</span>${permTop ? esc(permTop.value) + ` <b>${permTop.ctr}%</b>` : '<span class="split-dash">no named cohort</span>'}</div>`;
+    if (bundle) {
+      const names = bundle.chosen.map(v => `<b>${esc(v.value)}</b>`).join(', ');
+      const bctr = bundle.imp > 0 ? (bundle.clk / bundle.imp * 100).toFixed(2) : '0.00';
+      const r = Math.round(bundle.reach);
+      const caveat = bundle.reach < 25 ? ' — still narrow, pair with broader targeting' : '';
+      summary += `<div class="seg-sum-row"><span class="seg-sum-tag safe">Safe pick</span>Targeting ${names} keeps ~${r}% of this creative's volume at ${bctr}% CTR (vs ${rowCtr.toFixed(2)}% row avg)${caveat}.</div>`;
+    } else {
+      summary += `<div class="seg-sum-row"><span class="seg-sum-tag safe">Safe pick</span>No content segment is broad enough to target on its own — treat the above as signals, not filters, to avoid underdelivery.</div>`;
+    }
     summary += `</div>`;
 
     // ---- Per-key detail ----
@@ -1018,13 +1079,16 @@
       if (!winners.length && !losers.length) continue;
       // Fixed layout — good performers ALWAYS on the left, underperformers ALWAYS on the
       // right, with a placeholder when a side is empty, so the columns never shift/swap.
-      const topCol = `<div><div class="seg-sub-h seg-win">Top by CTR (≥90% of avg)</div>${winners.length ? winners.map(v => segRow(v, true)).join('') : '<div class="seg-empty">— none reaching 90%</div>'}</div>`;
-      const loseCol = `<div><div class="seg-sub-h seg-lose">Underperformed</div>${losers.length ? losers.map(v => segRow(v, false)).join('') : '<div class="seg-empty">— none</div>'}</div>`;
+      const topCol = `<div><div class="seg-sub-h seg-win">Strongest CTR — targeting signals</div>${winners.length ? winners.map(v => segRow(v, true, totImp)).join('') : '<div class="seg-empty">— none reaching 90%</div>'}</div>`;
+      const loseCol = `<div><div class="seg-sub-h seg-lose">Underperformed</div>${losers.length ? losers.map(v => segRow(v, false, totImp)).join('') : '<div class="seg-empty">— none</div>'}</div>`;
       blocks += `<div class="seg-key-block"><div class="seg-key-title">${esc(SEG_KEY_LABEL[key] || key)}</div><div class="seg-cols">${topCol}${loseCol}</div></div>`;
     }
 
     const hdr = `<div class="split-group-title" style="background:#e7f7ef;color:#158a5a">Performance by segment — CTR (row average ${rowCtr.toFixed(2)}%)</div>`;
-    return `<div class="seg-section">${hdr}${summary}${blocks}</div>`;
+    const caption = `<div class="seg-caption">Optimization signals, not hard filters — targeting only the smallest high-CTR segments risks underdelivery. Use the <b>Safe pick</b> to balance CTR with reach.</div>`;
+    const legend = `<div class="seg-legend"><b>Reach</b> = share of this creative's impressions.<span class="lg ok"></span>green ≥${REACH_GREEN}% safe to lean on<span class="lg mid"></span>amber moderate<span class="lg low"></span>red &lt;${REACH_RED}% high CTR but tiny — risky to target alone.</div>`;
+    const foot = `<div class="seg-foot">Reach is the share of this creative's <b>recent delivered</b> impressions — a historical guide, not a forward inventory forecast, and it doesn't yet check the line item's booked goal.</div>`;
+    return `<div class="seg-section">${hdr}${caption}${summary}${legend}${blocks}${foot}</div>`;
   }
 
   function renderTagEditor() {
