@@ -38,15 +38,20 @@ module.exports = function(SCREENSHOT_DIR) {
     } catch (err) {
       const message = err.response?.data || err.message;
       console.error('Dashboard error:', message);
-      // Fallback: serve the last committed dashboard_cache.json (written by
-      // scripts/refresh.js and refreshed daily by the GitHub Actions workflow) so the
-      // dashboard still renders when the live GAM fetch fails — most commonly an expired
-      // local refresh token during local development. The `cached` flag lets the client
-      // show a "showing cached data" hint if it wants; lastFetched already conveys age.
+      // Classify the failure so the client shows an honest banner: an auth error (expired/
+      // revoked token) is genuinely a token problem; a timeout/DNS/connection error is a
+      // network issue (e.g. broken IPv6 route) and must NOT be mislabelled as "token expired".
+      const gam = err.response?.data;
+      const isAuth = !!(gam && (gam.error === 'invalid_grant' || gam.error === 'unauthorized_client'))
+                     || /invalid_grant|unauthorized_client/i.test(err.message || '');
+      const isNetwork = /ETIMEDOUT|ENOTFOUND|ECONNREFUSED|ECONNRESET|EAI_AGAIN|ECONNABORTED|timeout|network/i.test(err.code || err.message || '');
+      const reason = isAuth ? 'auth' : isNetwork ? 'network' : 'unknown';
+      // Fallback: serve the last committed dashboard_cache.json (written by scripts/refresh.js
+      // and refreshed daily by the GitHub Actions workflow) so the dashboard still renders.
       try {
         const cached = JSON.parse(fs.readFileSync(path.join(SCREENSHOT_DIR, 'dashboard_cache.json'), 'utf8'));
-        console.warn('Serving cached dashboard_cache.json as fallback (live GAM fetch failed)');
-        return res.json({ ...cached, cached: true, cacheReason: typeof message === 'string' ? message : 'live GAM fetch failed' });
+        console.warn(`Serving cached dashboard_cache.json as fallback (live GAM fetch failed: ${reason})`);
+        return res.json({ ...cached, cached: true, cacheReason: reason, cacheDetail: typeof message === 'string' ? message : JSON.stringify(message) });
       } catch (cacheErr) {
         return res.status(500).json({ error: typeof message === 'string' ? message : JSON.stringify(message) });
       }

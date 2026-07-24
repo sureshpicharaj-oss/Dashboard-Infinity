@@ -15,6 +15,10 @@
  */
 
 require('dotenv').config();
+// Prefer IPv4 for outbound connections. Node 18 tries IPv6 first ('verbatim'), and on
+// networks with broken/flaky IPv6 routing the GAM/OAuth calls hang until timeout — which the
+// dashboard then mislabels as an expired token. Forcing IPv4-first makes those calls reliable.
+require('dns').setDefaultResultOrder('ipv4first');
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
