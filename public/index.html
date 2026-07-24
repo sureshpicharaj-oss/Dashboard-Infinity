@@ -1198,12 +1198,19 @@
       el.dataset.ts = data.lastFetched;
       el.style.color = ageHrs > 6 ? '#f59e0b' : ageHrs > 4 ? '#fbbf24' : '';
 
-      // The server sets `cached` when it couldn't reach GAM live and served the last
-      // saved snapshot instead — most often because the local refresh token has expired.
+      // The server sets `cached` when it couldn't reach GAM live and served the last saved
+      // snapshot instead. `cacheReason` says WHY, so we show an honest message: a network
+      // failure (e.g. broken IPv6 route / timeout) is NOT the same as an expired token.
       const cachedBanner = document.getElementById('cachedBanner');
       if (data.cached) {
+        const asOf = '<strong>' + ts.toLocaleString('en-GB') + '</strong>';
+        const cause = data.cacheReason === 'auth'
+          ? 'the local GAM token has expired or been revoked (re-authorise at <code>/auth</code>)'
+          : data.cacheReason === 'network'
+          ? 'the local machine couldn’t reach Google Ad Manager (network/connectivity)'
+          : 'the live Google Ad Manager fetch failed';
         cachedBanner.style.display = 'block';
-        cachedBanner.innerHTML = '⚠ <strong>Showing cached data.</strong> The live Google Ad Manager refresh is unavailable (the local token has expired), so this is the last saved snapshot from <strong>' + ts.toLocaleString('en-GB') + '</strong>. The live site and the daily refresh are unaffected.';
+        cachedBanner.innerHTML = '⚠ <strong>Showing cached data.</strong> ' + cause + ', so this is the last saved snapshot from ' + asOf + '. The live site and the daily refresh are unaffected.';
       } else {
         cachedBanner.style.display = 'none';
       }
