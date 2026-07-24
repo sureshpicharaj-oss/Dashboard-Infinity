@@ -17,30 +17,27 @@ const { fetchDashboardData } = require('../lib/dashboard-data');
 const { fetchVideoStats } = require('../lib/video-data');
 const { fetchActiveViewStatsWithSplits } = require('../lib/active-view-data');
 const { resolveCustomTargetingValues, resolveCustomTargetingKeyIds } = require('../lib/gam-targeting');
-const { fetchSegmentPerformance } = require('../lib/gam-segments');
+const { fetchSegmentPerformance, CRITERIA_KEYS } = require('../lib/gam-segments');
 
-// Aggregates per-line-item segment delivery (from fetchSegmentPerformance) up to each
-// dashboard row (group key), then ranks each key's values by CTR. Returns, per group key,
-// the single best (key,value) for the row's highlight chip plus per-key top/bottom lists
-// for the modal. A volume floor keeps tiny, statistically-meaningless segments out of the
-// ranking (a 12-impression value at 100% CTR must not top the list).
+// Aggregates per-line-item segment delivery (from fetchSegmentPerformance) up to each dashboard
+// row, then ranks each key's values by CTR. Returns, per group key, the single best contextual
+// (key,value) for the row's highlight chip plus per-key top/bottom lists for the modal.
+// A volume floor keeps statistically-meaningless segments out of the ranking.
 function buildPerfBySegment(results, segByLI, opts = {}) {
-  const KEYS = ['cat', 'ap_gen', 'ap_stda', 'posttag', 'permutive'];
   const N = opts.n || 4;           // top/bottom values kept per key
   const out = {};
   for (const r of results) {
     const gk = `${r.netlifyUrl}##${r.videoId || ''}##${r.device}`;
     // Volume floor is relative to the row's total delivery: a segment must account for at
     // least 1% of the creative's impressions to be ranked (10,000 imp → 100), with a 100-imp
-    // absolute minimum so tiny rows don't rank statistical noise. Keeps a low-volume segment
-    // with a fluke CTR from topping a high-delivery creative's list.
+    // absolute minimum so tiny rows don't rank statistical noise.
     const rowImps = r.impressions || 0;
     const floor = Math.max(100, Math.round(rowImps * 0.01));
     const agg = {}; // key -> value -> { impressions, clicks }
     for (const li of (r.lineItemIds || [])) {
-      const byKey = segByLI[li];
-      if (!byKey) continue;
-      for (const [key, vals] of Object.entries(byKey)) {
+      const byKeyLI = segByLI[li];
+      if (!byKeyLI) continue;
+      for (const [key, vals] of Object.entries(byKeyLI)) {
         if (!agg[key]) agg[key] = {};
         for (const [val, s] of Object.entries(vals)) {
           const cur = agg[key][val] || (agg[key][val] = { impressions: 0, clicks: 0 });
@@ -48,9 +45,16 @@ function buildPerfBySegment(results, segByLI, opts = {}) {
         }
       }
     }
+    // Rank every contextual key that actually has delivery. Data presence IS the site scoping:
+    // a Top Gear-only creative has make/range data but no diet/meal-type; a Good Food creative
+    // the reverse; a cross-site creative shows both. This is more robust than filtering by the
+    // (sometimes partial) ad-unit fingerprint. permutive (audience) is shown in the modal too
+    // but never wins the contextual headline chip.
+    const contextualKeys = CRITERIA_KEYS;
+    const rankKeys = [...CRITERIA_KEYS, 'permutive'];
     const byKey = {};
     let best = null;
-    for (const key of KEYS) {
+    for (const key of rankKeys) {
       const vals = agg[key];
       if (!vals) continue;
       const ranked = Object.entries(vals)
@@ -67,7 +71,9 @@ function buildPerfBySegment(results, segByLI, opts = {}) {
       const bottom = ranked.length > N ? ranked.slice(-N).reverse() : [];
       byKey[key] = { top, bottom };
       const cand = top[0];
-      if (cand && cand.clicks > 0 && (!best || cand.ctr > best.ctr)) best = { key, ...cand };
+      if (contextualKeys.includes(key) && cand && cand.clicks > 0 && (!best || cand.ctr > best.ctr)) {
+        best = { key, ...cand };
+      }
     }
     if (Object.keys(byKey).length) out[gk] = { best, byKey };
   }

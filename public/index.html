@@ -927,15 +927,34 @@
     const val = b.value.length > 20 ? b.value.slice(0, 19) + '…' : b.value;
     return `<td class="seg-cell"><span class="seg-chip" title="Best CTR: ${esc(b.key)}=${esc(b.value)} · ${b.ctr}% CTR (${(b.impressions || 0).toLocaleString()} imp)">▲ <span class="seg-k">${esc(b.key)}</span>: ${esc(val)} · ${b.ctr}%</span></td>`;
   }
-  const SEG_KEY_LABELS = [['cat','Contextual (cat)'],['ap_gen','ap_gen'],['ap_stda','ap_stda'],['posttag','posttag'],['permutive','Permutive']];
+  const SEG_KEY_LABEL = {
+    cat:'Contextual (cat)', subcat:'Sub-category', primary_cat:'Primary category',
+    posttag:'Post tag', diet:'Diet', 'meal-type':'Meal type', occasion:'Occasion',
+    tags:'Tags', channel:'Channel', cuisine:'Cuisine', garden:'Garden',
+    'content-classification':'Content classification', location:'Location', topic:'Topic',
+    mission:'Mission', person:'Person', titles:'Titles', tag:'Tag', content_type:'Content type',
+    title:'Title', author:'Author', make:'Make', range:'Range', category:'Category',
+    cars_body_style:'Body style', price_brackets:'Price bracket', categories:'Categories',
+    permutive:'Permutive (audience)'
+  };
+  const SEG_KEY_ORDER = ['cat','subcat','primary_cat','diet','meal-type','occasion','cuisine','garden','content-classification','category','make','range','cars_body_style','price_brackets','topic','mission','person','location','author','title','titles','content_type','tag','tags','channel','posttag','categories','permutive'];
   function segRow(v, win) {
     const val = v.value.length > 30 ? v.value.slice(0, 29) + '…' : v.value;
     return `<div class="seg-item${win ? ' win' : ''}"><span class="seg-item-val" title="${esc(v.value)}">${esc(val)}</span><span class="seg-item-ctr" style="color:${win ? '#158a5a' : '#c0392b'}">${v.ctr}%</span><span class="seg-item-imp">${(v.impressions || 0).toLocaleString()} imp</span></div>`;
   }
   function segSectionHtml(groupKeys) {
     if (!perfData) return '';
+    // Iterate the keys actually present for this row (already site-filtered in the cache),
+    // ordered for readability (categorisation keys first, audience last).
+    const present = new Set();
+    for (const gk of groupKeys) {
+      const bk = perfData[gk] && perfData[gk].byKey;
+      if (bk) Object.keys(bk).forEach(k => present.add(k));
+    }
+    const orderedKeys = [...SEG_KEY_ORDER.filter(k => present.has(k)), ...[...present].filter(k => !SEG_KEY_ORDER.includes(k))];
     let blocks = '';
-    for (const [key, label] of SEG_KEY_LABELS) {
+    for (const key of orderedKeys) {
+      const label = SEG_KEY_LABEL[key] || key;
       const seen = new Map();
       for (const gk of groupKeys) {
         const bk = perfData[gk] && perfData[gk].byKey && perfData[gk].byKey[key];
