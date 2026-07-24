@@ -271,8 +271,9 @@
     .seg-section { margin-top:18px; }
     .seg-key-block { margin:0 0 14px; }
     .seg-key-title { font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#42506b;margin:0 0 6px; }
-    .seg-cols { display:flex;gap:32px;flex-wrap:wrap; }
+    .seg-cols { display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start; }
     .seg-cols > div { flex:0 1 360px;min-width:280px; }
+    .seg-empty { color:#c0c6d2;font-size:12px;padding:4px 0;font-style:italic; }
     .seg-sub-h { font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin:0 0 4px; }
     .seg-win { color:#158a5a; }
     .seg-lose { color:#c0392b; }
@@ -1015,10 +1016,11 @@
       const winners = ranked[key].filter(v => v.ctr >= threshold).slice(0, N);
       const losers = ranked[key].filter(v => v.ctr < threshold).slice(-N).reverse();
       if (!winners.length && !losers.length) continue;
-      let cols = '';
-      if (winners.length) cols += `<div><div class="seg-sub-h seg-win">Top by CTR (≥90% of avg)</div>${winners.map(v => segRow(v, true)).join('')}</div>`;
-      if (losers.length) cols += `<div><div class="seg-sub-h seg-lose">Underperformed</div>${losers.map(v => segRow(v, false)).join('')}</div>`;
-      blocks += `<div class="seg-key-block"><div class="seg-key-title">${esc(SEG_KEY_LABEL[key] || key)}</div><div class="seg-cols">${cols}</div></div>`;
+      // Fixed layout — good performers ALWAYS on the left, underperformers ALWAYS on the
+      // right, with a placeholder when a side is empty, so the columns never shift/swap.
+      const topCol = `<div><div class="seg-sub-h seg-win">Top by CTR (≥90% of avg)</div>${winners.length ? winners.map(v => segRow(v, true)).join('') : '<div class="seg-empty">— none reaching 90%</div>'}</div>`;
+      const loseCol = `<div><div class="seg-sub-h seg-lose">Underperformed</div>${losers.length ? losers.map(v => segRow(v, false)).join('') : '<div class="seg-empty">— none</div>'}</div>`;
+      blocks += `<div class="seg-key-block"><div class="seg-key-title">${esc(SEG_KEY_LABEL[key] || key)}</div><div class="seg-cols">${topCol}${loseCol}</div></div>`;
     }
 
     const hdr = `<div class="split-group-title" style="background:#e7f7ef;color:#158a5a">Performance by segment — CTR (row average ${rowCtr.toFixed(2)}%)</div>`;
