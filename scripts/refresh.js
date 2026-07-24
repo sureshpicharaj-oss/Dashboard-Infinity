@@ -17,7 +17,7 @@ const { fetchDashboardData } = require('../lib/dashboard-data');
 const { fetchVideoStats } = require('../lib/video-data');
 const { fetchActiveViewStatsWithSplits } = require('../lib/active-view-data');
 const { resolveCustomTargetingValues, resolveCustomTargetingKeyIds } = require('../lib/gam-targeting');
-const { fetchSegmentPerformance, CRITERIA_KEYS } = require('../lib/gam-segments');
+const { fetchSegmentPerformance, CRITERIA_KEYS, AUDIENCE_CRITERIA_KEYS } = require('../lib/gam-segments');
 
 // Aggregates per-line-item segment delivery (from fetchSegmentPerformance) up to each dashboard
 // row, then ranks each key's values by CTR. Returns, per group key, the single best contextual
@@ -51,7 +51,7 @@ function buildPerfBySegment(results, segByLI, opts = {}) {
     // (sometimes partial) ad-unit fingerprint. permutive (audience) is shown in the modal too
     // but never wins the contextual headline chip.
     const contextualKeys = CRITERIA_KEYS;
-    const rankKeys = [...CRITERIA_KEYS, 'permutive'];
+    const rankKeys = [...CRITERIA_KEYS, ...AUDIENCE_CRITERIA_KEYS, 'permutive'];
     const byKey = {};
     let best = null;
     for (const key of rankKeys) {
