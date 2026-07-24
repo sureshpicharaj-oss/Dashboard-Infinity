@@ -935,9 +935,12 @@
     mission:'Mission', person:'Person', titles:'Titles', tag:'Tag', content_type:'Content type',
     title:'Title', author:'Author', make:'Make', range:'Range', category:'Category',
     cars_body_style:'Body style', price_brackets:'Price bracket', categories:'Categories',
-    ap_gen:'Audience: gender', ap_stda:'Audience: age', permutive:'Permutive (audience)'
+    ap_gen:'Audience: gender', ap_stda:'Audience: age', ap_inc:'Audience: income',
+    ap_hhs:'Audience: household size', ap_emp:'Audience: employment',
+    ap_edu:'Audience: education', ap_chi:'Audience: children in HH',
+    permutive:'Permutive (audience)'
   };
-  const SEG_KEY_ORDER = ['cat','subcat','primary_cat','diet','meal-type','occasion','cuisine','garden','content-classification','category','make','range','cars_body_style','price_brackets','topic','mission','person','location','author','title','titles','content_type','tag','tags','channel','posttag','categories','ap_gen','ap_stda','permutive'];
+  const SEG_KEY_ORDER = ['cat','subcat','primary_cat','diet','meal-type','occasion','cuisine','garden','content-classification','category','make','range','cars_body_style','price_brackets','topic','mission','person','location','author','title','titles','content_type','tag','tags','channel','posttag','categories','ap_gen','ap_stda','ap_inc','ap_hhs','ap_emp','ap_edu','ap_chi','permutive'];
   function segRow(v, win) {
     const val = v.value.length > 30 ? v.value.slice(0, 29) + '…' : v.value;
     return `<div class="seg-item${win ? ' win' : ''}"><span class="seg-item-val" title="${esc(v.value)}">${esc(val)}</span><span class="seg-item-ctr" style="color:${win ? '#158a5a' : '#c0392b'}">${v.ctr}%</span><span class="seg-item-imp">${(v.impressions || 0).toLocaleString()} imp</span></div>`;
