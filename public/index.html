@@ -259,6 +259,28 @@
     .split-dash { color:#c0c6d2; }
     .split-total-row td { font-weight:800;color:#1a1a2e;border-top:2px solid #d5dced;border-bottom:none;background:#f0f4ff; }
     .split-total-row td:first-child { color:#2563b8; }
+
+    /* Top-segment column chip */
+    .seg-cell { max-width:220px; }
+    .seg-none { color:#c8ccd6; }
+    .seg-chip { display:inline-block;max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;
+      font-size:11px;font-weight:600;padding:2px 9px;border-radius:11px;
+      background:#e7f7ef;color:#158a5a;border:1px solid #bfe8d3; }
+    .seg-chip .seg-k { color:#0d9488;font-weight:700; }
+    /* Performance-by-segment modal section */
+    .seg-section { margin-top:18px; }
+    .seg-key-block { margin:0 0 14px; }
+    .seg-key-title { font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#42506b;margin:0 0 6px; }
+    .seg-cols { display:flex;gap:32px;flex-wrap:wrap; }
+    .seg-cols > div { flex:0 1 360px;min-width:280px; }
+    .seg-sub-h { font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin:0 0 4px; }
+    .seg-win { color:#158a5a; }
+    .seg-lose { color:#c0392b; }
+    .seg-item { display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;border-bottom:1px solid #f2f4f8; }
+    .seg-item-val { flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1a1a2e; }
+    .seg-item-ctr { font-weight:700;font-variant-numeric:tabular-nums; }
+    .seg-win ~ .seg-item .seg-item-ctr, .seg-item.win .seg-item-ctr { color:#158a5a; }
+    .seg-item-imp { color:#98a0b0;font-size:11px;font-variant-numeric:tabular-nums; }
     .live-dot { display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle;flex-shrink:0; }
     .live-dot.delivering { background:#f59e0b;box-shadow:0 0 0 0 rgba(245,158,11,.6);animation:pulse-yellow 1.6s infinite; }
     .live-dot.ready      { background:#3b82f6;box-shadow:0 0 4px rgba(59,130,246,.7); }
@@ -577,10 +599,11 @@
         <th onclick="sortBy('clicks')" data-col="clicks" style="text-align:right;width:80px">Clicks <span class="sort-icon">↕</span></th>
         <th onclick="sortBy('ctr')" data-col="ctr" style="text-align:right;width:80px">CTR <span class="sort-icon">↕</span></th>
         <th onclick="sortBy('activeView')" data-col="activeView" style="text-align:right;width:110px">Viewability % <span class="sort-icon">↕</span></th>
+        <th style="width:210px">Top Segment</th>
       </tr>
     </thead>
     <tbody id="tableBody">
-      <tr><td colspan="8" class="empty-state">Loading data…</td></tr>
+      <tr><td colspan="9" class="empty-state">Loading data…</td></tr>
     </tbody>
   </table>
 </div>
@@ -820,8 +843,9 @@
       if (isVideo && vid) html += `<div class="split-group-title">VIDEO_ID: ${esc(vid)}</div>`;
       html += splitTable(splits, isVideo);
     }
-    body.innerHTML = any
-      ? html
+    const segHtml = segSectionHtml(groupKeys);
+    body.innerHTML = (any || segHtml)
+      ? html + segHtml
       : `<p class="split-sub">No per-creative split data available for this row yet. Splits are produced by the daily refresh, so a newly-trafficked row may not have them until the next run.</p>`;
   }
 
@@ -877,6 +901,61 @@
       if (ov && ov.style.display === 'flex') closeSplitModal();
     }
   });
+
+  // ---- Segment performance (top-segment column chip + modal section) ----
+  // perf_by_segment_cache.json maps each group key → { best, byKey } where best is the
+  // single highest-CTR (key,value) for the row and byKey holds per-key top/bottom lists.
+  let perfData = null;
+  function loadPerf() {
+    fetch('/data/perf_by_segment_cache.json?' + Date.now())
+      .then(r => r.ok ? r.json() : {})
+      .catch(() => ({}))
+      .then(d => { perfData = d || {}; renderTable(); });
+  }
+  function segBestForKeys(groupKeys) {
+    if (!perfData) return null;
+    let best = null;
+    for (const gk of groupKeys) {
+      const b = perfData[gk] && perfData[gk].best;
+      if (b && b.clicks > 0 && (!best || b.ctr > best.ctr)) best = b;
+    }
+    return best;
+  }
+  function segCellHtml(groupKeys) {
+    const b = segBestForKeys(groupKeys);
+    if (!b) return `<td class="seg-cell"><span class="seg-none">—</span></td>`;
+    const val = b.value.length > 20 ? b.value.slice(0, 19) + '…' : b.value;
+    return `<td class="seg-cell"><span class="seg-chip" title="Best CTR: ${esc(b.key)}=${esc(b.value)} · ${b.ctr}% CTR (${(b.impressions || 0).toLocaleString()} imp)">▲ <span class="seg-k">${esc(b.key)}</span>: ${esc(val)} · ${b.ctr}%</span></td>`;
+  }
+  const SEG_KEY_LABELS = [['cat','Contextual (cat)'],['ap_gen','ap_gen'],['ap_stda','ap_stda'],['posttag','posttag'],['permutive','Permutive']];
+  function segRow(v, win) {
+    const val = v.value.length > 30 ? v.value.slice(0, 29) + '…' : v.value;
+    return `<div class="seg-item${win ? ' win' : ''}"><span class="seg-item-val" title="${esc(v.value)}">${esc(val)}</span><span class="seg-item-ctr" style="color:${win ? '#158a5a' : '#c0392b'}">${v.ctr}%</span><span class="seg-item-imp">${(v.impressions || 0).toLocaleString()} imp</span></div>`;
+  }
+  function segSectionHtml(groupKeys) {
+    if (!perfData) return '';
+    let blocks = '';
+    for (const [key, label] of SEG_KEY_LABELS) {
+      const seen = new Map();
+      for (const gk of groupKeys) {
+        const bk = perfData[gk] && perfData[gk].byKey && perfData[gk].byKey[key];
+        if (!bk) continue;
+        for (const v of [...(bk.top || []), ...(bk.bottom || [])]) {
+          const ex = seen.get(v.value);
+          if (!ex || v.impressions > ex.impressions) seen.set(v.value, v);
+        }
+      }
+      const all = [...seen.values()].sort((a, b) => b.ctr - a.ctr);
+      if (!all.length) continue;
+      const top = all.slice(0, 3);
+      const bottom = all.length > 3 ? all.slice(-3).reverse() : [];
+      let cols = `<div><div class="seg-sub-h seg-win">Top by CTR</div>${top.map(v => segRow(v, true)).join('')}</div>`;
+      if (bottom.length) cols += `<div><div class="seg-sub-h seg-lose">Underperformed</div>${bottom.map(v => segRow(v, false)).join('')}</div>`;
+      blocks += `<div class="seg-key-block"><div class="seg-key-title">${esc(label)}</div><div class="seg-cols">${cols}</div></div>`;
+    }
+    if (!blocks) return '';
+    return `<div class="seg-section"><div class="split-group-title" style="background:#e7f7ef;color:#158a5a">Performance by segment — CTR (last 90 days)</div>${blocks}</div>`;
+  }
 
   function renderTagEditor() {
     const list = document.getElementById('tagRulesList');
@@ -977,7 +1056,7 @@
               const ageLabel = ageHrs < 1 ? 'just now' : ageHrs < 2 ? '~1 hour ago' : `~${Math.round(ageHrs)} hours ago`;
               const elf = document.getElementById('lastFetched');
               if (elf) { elf.textContent = 'Data as of: ' + ts.toLocaleString('en-GB') + ' (' + ageLabel + ')'; elf.dataset.ts = d.lastFetched; }
-              updateStats(); renderTags(); renderTable(); loadActiveView(); loadVideoStats();
+              updateStats(); renderTags(); renderTable(); loadActiveView(); loadVideoStats(); loadPerf();
             }
           } catch(e) {}
         }, 30000);
@@ -1022,9 +1101,10 @@
       <td class="num-cell"><span class="skel skel-num"></span></td>
       <td class="num-cell"><span class="skel skel-num"></span></td>
       <td class="num-cell"><span class="skel skel-num"></span></td>
+      <td><span class="skel skel-line"></span></td>
     </tr>`;
     document.getElementById('tableBody').innerHTML =
-      `<tr><td colspan="8" style="padding:10px 16px 4px;font-size:.8rem;color:#888" id="skelCaption">Fetching from Google Ad Manager… 0s</td></tr>` +
+      `<tr><td colspan="9" style="padding:10px 16px 4px;font-size:.8rem;color:#888" id="skelCaption">Fetching from Google Ad Manager… 0s</td></tr>` +
       Array(8).fill(0).map(skelRow).join('');
 
     try {
@@ -1065,6 +1145,7 @@
       renderTable();
       loadActiveView();
       loadVideoStats();
+      loadPerf();
     } catch (e) {
       const banner = document.getElementById('errorBanner');
       banner.style.display = 'block';
@@ -1277,7 +1358,7 @@
         activeView: g.avMeasurable > 0 ? parseFloat(((g.avViewable / g.avMeasurable) * 100).toFixed(1)) : null,
       }));
       if (!groups.length) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No results match your search</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No results match your search</td></tr>';
         return;
       }
       tbody.innerHTML = groups.map(g => {
@@ -1299,13 +1380,14 @@
         const vSplitBtn = `<button class="row-split-btn" data-url="${encodedUrl}" data-device="${activeTab}" onclick="event.stopPropagation();openSplitFromBtn(this)" title="Show creative splits">⊞</button>`;
         const DOT_LABEL = { delivering: 'Delivering', ready: 'Ready', paused: 'Paused', inactive: 'Inactive' };
         const vDot = g.liveStatus ? `<span class="live-dot ${g.liveStatus}" title="${DOT_LABEL[g.liveStatus] || g.liveStatus}"></span>` : '';
+        const vSegTd = segCellHtml((g.videos || []).map(v => `${g.netlifyUrl}##${v.videoId}##${activeTab}`));
         return `<tr>
           <td class="adv-cell" data-url="${encodedUrl}">${vDot}<span class="adv-name">${esc(g.advertiser || '')}</span>${vCatChip}${liLinks([...g.lineItemIds])}</td>
           <td class="action-cell">${vTagBtn}${vSplitBtn}</td>
           <td class="url-cell"><a href="${esc(g.netlifyUrl)}" target="_blank" rel="noopener">${esc(shortUrl(g.netlifyUrl))}</a></td>
           ${thumb}
           ${renderVideoCell(g.videos)}
-          ${imps}${clks}${ctrStr}${av}
+          ${imps}${clks}${ctrStr}${av}${vSegTd}
         </tr>`;
       }).join('');
       observeLazyImages();
@@ -1315,7 +1397,7 @@
     // Desktop / Mobile tabs — original per-row rendering
     rows = sortRows(rows, sortCol, sortDir);
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No results match your search</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No results match your search</td></tr>';
       return;
     }
     tbody.innerHTML = rows.map(r => {
@@ -1338,12 +1420,13 @@
       const splitBtn = `<button class="row-split-btn" data-url="${encodedUrl}" data-device="${activeTab}" onclick="event.stopPropagation();openSplitFromBtn(this)" title="Show creative splits">⊞</button>`;
       const DOT_LABEL = { delivering: 'Delivering', ready: 'Ready', paused: 'Paused', inactive: 'Inactive' };
       const dot = r.liveStatus ? `<span class="live-dot ${r.liveStatus}" title="${DOT_LABEL[r.liveStatus] || r.liveStatus}"></span>` : '';
+      const segTd = segCellHtml([`${r.netlifyUrl}##${r.videoId || ''}##${r.device}`]);
       return `<tr>
         <td class="adv-cell" data-url="${encodedUrl}">${dot}<span class="adv-name">${esc(r.advertiser || '')}</span>${catChip}${liLinks(r.lineItemIds || [])}</td>
         <td class="action-cell">${tagBtn}${splitBtn}</td>
         <td class="url-cell"><a href="${esc(r.netlifyUrl)}" target="_blank" rel="noopener">${esc(shortUrl(r.netlifyUrl))}</a></td>
         ${thumb}
-        ${imps}${clks}${ctrStr}${av}
+        ${imps}${clks}${ctrStr}${av}${segTd}
       </tr>`;
     }).join('');
     observeLazyImages();
