@@ -337,6 +337,7 @@ async function main() {
           impressions:    s.impressions,
           clicks:         s.clicks,
           ctr:            s.ctr,
+          statsSource:    s.statsSource || 'lica',
           viewability:    av?.rate ?? null,
           viewable:       av?.viewable ?? null,
           measurable:     av?.measurable ?? null,
