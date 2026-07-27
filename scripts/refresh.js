@@ -118,12 +118,14 @@ function buildPerfBySegment(results, segByLI, opts = {}) {
         const pk = perKey[k];
         incSumImps += pk.aboveImps;                 // all keys → optimistic ceiling (over-counts)
         exclSumBelow += pk.belowImps;               // all keys → pessimistic removal (over-counts)
-        if (pk.belowImps > exclMaxBelow) exclMaxBelow = pk.belowImps;
-        // Guaranteed inclusion FLOOR only from single-valued taxonomy keys. Multi-valued keys
-        // (posttag/tag/tags) can tag one impression with several values, over-counting aboveImps —
-        // which would inflate the floor and risk a FALSE "safe". Reliable keys never over-count.
-        if (RELIABLE_TOTAL_KEYS.includes(k) && pk.aboveImps > incBestImps) {
-          incBestImps = pk.aboveImps; incBestClicks = pk.aboveClicks; incBestKey = k;
+        // The single-key "best case" bounds (inclusion FLOOR, exclusion BEST retained) come ONLY
+        // from single-valued taxonomy keys. Multi-valued keys (posttag/tag/tags) can tag one
+        // impression with several values and over-count — which would inflate the inclusion floor
+        // into a false "safe" and deflate the exclusion best-case to a false 0%. Reliable keys
+        // hold exactly one value per impression, so their counts are true.
+        if (RELIABLE_TOTAL_KEYS.includes(k)) {
+          if (pk.aboveImps > incBestImps) { incBestImps = pk.aboveImps; incBestClicks = pk.aboveClicks; incBestKey = k; }
+          if (pk.belowImps > exclMaxBelow) exclMaxBelow = pk.belowImps;
         }
       }
       const d = r.delivery || {};

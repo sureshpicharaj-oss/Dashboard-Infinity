@@ -1008,6 +1008,15 @@
   }
   // ---- "Will it still deliver in full?" panel (precomputed in scripts/refresh.js) ----
   function fmtPct(f) { return (f == null || !isFinite(f)) ? '—' : Math.round(Math.max(0, Math.min(1, f)) * 100) + '%'; }
+  // A reach range as text — collapses a near-zero or equal-bounds range to a readable phrase
+  // instead of a confusing "0%–0%".
+  function rangePct(lo, hi) {
+    if (lo == null || hi == null || !isFinite(lo) || !isFinite(hi)) return '—';
+    const a = Math.round(Math.max(0, Math.min(1, lo)) * 100), b = Math.round(Math.max(0, Math.min(1, hi)) * 100);
+    if (b < 1) return 'under 1%';
+    if (a === b) return a + '%';
+    return a + '%–' + b + '%';
+  }
   function delivVerdictBadge(v) {
     if (v === 'safe')     return '<span class="dv-badge ok">✓ delivers in full</span>';
     if (v === 'maybe')    return '<span class="dv-badge mid">~ borderline</span>';
@@ -1034,8 +1043,8 @@
       ctx = `<div class="seg-deliv-note">Booked <b>${goalTxt}</b>${by}. To finish in full you must keep <b>≥${fmtPct(rrf)}</b> of current delivery.</div>`;
     }
     const led = d.incBestKey ? ` (led by ${esc(SEG_KEY_LABEL[d.incBestKey] || d.incBestKey)})` : '';
-    const inc = `<div class="seg-deliv-row"><span class="seg-deliv-lab">Target only the strong</span><span>keeps ${fmtPct(d.incLowerFrac)}–${fmtPct(d.incUpperFrac)} of delivery${led}</span> ${delivVerdictBadge(d.verdictIncl)}</div>`;
-    const exc = `<div class="seg-deliv-row"><span class="seg-deliv-lab">Switch off the weak</span><span>keeps ${fmtPct(d.exclWorstFrac)}–${fmtPct(d.exclBestFrac)} of delivery</span> ${delivVerdictBadge(d.verdictExcl)}</div>`;
+    const inc = `<div class="seg-deliv-row"><span class="seg-deliv-lab">Target only the strong</span><span>keeps ${rangePct(d.incLowerFrac, d.incUpperFrac)} of delivery${led}</span> ${delivVerdictBadge(d.verdictIncl)}</div>`;
+    const exc = `<div class="seg-deliv-row"><span class="seg-deliv-lab">Switch off the weak</span><span>keeps ${rangePct(d.exclWorstFrac, d.exclBestFrac)} of delivery</span> ${delivVerdictBadge(d.verdictExcl)}</div>`;
     const caveat = `<div class="seg-deliv-caveat">Ranges are wide because contextual keys overlap — the same impression is tagged on every key, so the combined figure can't be pinned exactly. A ✓ means even the cautious end of the range clears the goal.</div>`;
     return `<div class="seg-deliv"><div class="seg-deliv-h">Will it still deliver in full?</div>${ctx}${inc}${exc}${caveat}</div>`;
   }
