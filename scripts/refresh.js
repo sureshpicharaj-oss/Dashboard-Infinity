@@ -22,6 +22,122 @@ const { fetchActiveViewStatsWithSplits } = require('../lib/active-view-data');
 const { resolveCustomTargetingValues, resolveCustomTargetingKeyIds } = require('../lib/gam-targeting');
 const { fetchSegmentPerformance, CRITERIA_KEYS, AUDIENCE_CRITERIA_KEYS } = require('../lib/gam-segments');
 
+// Ranks a segment aggregate (key -> value -> {impressions,clicks}) by CTR and derives the cross-key
+// delivery bounds. Shared by the row-level highlight chip AND the per-creative split dropdowns, so
+// the honest-bounds math lives in exactly one place. Returns { best, byKey, delivery }.
+function computeSegView(agg, opts = {}) {
+  const { floor = 100, rowCtr = 0, delivery: rowDelivery = null, n = 4 } = opts;
+  const contextualKeys = CRITERIA_KEYS;
+  const rankKeys = [...CRITERIA_KEYS, ...AUDIENCE_CRITERIA_KEYS, 'permutive'];
+  const byKey = {};
+  let best = null;
+  for (const key of rankKeys) {
+    const vals = agg[key];
+    if (!vals) continue;
+    const ranked = Object.entries(vals)
+      .map(([value, s]) => ({
+        value,
+        impressions: s.impressions,
+        clicks: s.clicks,
+        ctr: s.impressions > 0 ? parseFloat(((s.clicks / s.impressions) * 100).toFixed(2)) : 0,
+      }))
+      .filter(v => v.impressions >= floor)
+      .sort((a, b) => b.ctr - a.ctr);
+    if (!ranked.length) continue;
+    const top = ranked.slice(0, n);
+    const bottom = ranked.length > n ? ranked.slice(-n).reverse() : [];
+    byKey[key] = { top, bottom };
+    const cand = top[0];
+    if (contextualKeys.includes(key) && cand && cand.clicks > 0 && (!best || cand.ctr > best.ctr)) {
+      best = { key, ...cand };
+    }
+  }
+  // Cross-key delivery read — bounds only (unions across keys can't be summed exactly). All
+  // fractions are of TSeg, the delivered total from the most-covering single-valued taxonomy key
+  // (cat/subcat/primary_cat/category), which never over-counts, so retained fractions stay
+  // conservative. See public/index.html deliveryHtml() for how the verdicts render.
+  const RELIABLE_TOTAL_KEYS = ['cat', 'subcat', 'primary_cat', 'category'];
+  const threshold = (rowCtr || 0) * 0.9;
+  let TSeg = 0;
+  const perKey = {};
+  for (const key of contextualKeys) {
+    const vals = agg[key];
+    if (!vals) continue;
+    let total = 0, aboveImps = 0, aboveClicks = 0, belowImps = 0;
+    for (const s of Object.values(vals)) {
+      const ctr = s.impressions > 0 ? (s.clicks / s.impressions) * 100 : 0;
+      total += s.impressions;
+      if (ctr >= threshold) { aboveImps += s.impressions; aboveClicks += s.clicks; }
+      else belowImps += s.impressions;
+    }
+    perKey[key] = { total, aboveImps, aboveClicks, belowImps };
+    if (RELIABLE_TOTAL_KEYS.includes(key) && total > TSeg) TSeg = total;
+  }
+  let delivery = null;
+  if (TSeg > 0) {
+    let incBestImps = 0, incBestClicks = 0, incBestKey = null, incSumImps = 0;
+    let exclSumBelow = 0, exclMaxBelow = 0;
+    for (const k of Object.keys(perKey)) {
+      const pk = perKey[k];
+      incSumImps += pk.aboveImps;                 // all keys → optimistic ceiling (over-counts)
+      exclSumBelow += pk.belowImps;               // all keys → pessimistic removal (over-counts)
+      // Single-key bounds (inclusion FLOOR, exclusion BEST) from single-valued taxonomy keys only —
+      // multi-valued keys (posttag/tag/tags) over-count and would inflate the floor / deflate the best.
+      if (RELIABLE_TOTAL_KEYS.includes(k)) {
+        if (pk.aboveImps > incBestImps) { incBestImps = pk.aboveImps; incBestClicks = pk.aboveClicks; incBestKey = k; }
+        if (pk.belowImps > exclMaxBelow) exclMaxBelow = pk.belowImps;
+      }
+    }
+    const d = rowDelivery || {};
+    const rrf = (d.requiredRetainFrac != null && isFinite(d.requiredRetainFrac)) ? d.requiredRetainFrac : null;
+    const incLowerFrac = Math.min(1, incBestImps / TSeg);
+    const incUpperFrac = Math.min(1, incSumImps / TSeg);
+    const exclWorstFrac = Math.max(0, 1 - Math.min(1, exclSumBelow / TSeg));
+    const exclBestFrac  = Math.max(0, 1 - Math.min(1, exclMaxBelow / TSeg));
+    const verdict = (lower, upper) => rrf == null ? 'na' : lower >= rrf ? 'safe' : upper >= rrf ? 'maybe' : 'unlikely';
+    delivery = {
+      hasGoal: !!d.hasGoal, behind: !!d.behind, sponsorship: !!d.sponsorship,
+      openEnded: !!d.openEnded, completed: !!d.completed,
+      requiredRetainFrac: rrf, goalUnits: d.goalUnits || null, remaining: d.remaining || null,
+      endTs: d.endTs || null, paceCushion: d.paceCushion ?? null,
+      incBestKey, incBestCtr: incBestImps > 0 ? parseFloat((incBestClicks / incBestImps * 100).toFixed(2)) : 0,
+      incLowerFrac, incUpperFrac, exclWorstFrac, exclBestFrac,
+      verdictIncl: verdict(incLowerFrac, incUpperFrac),
+      verdictExcl: verdict(exclWorstFrac, exclBestFrac),
+      rowCtr: rowCtr || 0,
+    };
+  }
+  return { best, byKey, delivery };
+}
+
+// Aggregates ONE creative's segment rows out of the CREATIVE_ID-broken-out report, using the
+// fingerprint's rendered-creative-id-per-line-item map. Falls back to line-item level (all creatives
+// on a line item) where the creative couldn't be separated. Returns { agg, segBasis }.
+function aggregateCreativeSeg(renderedByLI, lineItemIds, segByLICreative) {
+  const agg = {};
+  const merge = (byKey) => {
+    for (const [key, vals] of Object.entries(byKey)) {
+      if (!agg[key]) agg[key] = {};
+      for (const [val, s] of Object.entries(vals)) {
+        const cur = agg[key][val] || (agg[key][val] = { impressions: 0, clicks: 0 });
+        cur.impressions += s.impressions; cur.clicks += s.clicks;
+      }
+    }
+  };
+  const rbl = renderedByLI || {};
+  let liWithData = 0, liFallback = 0;
+  for (const li of (lineItemIds || [])) {
+    const byCid = segByLICreative[li];
+    if (!byCid) continue;
+    liWithData++;
+    const rcid = rbl[li];
+    if (rcid && byCid[rcid]) merge(byCid[rcid]);
+    else { for (const cid of Object.keys(byCid)) merge(byCid[cid]); liFallback++; }
+  }
+  const segBasis = liWithData === 0 ? 'none' : liFallback === 0 ? 'creative' : liFallback === liWithData ? 'line-item' : 'partial';
+  return { agg, segBasis };
+}
+
 // Aggregates per-line-item segment delivery (from fetchSegmentPerformance) up to each dashboard
 // row, then ranks each key's values by CTR. Returns, per group key, the single best contextual
 // (key,value) for the row's highlight chip plus per-key top/bottom lists for the modal.
@@ -69,108 +185,7 @@ function buildPerfBySegment(results, segByLICreative, opts = {}) {
     const segBasis = liWithData === 0 ? 'none'
                    : liFallback === 0 ? 'creative'
                    : liFallback === liWithData ? 'line-item' : 'partial';
-    // Rank every contextual key that actually has delivery. Data presence IS the site scoping:
-    // a Top Gear-only creative has make/range data but no diet/meal-type; a Good Food creative
-    // the reverse; a cross-site creative shows both. This is more robust than filtering by the
-    // (sometimes partial) ad-unit fingerprint. permutive (audience) is shown in the modal too
-    // but never wins the contextual headline chip.
-    const contextualKeys = CRITERIA_KEYS;
-    const rankKeys = [...CRITERIA_KEYS, ...AUDIENCE_CRITERIA_KEYS, 'permutive'];
-    const byKey = {};
-    let best = null;
-    for (const key of rankKeys) {
-      const vals = agg[key];
-      if (!vals) continue;
-      const ranked = Object.entries(vals)
-        .map(([value, s]) => ({
-          value,
-          impressions: s.impressions,
-          clicks: s.clicks,
-          ctr: s.impressions > 0 ? parseFloat(((s.clicks / s.impressions) * 100).toFixed(2)) : 0,
-        }))
-        .filter(v => v.impressions >= floor)
-        .sort((a, b) => b.ctr - a.ctr);
-      if (!ranked.length) continue;
-      const top = ranked.slice(0, N);
-      const bottom = ranked.length > N ? ranked.slice(-N).reverse() : [];
-      byKey[key] = { top, bottom };
-      const cand = top[0];
-      if (contextualKeys.includes(key) && cand && cand.clicks > 0 && (!best || cand.ctr > best.ctr)) {
-        best = { key, ...cand };
-      }
-    }
-    // Cross-key delivery read — "if you optimise toward the strong contextual segments (or switch
-    // off the weak ones), will the line items still deliver in full?". Uses the COMPLETE value
-    // lists in `agg` (not the top/bottom-N kept for display), so the sums are exact.
-    //
-    // Honest bounds: an impression carries a value for EVERY key at once, so unions ACROSS keys
-    // cannot be summed exactly — only bounded. All fractions are of TSeg, the row's delivered total
-    // in the segment-report basis, estimated from the most-covering single-valued taxonomy key
-    // (cat/subcat/primary_cat/category). Those keys never over-count (one value per impression), so
-    // TSeg is never over-estimated and every "retained" fraction stays conservative (never inflates
-    // delivery). See public/index.html deliveryHtml() for how the verdicts are rendered.
-    const RELIABLE_TOTAL_KEYS = ['cat', 'subcat', 'primary_cat', 'category'];
-    const threshold = (r.ctr || 0) * 0.9;
-    let TSeg = 0;
-    const perKey = {}; // contextual key -> { total, aboveImps, aboveClicks, belowImps }
-    for (const key of contextualKeys) {
-      const vals = agg[key];
-      if (!vals) continue;
-      let total = 0, aboveImps = 0, aboveClicks = 0, belowImps = 0;
-      for (const s of Object.values(vals)) {
-        const ctr = s.impressions > 0 ? (s.clicks / s.impressions) * 100 : 0;
-        total += s.impressions;
-        if (ctr >= threshold) { aboveImps += s.impressions; aboveClicks += s.clicks; }
-        else belowImps += s.impressions;
-      }
-      perKey[key] = { total, aboveImps, aboveClicks, belowImps };
-      if (RELIABLE_TOTAL_KEYS.includes(key) && total > TSeg) TSeg = total;
-    }
-    let delivery = null;
-    if (TSeg > 0) {
-      // Inclusion ("target only the strong"): exact floor = the single best key's winners alone;
-      // ceiling = sum of every key's winners capped at 1 (over-counts overlap → optimistic).
-      let incBestImps = 0, incBestClicks = 0, incBestKey = null, incSumImps = 0;
-      // Exclusion ("switch off the weak"): worst-case removal = sum of every key's losers capped
-      // (over-counts → most pessimistic retained); best case removes only the single largest
-      // loser-set (exact within that one key).
-      let exclSumBelow = 0, exclMaxBelow = 0;
-      for (const k of Object.keys(perKey)) {
-        const pk = perKey[k];
-        incSumImps += pk.aboveImps;                 // all keys → optimistic ceiling (over-counts)
-        exclSumBelow += pk.belowImps;               // all keys → pessimistic removal (over-counts)
-        // The single-key "best case" bounds (inclusion FLOOR, exclusion BEST retained) come ONLY
-        // from single-valued taxonomy keys. Multi-valued keys (posttag/tag/tags) can tag one
-        // impression with several values and over-count — which would inflate the inclusion floor
-        // into a false "safe" and deflate the exclusion best-case to a false 0%. Reliable keys
-        // hold exactly one value per impression, so their counts are true.
-        if (RELIABLE_TOTAL_KEYS.includes(k)) {
-          if (pk.aboveImps > incBestImps) { incBestImps = pk.aboveImps; incBestClicks = pk.aboveClicks; incBestKey = k; }
-          if (pk.belowImps > exclMaxBelow) exclMaxBelow = pk.belowImps;
-        }
-      }
-      const d = r.delivery || {};
-      const rrf = (d.requiredRetainFrac != null && isFinite(d.requiredRetainFrac)) ? d.requiredRetainFrac : null;
-      const incLowerFrac = Math.min(1, incBestImps / TSeg);
-      const incUpperFrac = Math.min(1, incSumImps / TSeg);
-      const exclWorstFrac = Math.max(0, 1 - Math.min(1, exclSumBelow / TSeg));
-      const exclBestFrac  = Math.max(0, 1 - Math.min(1, exclMaxBelow / TSeg));
-      // Verdict: 'safe' only when even the conservative (lower/worst) retained clears the required
-      // fraction — a real guarantee; 'maybe' when only the optimistic bound clears; else 'unlikely'.
-      const verdict = (lower, upper) => rrf == null ? 'na' : lower >= rrf ? 'safe' : upper >= rrf ? 'maybe' : 'unlikely';
-      delivery = {
-        hasGoal: !!d.hasGoal, behind: !!d.behind, sponsorship: !!d.sponsorship,
-        openEnded: !!d.openEnded, completed: !!d.completed,
-        requiredRetainFrac: rrf, goalUnits: d.goalUnits || null, remaining: d.remaining || null,
-        endTs: d.endTs || null, paceCushion: d.paceCushion ?? null,
-        incBestKey, incBestCtr: incBestImps > 0 ? parseFloat((incBestClicks / incBestImps * 100).toFixed(2)) : 0,
-        incLowerFrac, incUpperFrac, exclWorstFrac, exclBestFrac,
-        verdictIncl: verdict(incLowerFrac, incUpperFrac),
-        verdictExcl: verdict(exclWorstFrac, exclBestFrac),
-        rowCtr: r.ctr || 0,
-      };
-    }
-
+    const { best, byKey, delivery } = computeSegView(agg, { floor, rowCtr: r.ctr || 0, delivery: r.delivery, n: N });
     if (Object.keys(byKey).length) out[gk] = { best, byKey, delivery, segBasis };
   }
   return out;
@@ -261,11 +276,24 @@ async function main() {
     console.warn('Skipped rewriting active_view_cache.json (fetch failed; prior cache kept)');
   }
 
+  // Segment performance report (broken out by CREATIVE_ID). Fetched once, then used BOTH to attach
+  // each creative's own segment/delivery detail to the splits below AND to build the row-level chip
+  // cache. Non-fatal: on failure segByLICreative stays {} and splits/perf just omit segment data.
+  let segByLICreative = {};
+  try {
+    console.log('Running segment performance fetch…');
+    const allLIs = [...new Set(results.flatMap(r => r.lineItemIds || []))];
+    const permKeyIds = await resolveCustomTargetingKeyIds(['permutive'], networkCode, token);
+    segByLICreative = await fetchSegmentPerformance(allLIs, permKeyIds['permutive'], networkCode, token, { days: 1094 });
+  } catch (err) {
+    console.warn(`⚠ Segment performance fetch failed: ${err.message || err} — splits/perf omit segment data`);
+  }
+
   // Per-creative split detail for the row drill-down modal (public/index.html). Built from
   // urlSplitsMap (exact per-creative impressions/clicks/CTR + name), enriched best-effort
-  // with per-creative viewability (AV fingerprint) and per-row completion (video stats),
-  // plus custom-targeting key values resolved to readable labels. Keyed by the same
-  // composite group key as the active-view cache. Non-fatal — a failure keeps the prior file.
+  // with per-creative viewability (AV fingerprint), per-row completion (video stats), resolved
+  // custom-targeting key values, AND each creative's own segment performance + delivery read
+  // (seg). Keyed by the composite group key. Non-fatal — a failure keeps the prior file.
   let splitsFailed = false;
   let splitsOut = null;
   try {
@@ -298,6 +326,11 @@ async function main() {
           seen.add(dedup);
           keyValues.push(lbl);
         }
+        // This creative's own segment performance + delivery read (its dropdown in the modal).
+        const { agg, segBasis } = aggregateCreativeSeg(s.renderedByLI, s.lineItemIds, segByLICreative);
+        const segFloor = Math.max(100, Math.round((s.impressions || 0) * 0.01));
+        const view = computeSegView(agg, { floor: segFloor, rowCtr: s.ctr || 0, delivery: s.delivery });
+        const seg = Object.keys(view.byKey).length ? { ...view, segBasis } : null;
         return {
           creativeId:     s.creativeId,
           name:           s.name,
@@ -310,6 +343,7 @@ async function main() {
           completionRate: rowCompletion,
           lineItemIds:    s.lineItemIds,
           keyValues,
+          seg,
         };
       });
     }
@@ -326,22 +360,18 @@ async function main() {
     console.warn('Skipped rewriting splits_cache.json (build failed; prior cache kept)');
   }
 
-  // Segment performance — which custom-targeting key values a row performed best/worst on
-  // (by CTR). Two GAM reports (CUSTOM_CRITERIA for cat/ap_gen/ap_stda/posttag, plus a
-  // CUSTOM_DIMENSION report for permutive), aggregated per row. Non-fatal, like the others.
+  // Row-level segment chip cache — the "Top Segment" column on the dashboard table uses the row's
+  // best (key,value). Built from the same segByLICreative fetched above (attributed to each row's
+  // own creatives). Non-fatal, like the others.
   let perfFailed = false;
   let perfOut = null;
   try {
-    console.log('Running segment performance fetch…');
-    const allLIs = [...new Set(results.flatMap(r => r.lineItemIds || []))];
-    const keyIds = await resolveCustomTargetingKeyIds(['permutive'], networkCode, token);
-    const segByLI = await fetchSegmentPerformance(allLIs, keyIds['permutive'], networkCode, token, { days: 1094 });
-    perfOut = buildPerfBySegment(results, segByLI);
+    perfOut = buildPerfBySegment(results, segByLICreative);
     console.log(`Segment performance: ${Object.keys(perfOut).length} rows with segment data`);
   } catch (err) {
     perfFailed = true;
     perfOut = readCache('perf_by_segment_cache.json', {});
-    console.warn(`⚠ Segment performance fetch failed: ${err.message || err} — reusing cached; dashboard refresh continues`);
+    console.warn(`⚠ Segment performance build failed: ${err.message || err} — reusing cached; dashboard refresh continues`);
   }
 
   if (!perfFailed) {

@@ -258,7 +258,17 @@
     .split-kv { display:inline-block;font-size:10px;padding:1px 7px;margin:1px 4px 1px 0;border-radius:10px;background:#eef1f8;border:1px solid #dfe4ee;color:#42506b; }
     .split-dash { color:#c0c6d2; }
     .split-total-row td { font-weight:800;color:#1a1a2e;border-top:2px solid #d5dced;border-bottom:none;background:#f0f4ff; }
-    .split-total-row td:first-child { color:#2563b8; }
+    .split-total-row td:nth-child(2) { color:#2563b8; }
+    /* Per-creative segment dropdown (accordion) inside the splits table */
+    .split-caret-cell { width:22px;text-align:center !important;padding-right:0 !important; }
+    .split-caret { display:inline-block;color:#4f7fff;font-size:11px;transition:transform .15s; }
+    .split-row.has-seg { cursor:pointer; }
+    .split-row.has-seg:hover td { background:#eef3ff; }
+    .split-row.open td { background:#eef3ff; }
+    .split-row.open .split-caret { transform:rotate(90deg); }
+    .split-detail > td { background:#fbfcfe !important;padding:0 !important;white-space:normal;border-bottom:1px solid #e6e9f0; }
+    .split-detail-inner { padding:6px 14px 16px; }
+    .seg-detail-empty { color:#98a0b0;font-size:12px;padding:10px 4px;font-style:italic; }
 
     /* Top-segment column chip */
     .seg-cell { max-width:220px; }
@@ -872,7 +882,7 @@
     const sub = (url || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
     // Same screenshot the row shows (keyed by URL + device) — one preview for the whole row.
     let html = `<div class="split-preview"><img src="/api/screenshot?url=${enc}&device=${device}" onerror="this.onerror=null;this.src='/screenshots/${sub}-${device}.png'" alt="preview" /></div>`;
-    html += `<p class="split-sub">${esc(shortUrl(url))} · ${esc(device)} — individual creatives that make up the combined row.</p>`;
+    html += `<p class="split-sub">${esc(shortUrl(url))} · ${esc(device)} — individual creatives that make up the combined row. <b>Click a creative</b> to see its segment performance.</p>`;
     let any = false;
     for (const gk of groupKeys) {
       const splits = (data[gk] || []).slice().sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
@@ -882,22 +892,25 @@
       if (isVideo && vid) html += `<div class="split-group-title">VIDEO_ID: ${esc(vid)}</div>`;
       html += splitTable(splits, isVideo);
     }
-    // Row-level CTR baseline for the "performing segments" threshold (segments must reach
-    // ≥90% of it to show). Sum across the contributing rows (video tab spans several).
-    const rowsForKey = allRows.filter(r => r.netlifyUrl === url && r.device === device);
-    const totImp = rowsForKey.reduce((a, r) => a + (r.impressions || 0), 0);
-    const totClk = rowsForKey.reduce((a, r) => a + (r.clicks || 0), 0);
-    const rowCtr = totImp > 0 ? (totClk / totImp) * 100 : 0;
-    const segHtml = segSectionHtml(groupKeys, rowCtr, totImp);
-    body.innerHTML = (any || segHtml)
-      ? html + segHtml
+    body.innerHTML = any
+      ? html
       : `<p class="split-sub">No per-creative split data available for this row yet. Splits are produced by the daily refresh, so a newly-trafficked row may not have them until the next run.</p>`;
+  }
+
+  // Toggle a creative's segment-detail dropdown row (the <tr> immediately after the clicked row).
+  function toggleSplitDetail(tr) {
+    const detail = tr.nextElementSibling;
+    if (!detail || !detail.classList.contains('split-detail')) return;
+    const open = detail.style.display !== 'none';
+    detail.style.display = open ? 'none' : '';
+    tr.classList.toggle('open', !open);
   }
 
   function splitTable(splits, isVideo) {
     const dash = '<span class="split-dash">—</span>';
     const num = n => (n != null && n !== '') ? Number(n).toLocaleString() : dash;
     const pct = n => (n != null) ? n + '%' : dash;
+    const cols = isVideo ? 8 : 7; // caret + Creative + Imp + Clicks + CTR + View + [Comp] + KeyValues
     let tImp = 0, tClk = 0;
     const rows = splits.map(s => {
       tImp += s.impressions || 0; tClk += s.clicks || 0;
@@ -905,18 +918,27 @@
       const kv = (s.keyValues || []).length
         ? s.keyValues.map(k => `<span class="split-kv">${esc(k.key)}: ${esc(k.value)}</span>`).join('')
         : dash;
-      return `<tr>
-        <td class="split-name" title="${esc(s.name || ('#' + s.creativeId))}">${esc(s.name || ('#' + s.creativeId))}</td>
+      const nm = s.name || ('#' + s.creativeId);
+      const hasSeg = !!(s.seg && s.seg.byKey && Object.keys(s.seg.byKey).length);
+      const caret = hasSeg ? '<span class="split-caret">▸</span>' : '';
+      const rowOpen = hasSeg ? ' class="split-row has-seg" onclick="toggleSplitDetail(this)"' : ' class="split-row"';
+      const detail = hasSeg
+        ? `<tr class="split-detail" style="display:none"><td colspan="${cols}"><div class="split-detail-inner">${segDetailHtml(s.seg, s.impressions, s.ctr)}</div></td></tr>`
+        : '';
+      return `<tr${rowOpen}>
+        <td class="split-caret-cell">${caret}</td>
+        <td class="split-name" title="${esc(nm)}">${esc(nm)}</td>
         <td class="num split-imp">${num(s.impressions)}</td>
         <td class="num split-clk">${num(s.clicks)}</td>
         <td class="num split-ctr">${ctr}</td>
         <td class="num split-view">${pct(s.viewability)}</td>
         ${isVideo ? `<td class="num split-comp">${pct(s.completionRate)}</td>` : ''}
         <td>${kv}</td>
-      </tr>`;
+      </tr>${detail}`;
     }).join('');
     const totCtr = (tImp && tClk) ? ((tClk / tImp) * 100).toFixed(2) + '%' : dash;
     const totalRow = `<tr class="split-total-row">
+      <td></td>
       <td>Combined (${splits.length})</td>
       <td class="num">${tImp.toLocaleString()}</td>
       <td class="num">${tClk.toLocaleString()}</td>
@@ -926,6 +948,7 @@
       <td></td>
     </tr>`;
     return `<table class="split-table"><thead><tr>
+      <th></th>
       <th>Creative</th>
       <th style="text-align:right">Impressions</th>
       <th style="text-align:right">Clicks</th>
@@ -1060,44 +1083,27 @@
     return `<div class="seg-deliv"><div class="seg-deliv-h">Will it still deliver in full?</div>${ctx}${inc}${exc}${caveat}</div>`;
   }
   const AUD_AP_KEYS = ['ap_gen','ap_stda','ap_inc','ap_hhs','ap_emp','ap_edu','ap_chi'];
-  function segSectionHtml(groupKeys, rowCtr, totImp) {
-    if (!perfData) return '';
-    // Merge each key's values across the row's group keys, deduped, ranked by CTR desc.
-    const present = new Set();
+  // Renders ONE creative's segment performance (its dropdown in the splits modal): its delivery
+  // read, strong/weak segments with reach pills, and the summary one-liners. Fed the per-creative
+  // `seg` object { best, byKey, delivery, segBasis } from splits_cache; totImp/avgCtr are the
+  // creative's own impressions and CTR.
+  function segDetailHtml(seg, totImp, avgCtr) {
+    if (!seg || !seg.byKey || !Object.keys(seg.byKey).length) return '<div class="seg-detail-empty">No segment breakdown for this creative.</div>';
+    const present = new Set(Object.keys(seg.byKey));
     const ranked = {}; // key -> [{value,impressions,clicks,ctr}] desc by ctr
-    for (const gk of groupKeys) {
-      const bk = perfData[gk] && perfData[gk].byKey;
-      if (!bk) continue;
-      for (const [key, lists] of Object.entries(bk)) {
-        present.add(key);
-        const seen = ranked[key] ? ranked[key]._m : (ranked[key] = Object.assign([], { _m: new Map() }))._m;
-        for (const v of [...(lists.top || []), ...(lists.bottom || [])]) {
-          const ex = seen.get(v.value);
-          if (!ex || v.impressions > ex.impressions) seen.set(v.value, v);
-        }
+    for (const key of present) {
+      const m = new Map();
+      for (const v of [...(seg.byKey[key].top || []), ...(seg.byKey[key].bottom || [])]) {
+        const ex = m.get(v.value);
+        if (!ex || v.impressions > ex.impressions) m.set(v.value, v);
       }
+      ranked[key] = [...m.values()].sort((a, b) => b.ctr - a.ctr);
     }
-    if (!present.size) return '';
-    for (const key of present) ranked[key] = [...ranked[key]._m.values()].sort((a, b) => b.ctr - a.ctr);
+    const deliv = seg.delivery || null;
+    const segBasis = seg.segBasis || 'creative';
+    const rowCtr = avgCtr || (deliv && deliv.rowCtr) || 0;
 
-    // Delivery read: across the row's group keys (video spans several), take the most-constrained
-    // one (highest required-retain fraction) so the guardrail reflects the binding line item.
-    let deliv = null;
-    for (const gk of groupKeys) {
-      const dd = perfData[gk] && perfData[gk].delivery;
-      if (!dd) continue;
-      if (!deliv || (dd.requiredRetainFrac ?? -1) > (deliv.requiredRetainFrac ?? -1)) deliv = dd;
-    }
-    // Attribution basis: worst (most-contaminated) across the row's group keys. 'creative' = these
-    // figures are this creative's own; 'line-item'/'partial' = a shared line item blended siblings in.
-    const basisRank = { creative: 0, none: 1, partial: 2, 'line-item': 3 };
-    let segBasis = 'creative';
-    for (const gk of groupKeys) {
-      const b = perfData[gk] && perfData[gk].segBasis;
-      if (b && (basisRank[b] ?? 0) > (basisRank[segBasis] ?? 0)) segBasis = b;
-    }
-
-    // Only show segments performing at ≥90% of the row's overall CTR ("pulling their weight").
+    // Only show segments performing at ≥90% of the creative's overall CTR ("pulling their weight").
     const threshold = rowCtr * 0.9;
     const isAud = k => AUD_AP_KEYS.includes(k);
     const isCtx = k => !isAud(k) && k !== 'permutive';
@@ -1144,7 +1150,7 @@
       const bctr = bundle.imp > 0 ? (bundle.clk / bundle.imp * 100).toFixed(2) : '0.00';
       const r = Math.round(bundle.reach);
       const caveat = bundle.reach < 25 ? ' — still narrow, pair with broader targeting' : '';
-      summary += `<div class="seg-sum-row"><span class="seg-sum-tag safe">Safe pick</span>Targeting ${names} keeps ~${r}% of this creative's volume at ${bctr}% CTR (vs ${rowCtr.toFixed(2)}% row avg)${caveat}.</div>`;
+      summary += `<div class="seg-sum-row"><span class="seg-sum-tag safe">Safe pick</span>Targeting ${names} keeps ~${r}% of this creative's volume at ${bctr}% CTR (vs ${rowCtr.toFixed(2)}% avg)${caveat}.</div>`;
     } else {
       summary += `<div class="seg-sum-row"><span class="seg-sum-tag safe">Safe pick</span>No content segment is broad enough to target on its own — treat the above as signals, not filters, to avoid underdelivery.</div>`;
     }
@@ -1168,11 +1174,10 @@
       blocks += `<div class="seg-key-block"><div class="seg-key-title">${esc(SEG_KEY_LABEL[key] || key)}</div><div class="seg-cols">${topCol}${loseCol}</div></div>`;
     }
 
-    const hdr = `<div class="split-group-title" style="background:#e7f7ef;color:#158a5a">Performance by segment — CTR (row average ${rowCtr.toFixed(2)}%)</div>`;
     const caption = `<div class="seg-caption">Optimization signals, not hard filters — targeting only the smallest high-CTR segments risks underdelivery. Use the <b>Safe pick</b> to balance CTR with reach.</div>`;
     const legend = `<div class="seg-legend"><b>Reach</b> = share of this creative's impressions.<span class="lg ok"></span>green ≥${REACH_GREEN}% safe to lean on<span class="lg mid"></span>amber moderate<span class="lg low"></span>red &lt;${REACH_RED}% high CTR but tiny — risky to target alone.</div>`;
-    const foot = `<div class="seg-foot">Reach is the share of this creative's <b>recent delivered</b> impressions — a historical guide, not a forward inventory forecast, and it doesn't yet check the line item's booked goal.</div>`;
-    return `<div class="seg-section">${hdr}${caption}${segBasisNote(segBasis)}${deliveryHtml(deliv)}${summary}${legend}${blocks}${foot}</div>`;
+    const foot = `<div class="seg-foot">Reach is the share of this creative's <b>recent delivered</b> impressions — a historical guide, not a forward inventory forecast.</div>`;
+    return `<div class="seg-section">${segBasisNote(segBasis)}${deliveryHtml(deliv)}${caption}${summary}${legend}${blocks}${foot}</div>`;
   }
 
   function renderTagEditor() {
