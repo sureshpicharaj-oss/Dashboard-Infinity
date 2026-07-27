@@ -26,7 +26,7 @@ const { fetchSegmentPerformance, CRITERIA_KEYS, AUDIENCE_CRITERIA_KEYS } = requi
 // row, then ranks each key's values by CTR. Returns, per group key, the single best contextual
 // (key,value) for the row's highlight chip plus per-key top/bottom lists for the modal.
 // A volume floor keeps statistically-meaningless segments out of the ranking.
-function buildPerfBySegment(results, segByLI, opts = {}) {
+function buildPerfBySegment(results, segByLICreative, opts = {}) {
   const N = opts.n || 4;           // top/bottom values kept per key
   const out = {};
   for (const r of results) {
@@ -36,18 +36,39 @@ function buildPerfBySegment(results, segByLI, opts = {}) {
     // absolute minimum so tiny rows don't rank statistical noise.
     const rowImps = r.impressions || 0;
     const floor = Math.max(100, Math.round(rowImps * 0.01));
+    // Aggregate THIS row's own creatives only. The segment report is broken out by CREATIVE_ID,
+    // and reportCreativeIdsByLI (from the impression fingerprint) tells us which rendered creatives
+    // on each line item are this row's. Where a line item has no resolved creatives (fingerprint
+    // ambiguous/failed), fall back to line-item level (all creatives on it) and flag it — a shared
+    // line item's siblings then blend in for that line item only. segBasis records the outcome.
     const agg = {}; // key -> value -> { impressions, clicks }
-    for (const li of (r.lineItemIds || [])) {
-      const byKeyLI = segByLI[li];
-      if (!byKeyLI) continue;
-      for (const [key, vals] of Object.entries(byKeyLI)) {
+    const mergeCreative = (byKey) => {
+      for (const [key, vals] of Object.entries(byKey)) {
         if (!agg[key]) agg[key] = {};
         for (const [val, s] of Object.entries(vals)) {
           const cur = agg[key][val] || (agg[key][val] = { impressions: 0, clicks: 0 });
           cur.impressions += s.impressions; cur.clicks += s.clicks;
         }
       }
+    };
+    const cidsByLI = r.reportCreativeIdsByLI || {};
+    let liWithData = 0, liFallback = 0;
+    for (const li of (r.lineItemIds || [])) {
+      const byCid = segByLICreative[li];
+      if (!byCid) continue;
+      liWithData++;
+      const rowCids = cidsByLI[li] || [];
+      const matched = rowCids.filter(cid => byCid[cid]);
+      if (matched.length) {
+        for (const cid of matched) mergeCreative(byCid[cid]);   // creative-level (this row's own)
+      } else {
+        for (const cid of Object.keys(byCid)) mergeCreative(byCid[cid]); // line-item fallback
+        liFallback++;
+      }
     }
+    const segBasis = liWithData === 0 ? 'none'
+                   : liFallback === 0 ? 'creative'
+                   : liFallback === liWithData ? 'line-item' : 'partial';
     // Rank every contextual key that actually has delivery. Data presence IS the site scoping:
     // a Top Gear-only creative has make/range data but no diet/meal-type; a Good Food creative
     // the reverse; a cross-site creative shows both. This is more robust than filtering by the
@@ -150,7 +171,7 @@ function buildPerfBySegment(results, segByLI, opts = {}) {
       };
     }
 
-    if (Object.keys(byKey).length) out[gk] = { best, byKey, delivery };
+    if (Object.keys(byKey).length) out[gk] = { best, byKey, delivery, segBasis };
   }
   return out;
 }
