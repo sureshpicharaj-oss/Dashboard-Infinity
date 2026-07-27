@@ -78,7 +78,77 @@ function buildPerfBySegment(results, segByLI, opts = {}) {
         best = { key, ...cand };
       }
     }
-    if (Object.keys(byKey).length) out[gk] = { best, byKey };
+    // Cross-key delivery read — "if you optimise toward the strong contextual segments (or switch
+    // off the weak ones), will the line items still deliver in full?". Uses the COMPLETE value
+    // lists in `agg` (not the top/bottom-N kept for display), so the sums are exact.
+    //
+    // Honest bounds: an impression carries a value for EVERY key at once, so unions ACROSS keys
+    // cannot be summed exactly — only bounded. All fractions are of TSeg, the row's delivered total
+    // in the segment-report basis, estimated from the most-covering single-valued taxonomy key
+    // (cat/subcat/primary_cat/category). Those keys never over-count (one value per impression), so
+    // TSeg is never over-estimated and every "retained" fraction stays conservative (never inflates
+    // delivery). See public/index.html deliveryHtml() for how the verdicts are rendered.
+    const RELIABLE_TOTAL_KEYS = ['cat', 'subcat', 'primary_cat', 'category'];
+    const threshold = (r.ctr || 0) * 0.9;
+    let TSeg = 0;
+    const perKey = {}; // contextual key -> { total, aboveImps, aboveClicks, belowImps }
+    for (const key of contextualKeys) {
+      const vals = agg[key];
+      if (!vals) continue;
+      let total = 0, aboveImps = 0, aboveClicks = 0, belowImps = 0;
+      for (const s of Object.values(vals)) {
+        const ctr = s.impressions > 0 ? (s.clicks / s.impressions) * 100 : 0;
+        total += s.impressions;
+        if (ctr >= threshold) { aboveImps += s.impressions; aboveClicks += s.clicks; }
+        else belowImps += s.impressions;
+      }
+      perKey[key] = { total, aboveImps, aboveClicks, belowImps };
+      if (RELIABLE_TOTAL_KEYS.includes(key) && total > TSeg) TSeg = total;
+    }
+    let delivery = null;
+    if (TSeg > 0) {
+      // Inclusion ("target only the strong"): exact floor = the single best key's winners alone;
+      // ceiling = sum of every key's winners capped at 1 (over-counts overlap → optimistic).
+      let incBestImps = 0, incBestClicks = 0, incBestKey = null, incSumImps = 0;
+      // Exclusion ("switch off the weak"): worst-case removal = sum of every key's losers capped
+      // (over-counts → most pessimistic retained); best case removes only the single largest
+      // loser-set (exact within that one key).
+      let exclSumBelow = 0, exclMaxBelow = 0;
+      for (const k of Object.keys(perKey)) {
+        const pk = perKey[k];
+        incSumImps += pk.aboveImps;                 // all keys → optimistic ceiling (over-counts)
+        exclSumBelow += pk.belowImps;               // all keys → pessimistic removal (over-counts)
+        if (pk.belowImps > exclMaxBelow) exclMaxBelow = pk.belowImps;
+        // Guaranteed inclusion FLOOR only from single-valued taxonomy keys. Multi-valued keys
+        // (posttag/tag/tags) can tag one impression with several values, over-counting aboveImps —
+        // which would inflate the floor and risk a FALSE "safe". Reliable keys never over-count.
+        if (RELIABLE_TOTAL_KEYS.includes(k) && pk.aboveImps > incBestImps) {
+          incBestImps = pk.aboveImps; incBestClicks = pk.aboveClicks; incBestKey = k;
+        }
+      }
+      const d = r.delivery || {};
+      const rrf = (d.requiredRetainFrac != null && isFinite(d.requiredRetainFrac)) ? d.requiredRetainFrac : null;
+      const incLowerFrac = Math.min(1, incBestImps / TSeg);
+      const incUpperFrac = Math.min(1, incSumImps / TSeg);
+      const exclWorstFrac = Math.max(0, 1 - Math.min(1, exclSumBelow / TSeg));
+      const exclBestFrac  = Math.max(0, 1 - Math.min(1, exclMaxBelow / TSeg));
+      // Verdict: 'safe' only when even the conservative (lower/worst) retained clears the required
+      // fraction — a real guarantee; 'maybe' when only the optimistic bound clears; else 'unlikely'.
+      const verdict = (lower, upper) => rrf == null ? 'na' : lower >= rrf ? 'safe' : upper >= rrf ? 'maybe' : 'unlikely';
+      delivery = {
+        hasGoal: !!d.hasGoal, behind: !!d.behind, sponsorship: !!d.sponsorship,
+        openEnded: !!d.openEnded, completed: !!d.completed,
+        requiredRetainFrac: rrf, goalUnits: d.goalUnits || null, remaining: d.remaining || null,
+        endTs: d.endTs || null, paceCushion: d.paceCushion ?? null,
+        incBestKey, incBestCtr: incBestImps > 0 ? parseFloat((incBestClicks / incBestImps * 100).toFixed(2)) : 0,
+        incLowerFrac, incUpperFrac, exclWorstFrac, exclBestFrac,
+        verdictIncl: verdict(incLowerFrac, incUpperFrac),
+        verdictExcl: verdict(exclWorstFrac, exclBestFrac),
+        rowCtr: r.ctr || 0,
+      };
+    }
+
+    if (Object.keys(byKey).length) out[gk] = { best, byKey, delivery };
   }
   return out;
 }

@@ -303,6 +303,20 @@
     .seg-legend .lg { display:inline-block;width:9px;height:9px;border-radius:3px;margin:0 4px 0 12px;vertical-align:middle;border:1px solid rgba(0,0,0,.08); }
     .seg-legend .lg.ok { background:#158a5a; } .seg-legend .lg.mid { background:#c47d1a; } .seg-legend .lg.low { background:#c0392b; }
     .seg-foot { font-size:11px;color:#98a0b0;line-height:1.5;margin:14px 0 0;border-top:1px solid #eef1f6;padding-top:8px; }
+    /* "Will it still deliver in full?" panel */
+    .seg-deliv { background:#f3f7ff;border:1px solid #dbe6fb;border-radius:8px;padding:12px 14px;margin:0 0 16px; }
+    .seg-deliv-h { font-size:12px;font-weight:800;letter-spacing:.03em;color:#1f3a68;margin:0 0 8px;text-transform:uppercase; }
+    .seg-deliv-note { font-size:13px;line-height:1.5;color:#28324a;margin:0 0 8px; }
+    .seg-deliv-note.ok  { color:#158a5a; }
+    .seg-deliv-note.mid { color:#b06a15; }
+    .seg-deliv-note.low { color:#c0392b;font-weight:600; }
+    .seg-deliv-row { font-size:13px;line-height:1.6;color:#28324a;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:2px 0; }
+    .seg-deliv-lab { display:inline-block;min-width:150px;font-weight:700;color:#42506b; }
+    .dv-badge { font-size:11px;font-weight:700;padding:1px 8px;border-radius:10px;white-space:nowrap; }
+    .dv-badge.ok  { background:#e7f7ef;color:#158a5a;border:1px solid #bfe8d3; }
+    .dv-badge.mid { background:#fef3e7;color:#c47d1a;border:1px solid #f3dcc0; }
+    .dv-badge.low { background:#fdece9;color:#c0392b;border:1px solid #f2c9c2; }
+    .seg-deliv-caveat { font-size:11px;color:#7a8397;line-height:1.45;margin:8px 0 0;font-style:italic; }
     .live-dot { display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle;flex-shrink:0; }
     .live-dot.delivering { background:#f59e0b;box-shadow:0 0 0 0 rgba(245,158,11,.6);animation:pulse-yellow 1.6s infinite; }
     .live-dot.ready      { background:#3b82f6;box-shadow:0 0 4px rgba(59,130,246,.7); }
@@ -992,6 +1006,39 @@
         : `${rp}% of this creative's impressions — moderate reach`;
     return `<div class="seg-item${win ? ' win' : ''}"><span class="seg-item-val" title="${esc(v.value)}">${esc(val)}</span><span class="seg-item-ctr" style="color:${win ? '#158a5a' : '#c0392b'}">${v.ctr}%</span><span class="seg-reach ${tier}" title="${esc(rTitle)}">${rLabel}</span><span class="seg-item-imp">${(v.impressions || 0).toLocaleString()} imp</span></div>`;
   }
+  // ---- "Will it still deliver in full?" panel (precomputed in scripts/refresh.js) ----
+  function fmtPct(f) { return (f == null || !isFinite(f)) ? '—' : Math.round(Math.max(0, Math.min(1, f)) * 100) + '%'; }
+  function delivVerdictBadge(v) {
+    if (v === 'safe')     return '<span class="dv-badge ok">✓ delivers in full</span>';
+    if (v === 'maybe')    return '<span class="dv-badge mid">~ borderline</span>';
+    if (v === 'unlikely') return '<span class="dv-badge low">✗ would underdeliver</span>';
+    return '';
+  }
+  function deliveryHtml(d) {
+    if (!d) return '';
+    const rrf = d.requiredRetainFrac;
+    // Behind pace either by GAM's own indicator or because keeping even 100% still misses goal.
+    const behind = d.behind || (rrf != null && rrf > 1);
+    let ctx;
+    if (d.completed) {
+      ctx = `<div class="seg-deliv-note ok">✓ Flight complete — the segments below are retrospective. Apply the strongest to the next comparable line item.</div>`;
+    } else if (behind) {
+      ctx = `<div class="seg-deliv-note low">⚠ Already behind pace — even full targeting is short of the booked goal, so narrowing would make it worse. The strong segments below are shown for insight, not for restricting targeting yet.</div>`;
+    } else if (d.sponsorship && !d.hasGoal) {
+      ctx = `<div class="seg-deliv-note mid">Sponsorship line — the share-of-inventory goal still fills on a narrower pool, but absolute volume drops to the reach shown below.</div>`;
+    } else if (!d.hasGoal) {
+      ctx = `<div class="seg-deliv-note">No booked impression goal on these line items — narrowing carries no underdelivery risk. Figures below are share of recent delivered volume.</div>`;
+    } else {
+      const by = d.endTs ? ` by ${new Date(d.endTs).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}` : '';
+      const goalTxt = d.goalUnits ? `${Number(d.goalUnits).toLocaleString()} imps` : 'its goal';
+      ctx = `<div class="seg-deliv-note">Booked <b>${goalTxt}</b>${by}. To finish in full you must keep <b>≥${fmtPct(rrf)}</b> of current delivery.</div>`;
+    }
+    const led = d.incBestKey ? ` (led by ${esc(SEG_KEY_LABEL[d.incBestKey] || d.incBestKey)})` : '';
+    const inc = `<div class="seg-deliv-row"><span class="seg-deliv-lab">Target only the strong</span><span>keeps ${fmtPct(d.incLowerFrac)}–${fmtPct(d.incUpperFrac)} of delivery${led}</span> ${delivVerdictBadge(d.verdictIncl)}</div>`;
+    const exc = `<div class="seg-deliv-row"><span class="seg-deliv-lab">Switch off the weak</span><span>keeps ${fmtPct(d.exclWorstFrac)}–${fmtPct(d.exclBestFrac)} of delivery</span> ${delivVerdictBadge(d.verdictExcl)}</div>`;
+    const caveat = `<div class="seg-deliv-caveat">Ranges are wide because contextual keys overlap — the same impression is tagged on every key, so the combined figure can't be pinned exactly. A ✓ means even the cautious end of the range clears the goal.</div>`;
+    return `<div class="seg-deliv"><div class="seg-deliv-h">Will it still deliver in full?</div>${ctx}${inc}${exc}${caveat}</div>`;
+  }
   const AUD_AP_KEYS = ['ap_gen','ap_stda','ap_inc','ap_hhs','ap_emp','ap_edu','ap_chi'];
   function segSectionHtml(groupKeys, rowCtr, totImp) {
     if (!perfData) return '';
@@ -1012,6 +1059,15 @@
     }
     if (!present.size) return '';
     for (const key of present) ranked[key] = [...ranked[key]._m.values()].sort((a, b) => b.ctr - a.ctr);
+
+    // Delivery read: across the row's group keys (video spans several), take the most-constrained
+    // one (highest required-retain fraction) so the guardrail reflects the binding line item.
+    let deliv = null;
+    for (const gk of groupKeys) {
+      const dd = perfData[gk] && perfData[gk].delivery;
+      if (!dd) continue;
+      if (!deliv || (dd.requiredRetainFrac ?? -1) > (deliv.requiredRetainFrac ?? -1)) deliv = dd;
+    }
 
     // Only show segments performing at ≥90% of the row's overall CTR ("pulling their weight").
     const threshold = rowCtr * 0.9;
@@ -1088,7 +1144,7 @@
     const caption = `<div class="seg-caption">Optimization signals, not hard filters — targeting only the smallest high-CTR segments risks underdelivery. Use the <b>Safe pick</b> to balance CTR with reach.</div>`;
     const legend = `<div class="seg-legend"><b>Reach</b> = share of this creative's impressions.<span class="lg ok"></span>green ≥${REACH_GREEN}% safe to lean on<span class="lg mid"></span>amber moderate<span class="lg low"></span>red &lt;${REACH_RED}% high CTR but tiny — risky to target alone.</div>`;
     const foot = `<div class="seg-foot">Reach is the share of this creative's <b>recent delivered</b> impressions — a historical guide, not a forward inventory forecast, and it doesn't yet check the line item's booked goal.</div>`;
-    return `<div class="seg-section">${hdr}${caption}${summary}${legend}${blocks}${foot}</div>`;
+    return `<div class="seg-section">${hdr}${caption}${deliveryHtml(deliv)}${summary}${legend}${blocks}${foot}</div>`;
   }
 
   function renderTagEditor() {
