@@ -656,7 +656,7 @@
         <th onclick="sortBy('clicks')" data-col="clicks" style="text-align:right;width:80px">Clicks <span class="sort-icon">↕</span></th>
         <th onclick="sortBy('ctr')" data-col="ctr" style="text-align:right;width:80px">CTR <span class="sort-icon">↕</span></th>
         <th onclick="sortBy('activeView')" data-col="activeView" style="text-align:right;width:110px">Viewability % <span class="sort-icon">↕</span></th>
-        <th onclick="sortBy('attention')" data-col="attention" style="text-align:right;width:100px">Attention <span class="sort-icon">↕</span></th>
+        <th onclick="sortBy('attention')" data-col="attention" style="text-align:right;width:100px" title="Transparent+ — a 0–100 attention score (viewability + dwell + CTR, plus completion for video), scored vs expectation">Transparent+ <span class="sort-icon">↕</span></th>
         <th style="width:210px">Top Segment</th>
       </tr>
     </thead>
@@ -966,7 +966,7 @@
       <th style="text-align:right">CTR</th>
       <th style="text-align:right">Viewability</th>
       ${isVideo ? '<th style="text-align:right">Completion</th>' : ''}
-      <th style="text-align:right">Attention</th>
+      <th style="text-align:right" title="Transparent+ attention score (0–100), scored vs expectation">Transparent+</th>
       <th>Key values</th>
     </tr></thead><tbody>${rows}${totalRow}</tbody></table>`;
   }
@@ -1535,29 +1535,38 @@
   // Baked into the caches by scripts/refresh.js (used as-is on Netlify). On localhost the table
   // loads live from /api/dashboard (no score) and viewability/dwell are merged in client-side, so we
   // recompute here too. THIS MUST MIRROR scripts/refresh.js computeAttention() — keep the knobs in sync.
+  // Transparent+: each signal scored vs its expected ("par") level → PAR_SCORE (60); beating it climbs
+  // toward 100 (bounded signals reach 100 at their ceiling, CTR asymptotes — always room to grow).
   var ATT = {
     dwellCeilSec: 60,
+    par: { viewability: 78, dwellSec: 45, completion: 50 }, // estate-calibrated expected levels (see lib/attention.js)
     ctrBar: { desktop: 2.0, mobile: 0.8 },
+    PAR_SCORE: 60,
     weights: {
       display: { viewability: 0.40, dwell: 0.40, ctr: 0.20 },
       video:   { viewability: 0.20, dwell: 0.30, completion: 0.30, ctr: 0.20 },
     },
     green: 65, red: 35, lowVolume: 1000,
   };
-  function attnDwell(sec) {
-    if (sec == null || !isFinite(sec) || sec <= 0) return 0;
-    var t = Math.min(sec, ATT.dwellCeilSec);
-    return 100 * Math.log(1 + t) / Math.log(1 + ATT.dwellCeilSec);
+  function attnParLinear(v, par, max) {
+    if (v == null || !isFinite(v) || v <= 0) return 0;
+    if (v >= max) return 100;
+    return v <= par ? (v / par) * ATT.PAR_SCORE : ATT.PAR_SCORE + ((v - par) / (max - par)) * (100 - ATT.PAR_SCORE);
+  }
+  function attnParOpen(v, par) {
+    if (v == null || !isFinite(v) || v <= 0) return 0;
+    var k = par * (1 - ATT.PAR_SCORE / 100) / (ATT.PAR_SCORE / 100);
+    return 100 * v / (v + k);
   }
   function attnTierOf(score) { return score == null ? 'na' : score >= ATT.green ? 'ok' : score < ATT.red ? 'low' : 'mid'; }
   function computeAttentionClient(r) {
     var device = r.device || '', isVideo = /video/.test(device), isMobile = device === 'mobile' || device === 'video-mobile';
     var w = isVideo ? ATT.weights.video : ATT.weights.display, bar = isMobile ? ATT.ctrBar.mobile : ATT.ctrBar.desktop;
     var raw = [];
-    if (w.viewability) raw.push({ label: 'Viewability', w: w.viewability, avail: r.activeView != null, score: r.activeView != null ? Math.max(0, Math.min(100, r.activeView)) : null, disp: r.activeView != null ? Math.round(r.activeView) + '%' : null });
-    if (w.dwell) raw.push({ label: 'Dwell', w: w.dwell, avail: r.avgViewableSec != null, score: r.avgViewableSec != null ? attnDwell(r.avgViewableSec) : null, disp: r.avgViewableSec != null ? r.avgViewableSec.toFixed(1) + 's' : null });
-    if (w.completion) raw.push({ label: 'Completion', w: w.completion, avail: r.completionRate != null, score: r.completionRate != null ? Math.max(0, Math.min(100, r.completionRate)) : null, disp: r.completionRate != null ? Math.round(r.completionRate) + '%' : null });
-    if (w.ctr) raw.push({ label: 'CTR', w: w.ctr, avail: r.ctr != null, score: r.ctr != null ? Math.min(100, (r.ctr / bar) * 100) : null, disp: r.ctr != null ? r.ctr.toFixed(2) + '%' : null });
+    if (w.viewability) raw.push({ label: 'Viewability', w: w.viewability, avail: r.activeView != null, score: r.activeView != null ? attnParLinear(r.activeView, ATT.par.viewability, 100) : null, disp: r.activeView != null ? Math.round(r.activeView) + '%' : null });
+    if (w.dwell) raw.push({ label: 'Dwell', w: w.dwell, avail: r.avgViewableSec != null, score: r.avgViewableSec != null ? attnParLinear(Math.min(r.avgViewableSec, ATT.dwellCeilSec), ATT.par.dwellSec, ATT.dwellCeilSec) : null, disp: r.avgViewableSec != null ? r.avgViewableSec.toFixed(1) + 's' : null });
+    if (w.completion) raw.push({ label: 'Completion', w: w.completion, avail: r.completionRate != null, score: r.completionRate != null ? attnParLinear(r.completionRate, ATT.par.completion, 100) : null, disp: r.completionRate != null ? Math.round(r.completionRate) + '%' : null });
+    if (w.ctr) raw.push({ label: 'CTR', w: w.ctr, avail: r.ctr != null, score: r.ctr != null ? attnParOpen(r.ctr, bar) : null, disp: r.ctr != null ? r.ctr.toFixed(2) + '%' : null });
     var avail = raw.filter(function (c) { return c.avail && c.score != null; });
     var wsum = avail.reduce(function (a, c) { return a + c.w; }, 0);
     var score = null;
@@ -1571,7 +1580,7 @@
     var parts = att.components.filter(function(c){return c.avail;});
     var line = parts.map(function(c){return c.label+' '+c.score;}).join(' · ');
     var wts = parts.map(function(c){return c.weight;}).join('/');
-    var s = line + ' → ' + att.score + '  (weighted ' + wts + ')';
+    var s = 'Transparent+ ' + att.score + ' — ' + line + '  (weighted ' + wts + ')';
     if (att.lowConfidence) s += '  ·  low volume — provisional';
     return s;
   }
@@ -1629,7 +1638,8 @@
         if (!urlMap.has(r.netlifyUrl)) {
           urlMap.set(r.netlifyUrl, {
             netlifyUrl: r.netlifyUrl, advertiser: r.advertiser,
-            avViewable: 0, avMeasurable: 0, sortKey: r.sortKey, liveStatus: null,
+            avViewable: 0, avMeasurable: 0, avViewableTime: 0, complNum: 0, complDen: 0,
+            sortKey: r.sortKey, liveStatus: null,
             impressions: 0, clicks: 0, videos: [], lineItemIds: new Set(), partial: false, anyUnmatched: false,
           });
         }
@@ -1643,6 +1653,10 @@
         // viewable/measurable across the group's videos rather than taking one arbitrary row's rate.
         g.avViewable   += r.activeViewViewable   || 0;
         g.avMeasurable += r.activeViewMeasurable || 0;
+        // Dwell + completion for the group's Transparent+ score: dwell is viewable-weighted (mirrors
+        // active-view-data.js), completion impression-weighted across the group's videos.
+        g.avViewableTime += (r.avgViewableSec || 0) * (r.activeViewViewable || 0);
+        if (r.completionRate != null) { g.complNum += r.completionRate * (_rfs.impressions || 0); g.complDen += (_rfs.impressions || 0); }
         if (r.videoId) g.videos.push({ videoId: r.videoId, completionRate: r.completionRate, durationSec: r.durationSec ?? null, videoStarts: r.videoStarts ?? null });
         if ((r.sortKey || 0) > g.sortKey) g.sortKey = r.sortKey;
         (r.lineItemIds || []).forEach(id => g.lineItemIds.add(id));
@@ -1650,10 +1664,16 @@
         if ((STATUS_ORDER[r.liveStatus] ?? 99) < (STATUS_ORDER[g.liveStatus] ?? 99)) g.liveStatus = r.liveStatus;
       }
 
-      const groups = [...urlMap.values()].map(g => ({
-        ...g,
-        activeView: g.avMeasurable > 0 ? parseFloat(((g.avViewable / g.avMeasurable) * 100).toFixed(1)) : null,
-      }));
+      const groups = [...urlMap.values()].map(g => {
+        const activeView = g.avMeasurable > 0 ? parseFloat(((g.avViewable / g.avMeasurable) * 100).toFixed(1)) : null;
+        const avgViewableSec = g.avViewable > 0 ? parseFloat((g.avViewableTime / g.avViewable).toFixed(1)) : null;
+        const completionRate = g.complDen > 0 ? parseFloat((g.complNum / g.complDen).toFixed(1)) : null;
+        const gctr = g.impressions && g.clicks ? (g.clicks / g.impressions) * 100 : null;
+        // Compound video row has no single `attention` (it's built by grouping per-VIDEO_ID rows) —
+        // score it here from the group's aggregated signals so the Transparent+ column isn't blank.
+        const attention = computeAttentionClient({ device: activeTab, activeView, avgViewableSec, ctr: gctr, completionRate, impressions: g.impressions });
+        return Object.assign({}, g, { activeView, avgViewableSec, completionRate, attention });
+      });
       if (!groups.length) {
         tbody.innerHTML = '<tr><td colspan="11" class="empty-state">No results match your search</td></tr>';
         return;
