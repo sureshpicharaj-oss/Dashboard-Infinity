@@ -25,6 +25,55 @@ const { fetchSegmentPerformance, CRITERIA_KEYS, AUDIENCE_CRITERIA_KEYS } = requi
 // Ranks a segment aggregate (key -> value -> {impressions,clicks}) by CTR and derives the cross-key
 // delivery bounds. Shared by the row-level highlight chip AND the per-creative split dropdowns, so
 // the honest-bounds math lives in exactly one place. Returns { best, byKey, delivery }.
+// ---- Attention Score (Transparent+) ----
+// A 0–100 "did this creative earn eyeballs" score: viewability + dwell (time in view) + CTR, plus
+// completion for video. Fixed, hand-checkable bars with a diminishing-returns dwell curve. Every
+// knob lives in ATT so it's easy to tune after seeing real numbers. Returns null score when a
+// display row has no Active View — scoring off CTR alone would mislead. Shown as a green/amber/red pill.
+const ATT = {
+  dwellCeilSec: 60,                          // dwell capped here; 60s in view = full dwell marks
+  ctrBar: { desktop: 2.0, mobile: 0.8 },     // CTR % that earns full CTR marks, by device family
+  weights: {
+    display: { viewability: 0.40, dwell: 0.40, ctr: 0.20 },
+    video:   { viewability: 0.20, dwell: 0.30, completion: 0.30, ctr: 0.20 },
+  },
+  green: 65, red: 35, lowVolume: 1000,
+};
+function attnDwell(sec) { // log curve → 0 at 0s, 100 at 60s, diminishing (5s≈44, 30s≈84)
+  if (sec == null || !isFinite(sec) || sec <= 0) return 0;
+  const t = Math.min(sec, ATT.dwellCeilSec);
+  return 100 * Math.log(1 + t) / Math.log(1 + ATT.dwellCeilSec);
+}
+function attnTier(score) { return score == null ? 'na' : score >= ATT.green ? 'ok' : score < ATT.red ? 'low' : 'mid'; }
+function computeAttention(o) {
+  // o: { device, viewability, avgViewableSec, ctr, completionRate, impressions }
+  const isVideo = /video/.test(o.device || '');
+  const isMobile = o.device === 'mobile' || o.device === 'video-mobile';
+  const w = isVideo ? ATT.weights.video : ATT.weights.display;
+  const bar = isMobile ? ATT.ctrBar.mobile : ATT.ctrBar.desktop;
+  const raw = [];
+  if (w.viewability) raw.push({ label: 'Viewability', w: w.viewability, avail: o.viewability != null,
+    score: o.viewability != null ? Math.max(0, Math.min(100, o.viewability)) : null, disp: o.viewability != null ? Math.round(o.viewability) + '%' : null });
+  if (w.dwell) raw.push({ label: 'Dwell', w: w.dwell, avail: o.avgViewableSec != null,
+    score: o.avgViewableSec != null ? attnDwell(o.avgViewableSec) : null, disp: o.avgViewableSec != null ? o.avgViewableSec.toFixed(1) + 's' : null });
+  if (w.completion) raw.push({ label: 'Completion', w: w.completion, avail: o.completionRate != null,
+    score: o.completionRate != null ? Math.max(0, Math.min(100, o.completionRate)) : null, disp: o.completionRate != null ? Math.round(o.completionRate) + '%' : null });
+  if (w.ctr) raw.push({ label: 'CTR', w: w.ctr, avail: o.ctr != null,
+    score: o.ctr != null ? Math.min(100, (o.ctr / bar) * 100) : null, disp: o.ctr != null ? o.ctr.toFixed(2) + '%' : null });
+  const avail = raw.filter(c => c.avail && c.score != null);
+  const wsum = avail.reduce((a, c) => a + c.w, 0);
+  // Coverage gate: without Active View (viewability + dwell both gone) a display row has only CTR left.
+  let score = null;
+  if (wsum >= 0.35) { score = Math.round(avail.reduce((a, c) => a + c.score * (c.w / wsum), 0)); avail.forEach(c => c.rw = c.w / wsum); }
+  return {
+    score, tier: attnTier(score),
+    lowConfidence: (o.impressions || 0) < ATT.lowVolume,
+    ctrBar: bar,
+    components: raw.map(c => ({ label: c.label, raw: c.disp, score: c.score == null ? null : Math.round(c.score),
+      weight: Math.round((c.rw != null ? c.rw : c.w) * 100), avail: c.avail })),
+  };
+}
+
 function computeSegView(agg, opts = {}) {
   const { floor = 100, rowCtr = 0, delivery: rowDelivery = null, n = 4 } = opts;
   const contextualKeys = CRITERIA_KEYS;
@@ -253,9 +302,11 @@ async function main() {
       activeView:           av?.rate ?? null,
       activeViewViewable:   av?.viewable ?? null,
       activeViewMeasurable: av?.measurable ?? null,
+      avgViewableSec:       av?.avgViewableSec ?? null,
       completionRate:       vs?.completionRate ?? null,
       durationSec:          vs?.durationSec ?? null,
       videoStarts:          vs?.videoStarts ?? null,
+      attention:            computeAttention({ device: r.device, viewability: av?.rate ?? null, avgViewableSec: av?.avgViewableSec ?? null, ctr: r.ctr, completionRate: vs?.completionRate ?? null, impressions: r.impressions }),
     };
   });
 
@@ -342,6 +393,8 @@ async function main() {
           viewable:       av?.viewable ?? null,
           measurable:     av?.measurable ?? null,
           completionRate: rowCompletion,
+          avgViewableSec: av?.avgViewableSec ?? null,
+          attention:      computeAttention({ device: gDevice, viewability: av?.rate ?? null, avgViewableSec: av?.avgViewableSec ?? null, ctr: s.ctr, completionRate: rowCompletion, impressions: s.impressions }),
           lineItemIds:    s.lineItemIds,
           keyValues,
           seg,

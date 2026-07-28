@@ -297,6 +297,14 @@
     .seg-reach.ok  { background:#e7f7ef;color:#158a5a;border:1px solid #bfe8d3; }
     .seg-reach.mid { background:#fef3e7;color:#c47d1a;border:1px solid #f3dcc0; }
     .seg-reach.low { background:#fdece9;color:#c0392b;border:1px solid #f2c9c2; }
+    /* Attention score pill (dashboard column + splits) */
+    .attn-pill { display:inline-block;font-size:12px;font-weight:800;padding:2px 9px;border-radius:11px;
+      font-variant-numeric:tabular-nums;min-width:34px;text-align:center; }
+    .attn-pill.ok  { background:#e7f7ef;color:#158a5a;border:1px solid #bfe8d3; }
+    .attn-pill.mid { background:#fef3e7;color:#c47d1a;border:1px solid #f3dcc0; }
+    .attn-pill.low { background:#fdece9;color:#c0392b;border:1px solid #f2c9c2; }
+    .attn-pill.lowconf { opacity:.5;border-style:dashed; }
+    .attn-none { color:#c8ccd6; }
     /* Performance-by-segment summary one-liners */
     .seg-summary { background:#f6f8fc;border:1px solid #e6e9f0;border-radius:8px;padding:10px 14px;margin:0 0 18px; }
     .seg-sum-row { font-size:13px;line-height:1.5;padding:3px 0;color:#1a1a2e; }
@@ -648,11 +656,12 @@
         <th onclick="sortBy('clicks')" data-col="clicks" style="text-align:right;width:80px">Clicks <span class="sort-icon">↕</span></th>
         <th onclick="sortBy('ctr')" data-col="ctr" style="text-align:right;width:80px">CTR <span class="sort-icon">↕</span></th>
         <th onclick="sortBy('activeView')" data-col="activeView" style="text-align:right;width:110px">Viewability % <span class="sort-icon">↕</span></th>
+        <th onclick="sortBy('attention')" data-col="attention" style="text-align:right;width:100px">Attention <span class="sort-icon">↕</span></th>
         <th style="width:210px">Top Segment</th>
       </tr>
     </thead>
     <tbody id="tableBody">
-      <tr><td colspan="9" class="empty-state">Loading data…</td></tr>
+      <tr><td colspan="10" class="empty-state">Loading data…</td></tr>
     </tbody>
   </table>
 </div>
@@ -910,7 +919,7 @@
     const dash = '<span class="split-dash">—</span>';
     const num = n => (n != null && n !== '') ? Number(n).toLocaleString() : dash;
     const pct = n => (n != null) ? n + '%' : dash;
-    const cols = isVideo ? 8 : 7; // caret + Creative + Imp + Clicks + CTR + View + [Comp] + KeyValues
+    const cols = isVideo ? 9 : 8; // caret + Creative + Imp + Clicks + CTR + View + [Comp] + Attention + KeyValues
     let tImp = 0, tClk = 0;
     const rows = splits.map(s => {
       tImp += s.impressions || 0; tClk += s.clicks || 0;
@@ -933,6 +942,7 @@
         <td class="num split-ctr">${ctr}</td>
         <td class="num split-view">${pct(s.viewability)}</td>
         ${isVideo ? `<td class="num split-comp">${pct(s.completionRate)}</td>` : ''}
+        <td class="num split-attn">${attnPill(s.attention)}</td>
         <td>${kv}</td>
       </tr>${detail}`;
     }).join('');
@@ -945,6 +955,7 @@
       <td class="num">${totCtr}</td>
       <td class="num">${dash}</td>
       ${isVideo ? `<td class="num">${dash}</td>` : ''}
+      <td class="num">${dash}</td>
       <td></td>
     </tr>`;
     return `<table class="split-table"><thead><tr>
@@ -955,6 +966,7 @@
       <th style="text-align:right">CTR</th>
       <th style="text-align:right">Viewability</th>
       ${isVideo ? '<th style="text-align:right">Completion</th>' : ''}
+      <th style="text-align:right">Attention</th>
       <th>Key values</th>
     </tr></thead><tbody>${rows}${totalRow}</tbody></table>`;
   }
@@ -1327,7 +1339,7 @@
       <td><span class="skel skel-line"></span></td>
     </tr>`;
     document.getElementById('tableBody').innerHTML =
-      `<tr><td colspan="9" style="padding:10px 16px 4px;font-size:.8rem;color:#888" id="skelCaption">Fetching from Google Ad Manager… 0s</td></tr>` +
+      `<tr><td colspan="10" style="padding:10px 16px 4px;font-size:.8rem;color:#888" id="skelCaption">Fetching from Google Ad Manager… 0s</td></tr>` +
       Array(8).fill(0).map(skelRow).join('');
 
     try {
@@ -1519,6 +1531,56 @@
     return `<td class="video-stack-cell">${html}</td>`;
   }
 
+  // ---- Attention score ----
+  // Baked into the caches by scripts/refresh.js (used as-is on Netlify). On localhost the table
+  // loads live from /api/dashboard (no score) and viewability/dwell are merged in client-side, so we
+  // recompute here too. THIS MUST MIRROR scripts/refresh.js computeAttention() — keep the knobs in sync.
+  var ATT = {
+    dwellCeilSec: 60,
+    ctrBar: { desktop: 2.0, mobile: 0.8 },
+    weights: {
+      display: { viewability: 0.40, dwell: 0.40, ctr: 0.20 },
+      video:   { viewability: 0.20, dwell: 0.30, completion: 0.30, ctr: 0.20 },
+    },
+    green: 65, red: 35, lowVolume: 1000,
+  };
+  function attnDwell(sec) {
+    if (sec == null || !isFinite(sec) || sec <= 0) return 0;
+    var t = Math.min(sec, ATT.dwellCeilSec);
+    return 100 * Math.log(1 + t) / Math.log(1 + ATT.dwellCeilSec);
+  }
+  function attnTierOf(score) { return score == null ? 'na' : score >= ATT.green ? 'ok' : score < ATT.red ? 'low' : 'mid'; }
+  function computeAttentionClient(r) {
+    var device = r.device || '', isVideo = /video/.test(device), isMobile = device === 'mobile' || device === 'video-mobile';
+    var w = isVideo ? ATT.weights.video : ATT.weights.display, bar = isMobile ? ATT.ctrBar.mobile : ATT.ctrBar.desktop;
+    var raw = [];
+    if (w.viewability) raw.push({ label: 'Viewability', w: w.viewability, avail: r.activeView != null, score: r.activeView != null ? Math.max(0, Math.min(100, r.activeView)) : null, disp: r.activeView != null ? Math.round(r.activeView) + '%' : null });
+    if (w.dwell) raw.push({ label: 'Dwell', w: w.dwell, avail: r.avgViewableSec != null, score: r.avgViewableSec != null ? attnDwell(r.avgViewableSec) : null, disp: r.avgViewableSec != null ? r.avgViewableSec.toFixed(1) + 's' : null });
+    if (w.completion) raw.push({ label: 'Completion', w: w.completion, avail: r.completionRate != null, score: r.completionRate != null ? Math.max(0, Math.min(100, r.completionRate)) : null, disp: r.completionRate != null ? Math.round(r.completionRate) + '%' : null });
+    if (w.ctr) raw.push({ label: 'CTR', w: w.ctr, avail: r.ctr != null, score: r.ctr != null ? Math.min(100, (r.ctr / bar) * 100) : null, disp: r.ctr != null ? r.ctr.toFixed(2) + '%' : null });
+    var avail = raw.filter(function (c) { return c.avail && c.score != null; });
+    var wsum = avail.reduce(function (a, c) { return a + c.w; }, 0);
+    var score = null;
+    if (wsum >= 0.35) { score = Math.round(avail.reduce(function (a, c) { return a + c.score * (c.w / wsum); }, 0)); avail.forEach(function (c) { c.rw = c.w / wsum; }); }
+    return { score: score, tier: attnTierOf(score), lowConfidence: (r.impressions || 0) < ATT.lowVolume,
+      components: raw.map(function (c) { return { label: c.label, raw: c.disp, score: c.score == null ? null : Math.round(c.score), weight: Math.round((c.rw != null ? c.rw : c.w) * 100), avail: c.avail }; }) };
+  }
+  function applyAttention() { allRows.forEach(function (r) { r.attention = computeAttentionClient(r); }); }
+
+  function attnTitle(att) {
+    var parts = att.components.filter(function(c){return c.avail;});
+    var line = parts.map(function(c){return c.label+' '+c.score;}).join(' · ');
+    var wts = parts.map(function(c){return c.weight;}).join('/');
+    var s = line + ' → ' + att.score + '  (weighted ' + wts + ')';
+    if (att.lowConfidence) s += '  ·  low volume — provisional';
+    return s;
+  }
+  function attnPill(att) {
+    if (!att || att.score == null) return '<span class="attn-none" title="No Active View data — attention can\'t be scored">—</span>';
+    return '<span class="attn-pill '+att.tier+(att.lowConfidence?' lowconf':'')+'" title="'+esc(attnTitle(att))+'">'+att.score+(att.lowConfidence?'*':'')+'</span>';
+  }
+  function attnCell(att) { return '<td class="ctr-cell">'+attnPill(att)+'</td>'; }
+
   function sortRows(rows, col, dir) {
     const STATUS_ORDER = { ready: 0, delivering: 1, paused: 2, inactive: 3 };
     return rows.slice().sort((a, b) => {
@@ -1528,6 +1590,11 @@
       if (aStatus !== bStatus) return aStatus - bStatus;
       // Within each status group, sort by the chosen column
       let av = a[col], bv = b[col];
+      if (col === 'attention') {
+        av = (a.attention && a.attention.score != null) ? a.attention.score : -1;
+        bv = (b.attention && b.attention.score != null) ? b.attention.score : -1;
+        return (bv - av) * dir * -1;
+      }
       if (col === 'impressions' || col === 'sortKey') {
         av = av ?? -1; bv = bv ?? -1;
         return (bv - av) * dir * -1;
@@ -1588,7 +1655,7 @@
         activeView: g.avMeasurable > 0 ? parseFloat(((g.avViewable / g.avMeasurable) * 100).toFixed(1)) : null,
       }));
       if (!groups.length) {
-        tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No results match your search</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="empty-state">No results match your search</td></tr>';
         return;
       }
       tbody.innerHTML = groups.map(g => {
@@ -1617,7 +1684,7 @@
           <td class="url-cell"><a href="${esc(g.netlifyUrl)}" target="_blank" rel="noopener">${esc(shortUrl(g.netlifyUrl))}</a></td>
           ${thumb}
           ${renderVideoCell(g.videos)}
-          ${imps}${clks}${ctrStr}${av}${vSegTd}
+          ${imps}${clks}${ctrStr}${av}${attnCell(g.attention)}${vSegTd}
         </tr>`;
       }).join('');
       observeLazyImages();
@@ -1627,7 +1694,7 @@
     // Desktop / Mobile tabs — original per-row rendering
     rows = sortRows(rows, sortCol, sortDir);
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No results match your search</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No results match your search</td></tr>';
       return;
     }
     tbody.innerHTML = rows.map(r => {
@@ -1656,7 +1723,7 @@
         <td class="action-cell">${tagBtn}${splitBtn}</td>
         <td class="url-cell"><a href="${esc(r.netlifyUrl)}" target="_blank" rel="noopener">${esc(shortUrl(r.netlifyUrl))}</a></td>
         ${thumb}
-        ${imps}${clks}${ctrStr}${av}${segTd}
+        ${imps}${clks}${ctrStr}${av}${attnCell(r.attention)}${segTd}
       </tr>`;
     }).join('');
     observeLazyImages();
@@ -1667,11 +1734,12 @@
       sortDir *= -1;
     } else {
       sortCol = col;
-      sortDir = col === 'impressions' ? -1 : 1;
+      sortDir = (col === 'impressions' || col === 'attention') ? -1 : 1;
     }
     document.querySelectorAll('thead th').forEach(th => {
       th.classList.remove('sorted');
-      th.querySelector('.sort-icon').textContent = '↕';
+      const si = th.querySelector('.sort-icon');
+      if (si) si.textContent = '↕';
     });
     const h = document.querySelector(`th[data-col="${col}"]`);
     if (h) {
@@ -1836,8 +1904,10 @@
           r.activeView          = av?.rate ?? av;
           r.activeViewViewable  = av?.viewable  ?? null;
           r.activeViewMeasurable= av?.measurable ?? null;
+          r.avgViewableSec      = av?.avgViewableSec ?? null;
         }
       });
+      applyAttention();
       updateStats();
       renderTable();
     } catch(e) { console.error('[AV] error:', e); }
@@ -1856,6 +1926,7 @@
         if (d.durationSec != null) r.durationSec = d.durationSec;
         if (d.videoStarts != null) r.videoStarts = d.videoStarts;
       });
+      applyAttention();
       updateStats();
       if (activeTab === 'video' || activeTab === 'video-mobile') renderTable();
     } catch(e) {}
