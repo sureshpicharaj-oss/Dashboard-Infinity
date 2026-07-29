@@ -233,8 +233,9 @@
     .row-split-btn { display:none;background:none;border:1px solid #3a4a6a;color:#6e93b0;border-radius:10px;font-size:11px;padding:1px 6px;cursor:pointer;margin-left:5px;vertical-align:middle;line-height:1.4; }
     .adv-cell:hover .row-split-btn { display:inline; }
     .row-split-btn:hover { background:#4f7fff;border-color:#4f7fff;color:#fff; }
-    /* Dedicated actions column — tag + splits buttons, always reachable regardless of name length. */
-    .action-cell { white-space:nowrap; }
+    /* Dedicated actions column — tag + splits buttons, always reachable regardless of name length.
+       min-width leaves room for the stacked "Looked into" alert control so it can't spill into the URL. */
+    .action-cell { white-space:nowrap; min-width:104px; vertical-align:top; }
     .action-cell .row-tag-btn, .action-cell .row-split-btn { display:inline-block;margin:0 4px 0 0; }
 
     /* Creative-splits modal — light + colour-coded to match the dashboard stat cards */
@@ -311,11 +312,10 @@
     td.ctr-cell.cell-alert-orange, td.num-cell.cell-alert-orange { background:#fef3e7; color:#c47d1a; font-weight:700; }
     .comp-pill.cell-alert-red    { background:#fdece9; color:#c0392b; box-shadow:none; }
     .comp-pill.cell-alert-orange { background:#fef3e7; color:#c47d1a; box-shadow:none; }
-    tr.alert-row > td { background:#fff5f5; }
-    tr.alert-row > td:first-child { box-shadow: inset 4px 0 0 #c0392b; }
-    .row-ack-btn { display:inline-block;background:#fdece9;border:1px solid #f2c9c2;color:#c0392b;border-radius:10px;font-size:10px;font-weight:700;padding:1px 7px;cursor:pointer;margin-left:5px;white-space:nowrap;vertical-align:middle; }
+    /* The "looked into" control lives in the Actions column, stacked under the tag/split icons. */
+    .row-ack-btn { display:block;width:fit-content;background:#fdece9;border:1px solid #f2c9c2;color:#c0392b;border-radius:10px;font-size:10px;font-weight:700;padding:1px 7px;cursor:pointer;margin:5px 0 0;white-space:nowrap; }
     .row-ack-btn:hover { background:#c0392b;color:#fff;border-color:#c0392b; }
-    .row-reviewed { display:inline-block;font-size:10px;color:#8a93a6;margin-left:5px;cursor:pointer;white-space:nowrap;vertical-align:middle; }
+    .row-reviewed { display:block;width:fit-content;font-size:10px;color:#8a93a6;margin:5px 0 0;cursor:pointer;white-space:nowrap; }
     .row-reviewed:hover { color:#c0392b; }
     /* Performance-by-segment summary one-liners */
     .seg-summary { background:#f6f8fc;border:1px solid #e6e9f0;border-radius:8px;padding:10px 14px;margin:0 0 18px; }
@@ -660,7 +660,7 @@
     <thead>
       <tr>
         <th onclick="sortBy('advertiser')" data-col="advertiser" style="width:160px">Advertiser <span class="sort-icon">↕</span></th>
-        <th style="width:64px">Actions</th>
+        <th style="width:104px">Actions</th>
         <th onclick="sortBy('netlifyUrl')" data-col="netlifyUrl" style="width:220px">Netlify URL <span class="sort-icon">↕</span></th>
         <th style="width:320px">Preview</th>
         <th id="thVideos" style="display:none;width:180px">Videos</th>
@@ -1775,20 +1775,19 @@
         const clks   = g.clicks > 0 ? `<td class="num-cell has-data">${g.clicks.toLocaleString()}${_gPartialMark}</td>` : `<td class="num-cell no-data">—</td>`;
         // Alerts vs the average cards, gated on ≥2000 imps + a live (non-completed) line item.
         const _gated = (g.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(g.liveStatus);
-        const _ctrCls  = alertCellClass(ctr, BENCH.ctr, _gated);
-        const _viewCls = alertCellClass(g.activeView, BENCH.view, _gated);
         const _rowSevere = _gated && (alertLevel(ctr, BENCH.ctr).severe || alertLevel(g.activeView, BENCH.view).severe || videoComplSevere(g.videos || [], BENCH));
         const _rowKey = alertRowKey(g.netlifyUrl);
         const _ack = alertAcks[_rowKey];
-        let _showRed = _rowSevere;
-        if (_showRed && _ack) { // acked → stays cleared unless a stored metric has since dropped >2%
-          const worse = (ctr != null && _ack.ctr != null && ctr < _ack.ctr * ALERT_WORSE)
+        // "Looked into" suppresses this row's highlights UNLESS a stored metric has since dropped >2%.
+        const _worse = !!_ack && ((ctr != null && _ack.ctr != null && ctr < _ack.ctr * ALERT_WORSE)
                      || (g.activeView != null && _ack.activeView != null && g.activeView < _ack.activeView * ALERT_WORSE)
-                     || (g.completionRate != null && _ack.completionRate != null && g.completionRate < _ack.completionRate * ALERT_WORSE);
-          if (!worse) _showRed = false;
-        }
-        const _ackCtrl = _showRed
-          ? `<button class="row-ack-btn" data-key="${esc(_rowKey)}" data-ctr="${ctr ?? ''}" data-view="${g.activeView ?? ''}" data-compl="${g.completionRate ?? ''}" onclick="event.stopPropagation();ackRowFromBtn(this)" title="Mark as looked into — clears the row alert">Looked into</button>`
+                     || (g.completionRate != null && _ack.completionRate != null && g.completionRate < _ack.completionRate * ALERT_WORSE));
+        const _suppressed = !!_ack && !_worse;
+        const _cellGate = _gated && !_suppressed;
+        const _ctrCls  = alertCellClass(ctr, BENCH.ctr, _cellGate);
+        const _viewCls = alertCellClass(g.activeView, BENCH.view, _cellGate);
+        const _ackCtrl = (_rowSevere && !_suppressed)
+          ? `<button class="row-ack-btn" data-key="${esc(_rowKey)}" data-ctr="${ctr ?? ''}" data-view="${g.activeView ?? ''}" data-compl="${g.completionRate ?? ''}" onclick="event.stopPropagation();ackRowFromBtn(this)" title="Mark as looked into — clears this row's alert">Looked into</button>`
           : (_ack && _rowSevere) ? `<span class="row-reviewed" data-key="${esc(_rowKey)}" onclick="event.stopPropagation();unackRow(this)" title="Reviewed — click to re-flag">✓ reviewed</span>` : '';
         const ctrStr = ctr !== null ? `<td class="ctr-cell has-data${_ctrCls ? ' ' + _ctrCls : ''}">${ctr}%</td>` : `<td class="ctr-cell no-data">—</td>`;
         const av     = (g.activeView != null && (!activeAdUnits.size || g.impressions > 0)) ? `<td class="ctr-cell has-data${_viewCls ? ' ' + _viewCls : ''}">${g.activeView}%</td>` : `<td class="ctr-cell no-data">—</td>`;
@@ -1803,12 +1802,12 @@
         const DOT_LABEL = { delivering: 'Delivering', ready: 'Ready', paused: 'Paused', inactive: 'Inactive' };
         const vDot = g.liveStatus ? `<span class="live-dot ${g.liveStatus}" title="${DOT_LABEL[g.liveStatus] || g.liveStatus}"></span>` : '';
         const vSegTd = segCellHtml((g.videos || []).map(v => `${g.netlifyUrl}##${v.videoId}##${activeTab}`));
-        return `<tr class="${_showRed ? 'alert-row' : ''}">
+        return `<tr>
           <td class="adv-cell" data-url="${encodedUrl}">${vDot}<span class="adv-name">${esc(g.advertiser || '')}</span>${vCatChip}${liLinks([...g.lineItemIds])}</td>
           <td class="action-cell">${vTagBtn}${vSplitBtn}${_ackCtrl}</td>
           <td class="url-cell"><a href="${esc(g.netlifyUrl)}" target="_blank" rel="noopener">${esc(shortUrl(g.netlifyUrl))}</a></td>
           ${thumb}
-          ${renderVideoCell(g.videos, BENCH, _gated)}
+          ${renderVideoCell(g.videos, BENCH, _cellGate)}
           ${imps}${clks}${ctrStr}${av}${attnCell(g.attention)}${vSegTd}
         </tr>`;
       }).join('');
@@ -1832,19 +1831,18 @@
       const _fCtr  = _rfs.impressions && _rfs.clicks ? parseFloat(((_rfs.clicks / _rfs.impressions) * 100).toFixed(2)) : null;
       // Alerts vs the average cards, gated on ≥2000 imps + a live (non-completed) line item.
       const _gated = (_rfs.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(r.liveStatus);
-      const _ctrCls  = alertCellClass(_fCtr, BENCH.ctr, _gated);
-      const _viewCls = alertCellClass(r.activeView, BENCH.view, _gated);
       const _rowSevere = _gated && (alertLevel(_fCtr, BENCH.ctr).severe || alertLevel(r.activeView, BENCH.view).severe);
       const _rowKey = alertRowKey(r.netlifyUrl);
       const _ack = alertAcks[_rowKey];
-      let _showRed = _rowSevere;
-      if (_showRed && _ack) { // acked → stays cleared unless a stored metric has since dropped >2%
-        const worse = (_fCtr != null && _ack.ctr != null && _fCtr < _ack.ctr * ALERT_WORSE)
-                   || (r.activeView != null && _ack.activeView != null && r.activeView < _ack.activeView * ALERT_WORSE);
-        if (!worse) _showRed = false;
-      }
-      const _ackCtrl = _showRed
-        ? `<button class="row-ack-btn" data-key="${esc(_rowKey)}" data-ctr="${_fCtr ?? ''}" data-view="${r.activeView ?? ''}" data-compl="" onclick="event.stopPropagation();ackRowFromBtn(this)" title="Mark as looked into — clears the row alert">Looked into</button>`
+      // "Looked into" suppresses this row's highlights UNLESS a stored metric has since dropped >2%.
+      const _worse = !!_ack && ((_fCtr != null && _ack.ctr != null && _fCtr < _ack.ctr * ALERT_WORSE)
+                   || (r.activeView != null && _ack.activeView != null && r.activeView < _ack.activeView * ALERT_WORSE));
+      const _suppressed = !!_ack && !_worse;
+      const _cellGate = _gated && !_suppressed;
+      const _ctrCls  = alertCellClass(_fCtr, BENCH.ctr, _cellGate);
+      const _viewCls = alertCellClass(r.activeView, BENCH.view, _cellGate);
+      const _ackCtrl = (_rowSevere && !_suppressed)
+        ? `<button class="row-ack-btn" data-key="${esc(_rowKey)}" data-ctr="${_fCtr ?? ''}" data-view="${r.activeView ?? ''}" data-compl="" onclick="event.stopPropagation();ackRowFromBtn(this)" title="Mark as looked into — clears this row's alert">Looked into</button>`
         : (_ack && _rowSevere) ? `<span class="row-reviewed" data-key="${esc(_rowKey)}" onclick="event.stopPropagation();unackRow(this)" title="Reviewed — click to re-flag">✓ reviewed</span>` : '';
       const ctrStr = _fCtr !== null ? `<td class="ctr-cell has-data${_ctrCls ? ' ' + _ctrCls : ''}">${_fCtr}%</td>` : `<td class="ctr-cell no-data">—</td>`;
       const encodedUrl = encodeURIComponent(r.netlifyUrl);
@@ -1859,7 +1857,7 @@
       const DOT_LABEL = { delivering: 'Delivering', ready: 'Ready', paused: 'Paused', inactive: 'Inactive' };
       const dot = r.liveStatus ? `<span class="live-dot ${r.liveStatus}" title="${DOT_LABEL[r.liveStatus] || r.liveStatus}"></span>` : '';
       const segTd = segCellHtml([`${r.netlifyUrl}##${r.videoId || ''}##${r.device}`]);
-      return `<tr class="${_showRed ? 'alert-row' : ''}">
+      return `<tr>
         <td class="adv-cell" data-url="${encodedUrl}">${dot}<span class="adv-name">${esc(r.advertiser || '')}</span>${catChip}${liLinks(r.lineItemIds || [])}</td>
         <td class="action-cell">${tagBtn}${splitBtn}${_ackCtrl}</td>
         <td class="url-cell"><a href="${esc(r.netlifyUrl)}" target="_blank" rel="noopener">${esc(shortUrl(r.netlifyUrl))}</a></td>
