@@ -322,6 +322,7 @@
     tr.alert-line-red > td { background:#f4948b; }
     tr.alert-line-red > td:first-child { box-shadow: inset 6px 0 0 #a02418; }
     tr.alert-line-red > td.ctr-cell.has-data, tr.alert-line-red > td.num-cell.has-data { color:#3a1512; }
+    tr.alert-line-red.split-row > td { color:#3a1512; } /* same red line inside the splits modal */
     @media (prefers-reduced-motion: reduce) {
       .stat-flag.red, .stat-flag.orange, .comp-pill.cell-alert-red, .comp-pill.cell-alert-orange { animation: none; }
     }
@@ -978,6 +979,10 @@
     // Same screenshot the row shows (keyed by URL + device) — one preview for the whole row.
     let html = `<div class="split-preview"><img src="/api/screenshot?url=${enc}&device=${device}" onerror="this.onerror=null;this.src='/screenshots/${sub}-${device}.png'" alt="preview" /></div>`;
     html += `<p class="split-sub">${esc(shortUrl(url))} · ${esc(device)} — individual creatives that make up the combined row. <b>Click a creative</b> to see its segment performance.</p>`;
+    // Same alert benchmarks + gates as the main table: the average card for the current tab, and the
+    // line must still be live (any matching row delivering/paused/ready) for a creative to be flagged.
+    const bench = currentBenchmarks();
+    const lineLive = allRows.some(r => r.netlifyUrl === url && r.device === device && ALERT_LIVE.includes(r.liveStatus));
     let any = false;
     for (const gk of groupKeys) {
       const splits = (data[gk] || []).slice().sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
@@ -985,7 +990,7 @@
       any = true;
       const vid = gk.split('##')[1];
       if (isVideo && vid) html += `<div class="split-group-title">VIDEO_ID: ${esc(vid)}</div>`;
-      html += splitTable(splits, isVideo);
+      html += splitTable(splits, isVideo, bench, lineLive);
     }
     body.innerHTML = any
       ? html
@@ -1001,7 +1006,7 @@
     tr.classList.toggle('open', !open);
   }
 
-  function splitTable(splits, isVideo) {
+  function splitTable(splits, isVideo, bench, lineLive) {
     const dash = '<span class="split-dash">—</span>';
     const num = n => (n != null && n !== '') ? Number(n).toLocaleString() : dash;
     const pct = n => (n != null) ? n + '%' : dash;
@@ -1009,14 +1014,21 @@
     let tImp = 0, tClk = 0;
     const rows = splits.map(s => {
       tImp += s.impressions || 0; tClk += s.clicks || 0;
-      const ctr = (s.impressions && s.clicks) ? ((s.clicks / s.impressions) * 100).toFixed(2) + '%' : dash;
+      const ctrNum = (s.impressions && s.clicks) ? parseFloat(((s.clicks / s.impressions) * 100).toFixed(2)) : null;
+      const ctr = ctrNum != null ? ctrNum + '%' : dash;
+      // Same alert treatment as the main table (pill + ⚠️ on red), gated on the creative's own ≥2000
+      // imps and a live line. CTR + Viewability are the per-creative signals; completion is row-level so
+      // it's left uncoloured here.
+      const _gated = !!lineLive && (s.impressions || 0) >= ALERT_MIN_IMPS;
+      const _anyRed = _gated && (alertLevel(ctrNum, bench && bench.ctr).level === 'red' || alertLevel(s.viewability, bench && bench.view).level === 'red');
       const kv = (s.keyValues || []).length
         ? s.keyValues.map(k => `<span class="split-kv">${esc(k.key)}: ${esc(k.value)}</span>`).join('')
         : dash;
       const nm = s.name || ('#' + s.creativeId);
       const hasSeg = !!(s.seg && s.seg.byKey && Object.keys(s.seg.byKey).length);
       const caret = hasSeg ? '<span class="split-caret">▸</span>' : '';
-      const rowOpen = hasSeg ? ' class="split-row has-seg" onclick="toggleSplitDetail(this)"' : ' class="split-row"';
+      const rowCls = 'split-row' + (hasSeg ? ' has-seg' : '') + (_anyRed ? ' alert-line-red' : '');
+      const rowOpen = hasSeg ? ` class="${rowCls}" onclick="toggleSplitDetail(this)"` : ` class="${rowCls}"`;
       const detail = hasSeg
         ? `<tr class="split-detail" style="display:none"><td colspan="${cols}"><div class="split-detail-inner">${segDetailHtml(s.seg, s.impressions, s.ctr)}</div></td></tr>`
         : '';
@@ -1025,8 +1037,8 @@
         <td class="split-name" title="${esc(nm)}">${esc(nm)}</td>
         <td class="num split-imp">${num(s.impressions)}</td>
         <td class="num split-clk">${num(s.clicks)}</td>
-        <td class="num split-ctr">${ctr}</td>
-        <td class="num split-view">${pct(s.viewability)}</td>
+        <td class="num split-ctr">${statFlag(ctr, ctrNum, bench && bench.ctr, _gated)}</td>
+        <td class="num split-view">${statFlag(pct(s.viewability), s.viewability, bench && bench.view, _gated)}</td>
         ${isVideo ? `<td class="num split-comp">${pct(s.completionRate)}</td>` : ''}
         <td class="num split-attn">${attnPill(s.attention)}</td>
         <td>${kv}</td>
