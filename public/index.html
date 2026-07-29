@@ -308,21 +308,22 @@
     .attn-none { color:#c8ccd6; }
     /* Alert system — cell RAG (vs the average card) + whole-row escalation. Higher specificity than
        .ctr-cell.has-data (which forces green) so the alert colour wins on the CTR/Viewability cells. */
-    /* Under-performing stat → a compact pulsing PILL around the value (not a full-cell fill). */
-    .stat-flag { display:inline-block; padding:1px 8px; border-radius:10px; font-weight:700; font-variant-numeric:tabular-nums; }
-    .stat-flag.red    { background:#fdece9; color:#c0392b; border:1px solid #f2c9c2; animation: cellPulseRed 1.6s ease-in-out infinite; }
-    .stat-flag.orange { background:#fef3e7; color:#c47d1a; border:1px solid #f3dcc0; animation: cellPulseOrange 1.6s ease-in-out infinite; }
-    .comp-pill.cell-alert-red    { color:#c0392b; border:1px solid #f2c9c2; box-shadow:none; animation: cellPulseRed 1.6s ease-in-out infinite; }
-    .comp-pill.cell-alert-orange { color:#c47d1a; border:1px solid #f3dcc0; box-shadow:none; animation: cellPulseOrange 1.6s ease-in-out infinite; }
-    @keyframes cellPulseRed    { 0%,100% { background:#fdece9; } 50% { background:#f6c9c1; } }
-    @keyframes cellPulseOrange { 0%,100% { background:#fef3e7; } 50% { background:#f7dcb8; } }
-    /* Full-line highlight — only when a stat is in the RED band ("needs attention"). */
-    tr.alert-line-red > td { background:#fdf3f2; }
-    tr.alert-line-red > td:first-child { box-shadow: inset 4px 0 0 #c0392b; }
+    /* Under-performing stat → a compact pill with a pulsing glow (not a full-cell fill). Kept a light
+       fill so it still pops against the bright-red line tint. */
+    .stat-flag { display:inline-block; padding:2px 10px; border-radius:11px; font-size:13px; font-weight:800; font-variant-numeric:tabular-nums; }
+    .stat-flag.red    { background:#fde7e3; color:#a02418; border:1px solid #e0938a; animation: alertGlowRed 1.5s ease-in-out infinite; }
+    .stat-flag.orange { background:#fef3e7; color:#b5700f; border:1px solid #eec79a; animation: alertGlowOrange 1.5s ease-in-out infinite; }
+    .comp-pill.cell-alert-red    { background:#fde7e3; color:#a02418; border:1px solid #e0938a; box-shadow:none; animation: alertGlowRed 1.5s ease-in-out infinite; }
+    .comp-pill.cell-alert-orange { background:#fef3e7; color:#b5700f; border:1px solid #eec79a; box-shadow:none; animation: alertGlowOrange 1.5s ease-in-out infinite; }
+    @keyframes alertGlowRed    { 0%,100% { box-shadow:0 0 0 0 rgba(176,42,28,0); } 50% { box-shadow:0 0 0 3px rgba(176,42,28,.35); } }
+    @keyframes alertGlowOrange { 0%,100% { box-shadow:0 0 0 0 rgba(196,125,26,0); } 50% { box-shadow:0 0 0 3px rgba(196,125,26,.28); } }
+    /* Full-line highlight — bright red so a "needs attention" line is unmissable. Dark stat text keeps
+       the row readable over the red. */
+    tr.alert-line-red > td { background:#f4948b; }
+    tr.alert-line-red > td:first-child { box-shadow: inset 6px 0 0 #a02418; }
+    tr.alert-line-red > td.ctr-cell.has-data, tr.alert-line-red > td.num-cell.has-data { color:#3a1512; }
     @media (prefers-reduced-motion: reduce) {
       .stat-flag.red, .stat-flag.orange, .comp-pill.cell-alert-red, .comp-pill.cell-alert-orange { animation: none; }
-      .stat-flag.red, .comp-pill.cell-alert-red { background:#fdece9; }
-      .stat-flag.orange, .comp-pill.cell-alert-orange { background:#fef3e7; }
     }
     /* The "looked into" control lives in the Actions column, stacked under the tag/split icons. */
     .row-ack-btn { display:block;width:fit-content;background:#fdece9;border:1px solid #f2c9c2;color:#c0392b;border-radius:10px;font-size:10px;font-weight:700;padding:1px 7px;cursor:pointer;margin:5px 0 0;white-space:nowrap; }
@@ -797,7 +798,8 @@
     const cls = alertCellClass(value, benchmark, gated);
     if (!cls) return display;
     const band = cls === 'cell-alert-red' ? 'red' : 'orange';
-    return `<span class="stat-flag ${band}"${alertCellTitle(value, benchmark, gated)}>${display}</span>`;
+    const icon = band === 'red' ? '⚠️ ' : ''; // caution marker on the needs-attention (red) pills
+    return `<span class="stat-flag ${band}"${alertCellTitle(value, benchmark, gated)}>${icon}${display}</span>`;
   }
 
   // Assign a stable colour to each category by index in the rules object
@@ -1645,8 +1647,9 @@
       const label = bucket === '15s' ? 'Short-form (~15s)' : bucket === '30s' ? 'Long-form (~30s)' : 'Video';
       const cls = alertCellClass(avg, bucketBenchmark(bucket, bench), !!gated);
       const ttl = alertCellTitle(avg, bucketBenchmark(bucket, bench), !!gated);
+      const icon = cls === 'cell-alert-red' ? '⚠️ ' : '';
       html += `<div class="vid-dur-group">`;
-      html += `<div class="vid-sub-item"><span class="dur-label">${label}</span></div><div><span class="comp-pill${cls ? ' ' + cls : ''}"${ttl}>${avg}%</span></div>`;
+      html += `<div class="vid-sub-item"><span class="dur-label">${label}</span></div><div><span class="comp-pill${cls ? ' ' + cls : ''}"${ttl}>${icon}${avg}%</span></div>`;
       html += `</div>`;
     }
     return `<td class="video-stack-cell">${html}</td>`;
@@ -1818,14 +1821,14 @@
                      || (g.activeView != null && _ack.activeView != null && g.activeView < _ack.activeView * ALERT_WORSE)
                      || (g.completionRate != null && _ack.completionRate != null && g.completionRate < _ack.completionRate * ALERT_WORSE));
         const _suppressed = !!_ack && !_worse;
-        const _cellGate = _gated && !_suppressed;
+        // Acknowledging drops the URGENT LINE tint only; the stat pills stay (it's still under-performing).
         const _lineCls = (_anyRed && !_suppressed) ? 'alert-line-red' : '';
         // "Looked into" only for the serious (red-line) rows.
         const _ackCtrl = (_anyRed && !_suppressed)
-          ? `<button class="row-ack-btn" data-key="${esc(_rowKey)}" data-ctr="${ctr ?? ''}" data-view="${g.activeView ?? ''}" data-compl="${g.completionRate ?? ''}" onclick="event.stopPropagation();ackRowFromBtn(this)" title="Mark as looked into — clears this row's alert">Looked into</button>`
-          : (_ack && _anyRed) ? `<span class="row-reviewed" data-key="${esc(_rowKey)}" onclick="event.stopPropagation();unackRow(this)" title="Reviewed — click to re-flag">✓ reviewed</span>` : '';
-        const ctrStr = ctr !== null ? `<td class="ctr-cell has-data">${statFlag(ctr + '%', ctr, BENCH.ctr, _cellGate)}</td>` : `<td class="ctr-cell no-data">—</td>`;
-        const av     = (g.activeView != null && (!activeAdUnits.size || g.impressions > 0)) ? `<td class="ctr-cell has-data">${statFlag(g.activeView + '%', g.activeView, BENCH.view, _cellGate)}</td>` : `<td class="ctr-cell no-data">—</td>`;
+          ? `<button class="row-ack-btn" data-key="${esc(_rowKey)}" data-ctr="${ctr ?? ''}" data-view="${g.activeView ?? ''}" data-compl="${g.completionRate ?? ''}" onclick="event.stopPropagation();ackRowFromBtn(this)" title="Mark as looked into — clears the red line (the stat pills stay)">Looked into</button>`
+          : (_ack && _anyRed) ? `<span class="row-reviewed" data-key="${esc(_rowKey)}" onclick="event.stopPropagation();unackRow(this)" title="Reviewed — click to re-flag the line">✓ reviewed</span>` : '';
+        const ctrStr = ctr !== null ? `<td class="ctr-cell has-data">${statFlag(ctr + '%', ctr, BENCH.ctr, _gated)}</td>` : `<td class="ctr-cell no-data">—</td>`;
+        const av     = (g.activeView != null && (!activeAdUnits.size || g.impressions > 0)) ? `<td class="ctr-cell has-data">${statFlag(g.activeView + '%', g.activeView, BENCH.view, _gated)}</td>` : `<td class="ctr-cell no-data">—</td>`;
         const encodedUrl = encodeURIComponent(g.netlifyUrl);
         const isPortrait = activeTab === 'mobile' || activeTab === 'video-mobile';
         const thumbSubdomain = (g.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
@@ -1842,7 +1845,7 @@
           <td class="action-cell">${vTagBtn}${vSplitBtn}${_ackCtrl}</td>
           <td class="url-cell"><a href="${esc(g.netlifyUrl)}" target="_blank" rel="noopener">${esc(shortUrl(g.netlifyUrl))}</a></td>
           ${thumb}
-          ${renderVideoCell(g.videos, BENCH, _cellGate)}
+          ${renderVideoCell(g.videos, BENCH, _gated)}
           ${imps}${clks}${ctrStr}${av}${attnCell(g.attention)}${vSegTd}
         </tr>`;
       }).join('');
@@ -1874,17 +1877,17 @@
       const _worse = !!_ack && ((_fCtr != null && _ack.ctr != null && _fCtr < _ack.ctr * ALERT_WORSE)
                    || (r.activeView != null && _ack.activeView != null && r.activeView < _ack.activeView * ALERT_WORSE));
       const _suppressed = !!_ack && !_worse;
-      const _cellGate = _gated && !_suppressed;
+      // Acknowledging drops the URGENT LINE tint only; the stat pills stay (it's still under-performing).
       const _lineCls = (_anyRed && !_suppressed) ? 'alert-line-red' : '';
       const _ackCtrl = (_anyRed && !_suppressed)
-        ? `<button class="row-ack-btn" data-key="${esc(_rowKey)}" data-ctr="${_fCtr ?? ''}" data-view="${r.activeView ?? ''}" data-compl="" onclick="event.stopPropagation();ackRowFromBtn(this)" title="Mark as looked into — clears this row's alert">Looked into</button>`
-        : (_ack && _anyRed) ? `<span class="row-reviewed" data-key="${esc(_rowKey)}" onclick="event.stopPropagation();unackRow(this)" title="Reviewed — click to re-flag">✓ reviewed</span>` : '';
-      const ctrStr = _fCtr !== null ? `<td class="ctr-cell has-data">${statFlag(_fCtr + '%', _fCtr, BENCH.ctr, _cellGate)}</td>` : `<td class="ctr-cell no-data">—</td>`;
+        ? `<button class="row-ack-btn" data-key="${esc(_rowKey)}" data-ctr="${_fCtr ?? ''}" data-view="${r.activeView ?? ''}" data-compl="" onclick="event.stopPropagation();ackRowFromBtn(this)" title="Mark as looked into — clears the red line (the stat pills stay)">Looked into</button>`
+        : (_ack && _anyRed) ? `<span class="row-reviewed" data-key="${esc(_rowKey)}" onclick="event.stopPropagation();unackRow(this)" title="Reviewed — click to re-flag the line">✓ reviewed</span>` : '';
+      const ctrStr = _fCtr !== null ? `<td class="ctr-cell has-data">${statFlag(_fCtr + '%', _fCtr, BENCH.ctr, _gated)}</td>` : `<td class="ctr-cell no-data">—</td>`;
       const encodedUrl = encodeURIComponent(r.netlifyUrl);
       const isPortrait = activeTab === 'mobile' || activeTab === 'video-mobile';
       const thumbSubdomain = (r.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
       const thumb  = `<td class="thumb-cell${isPortrait ? ' thumb-cell-portrait' : ''}"><div class="thumb-wrap"><img class="thumb-img lazy${isPortrait ? ' thumb-portrait' : ''}" data-src="/api/screenshot?url=${encodedUrl}&device=${activeTab}" data-fallback="/screenshots/${thumbSubdomain}-${activeTab}.png" data-advertiser-url="${encodedUrl}" alt="preview" /><button class="thumb-replace-btn" data-url="${encodedUrl}" data-device="${activeTab}" title="Replace screenshot">↑</button></div></td>`;
-      const av     = (r.activeView != null && (!activeAdUnits.size || _rfs.impressions > 0)) ? `<td class="ctr-cell has-data">${statFlag(r.activeView + '%', r.activeView, BENCH.view, _cellGate)}</td>` : `<td class="ctr-cell no-data">—</td>`;
+      const av     = (r.activeView != null && (!activeAdUnits.size || _rfs.impressions > 0)) ? `<td class="ctr-cell has-data">${statFlag(r.activeView + '%', r.activeView, BENCH.view, _gated)}</td>` : `<td class="ctr-cell no-data">—</td>`;
       const cat = getCategory(r.advertiser, r.netlifyUrl);
       const catChip = cat ? `<span class="row-cat-chip" style="--tc:${tagColor(cat)}">${cat}</span>` : '';
       const tagBtn = `<button class="row-tag-btn" data-url="${esc(r.netlifyUrl)}" onclick="event.stopPropagation();openTagPickerFromBtn(this)" title="Assign tag">＋</button>`;
