@@ -790,20 +790,54 @@
     return lvl === 'none' ? '' : 'cell-alert-' + lvl;
   }
   // Hover tooltip spelling out the meaning: red = "needs attention", orange = "might need optimisation".
-  function alertCellTitle(value, benchmark, gated) {
+  // ofLabel names the benchmark noun (default "average"; CTR passes "expected for its inventory").
+  function alertCellTitle(value, benchmark, gated, ofLabel) {
     if (!gated || value == null || benchmark == null || !(benchmark > 0)) return '';
     const ratio = value / benchmark;
     if (ratio >= 1) return '';
     const msg = ratio < 0.80 ? 'Needs attention' : 'Might need optimisation';
-    return ` title="${msg} — ${Math.round(ratio * 100)}% of the ${parseFloat(benchmark.toFixed(2))}% average"`;
+    return ` title="${msg} — ${Math.round(ratio * 100)}% of the ${parseFloat(benchmark.toFixed(2))}% ${ofLabel || 'average'}"`;
   }
   // Wraps a stat's display value in a compact pulsing pill when it's under benchmark; plain value otherwise.
-  function statFlag(display, value, benchmark, gated) {
+  function statFlag(display, value, benchmark, gated, ofLabel) {
     const cls = alertCellClass(value, benchmark, gated);
     if (!cls) return display;
     const band = cls === 'cell-alert-red' ? 'red' : 'orange';
     const icon = band === 'red' ? '⚠️ ' : ''; // caution marker on the needs-attention (red) pills
-    return `<span class="stat-flag ${band}"${alertCellTitle(value, benchmark, gated)}>${icon}${display}</span>`;
+    return `<span class="stat-flag ${band}"${alertCellTitle(value, benchmark, gated, ofLabel)}>${icon}${display}</span>`;
+  }
+  // Per-publication ("ad unit") CTR benchmark. Publications have structurally different CTR norms, so a
+  // skin's CTR is judged vs what's normal for the inventory it actually ran on (impression-weighted blend
+  // of its ad units), NOT the whole-estate average. Data: r.impsByAdUnit = { [adUnit]: {impressions,clicks} }.
+  // Estate per-ad-unit {imps,clicks} over the current tab + active filters (same set currentBenchmarks uses).
+  function adUnitCtrTotals() {
+    const totals = {};
+    for (const r of allRows) {
+      if (r.device !== activeTab) continue;
+      if (activeCategory && getCategory(r.advertiser, r.netlifyUrl) !== activeCategory) continue;
+      for (const [au, v] of Object.entries(r.impsByAdUnit || {})) {
+        if (activeAdUnits.size && !activeAdUnits.has(au)) continue;
+        const t = totals[au] || (totals[au] = { imps: 0, clicks: 0 });
+        t.imps += v.impressions || 0; t.clicks += v.clicks || 0;
+      }
+    }
+    return totals;
+  }
+  // Leave-one-out, impression-weighted expected CTR for a row given where it ran (peers = same publication,
+  // excluding this row itself). null if no peers → caller falls back to the estate CTR. A skin spread across
+  // all publications blends to ≈ the estate CTR automatically; a Top-Gear-only skin → Top Gear's peer CTR.
+  function expectedCtr(row, totals) {
+    let wSum = 0, num = 0;
+    for (const [au, v] of Object.entries(row.impsByAdUnit || {})) {
+      if (activeAdUnits.size && !activeAdUnits.has(au)) continue;
+      const t = totals[au]; if (!t) continue;
+      const peerImps = t.imps - (v.impressions || 0);
+      const peerClicks = t.clicks - (v.clicks || 0);
+      if (peerImps <= 0) continue;
+      const w = v.impressions || 0;
+      num += ((peerClicks / peerImps) * 100) * w; wSum += w;
+    }
+    return wSum > 0 ? num / wSum : null;
   }
 
   // Assign a stable colour to each category by index in the rules object
@@ -986,6 +1020,17 @@
     // line must still be live (any matching row delivering/paused/ready) for a creative to be flagged.
     const bench = currentBenchmarks();
     const lineLive = allRows.some(r => r.netlifyUrl === url && r.device === device && ALERT_LIVE.includes(r.liveStatus));
+    // This skin's expected CTR (vs the inventory it ran on), used for the per-creative CTR flag instead of
+    // the estate average — same rule as the main table. Falls back to the estate CTR if it has no peers.
+    const _skinIba = {};
+    for (const r of allRows) {
+      if (r.netlifyUrl !== url || r.device !== device) continue;
+      for (const [au, v] of Object.entries(r.impsByAdUnit || {})) {
+        const t = _skinIba[au] || (_skinIba[au] = { impressions: 0, clicks: 0 });
+        t.impressions += v.impressions || 0; t.clicks += v.clicks || 0;
+      }
+    }
+    const ctrBench = expectedCtr({ impsByAdUnit: _skinIba }, adUnitCtrTotals()) ?? (bench && bench.ctr);
     let any = false;
     if (isVideo) {
       // Flatten every VIDEO_ID's creatives into one table with a Video ID column (tag each creative
@@ -996,13 +1041,13 @@
         for (const s of (data[gk] || [])) all.push(Object.assign({}, s, { _videoId: vid }));
       }
       all.sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
-      if (all.length) { any = true; html += splitTable(all, true, bench, lineLive); }
+      if (all.length) { any = true; html += splitTable(all, true, bench, lineLive, ctrBench); }
     } else {
       for (const gk of groupKeys) {
         const splits = (data[gk] || []).slice().sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
         if (!splits.length) continue;
         any = true;
-        html += splitTable(splits, false, bench, lineLive);
+        html += splitTable(splits, false, bench, lineLive, ctrBench);
       }
     }
     body.innerHTML = any
@@ -1019,7 +1064,7 @@
     tr.classList.toggle('open', !open);
   }
 
-  function splitTable(splits, isVideo, bench, lineLive) {
+  function splitTable(splits, isVideo, bench, lineLive, ctrBench) {
     const dash = '<span class="split-dash">—</span>';
     const num = n => (n != null && n !== '') ? Number(n).toLocaleString() : dash;
     const pct = n => (n != null) ? n + '%' : dash;
@@ -1033,7 +1078,7 @@
       // imps and a live line. CTR + Viewability are the per-creative signals; completion is row-level so
       // it's left uncoloured here.
       const _gated = !!lineLive && (s.impressions || 0) >= ALERT_MIN_IMPS;
-      const _anyRed = _gated && (alertLevel(ctrNum, bench && bench.ctr).level === 'red' || alertLevel(s.viewability, bench && bench.view).level === 'red');
+      const _anyRed = _gated && (alertLevel(ctrNum, ctrBench).level === 'red' || alertLevel(s.viewability, bench && bench.view).level === 'red');
       const nm = s.name || ('#' + s.creativeId);
       const hasSeg = !!(s.seg && s.seg.byKey && Object.keys(s.seg.byKey).length);
       const caret = hasSeg ? '<span class="split-caret">▸</span>' : '';
@@ -1047,7 +1092,7 @@
         <td class="split-name" title="${esc(nm)}">${esc(nm)}</td>
         <td class="num split-imp">${num(s.impressions)}</td>
         <td class="num split-clk">${num(s.clicks)}</td>
-        <td class="num split-ctr">${statFlag(ctr, ctrNum, bench && bench.ctr, _gated)}</td>
+        <td class="num split-ctr">${statFlag(ctr, ctrNum, ctrBench, _gated, 'expected for its inventory')}</td>
         <td class="num split-view">${statFlag(pct(s.viewability), s.viewability, bench && bench.view, _gated)}</td>
         ${isVideo ? `<td class="num split-comp">${pct(s.completionRate)}</td>` : ''}
         ${isVideo ? `<td class="split-vid">${esc(s._videoId || '—')}</td>` : ''}
@@ -1763,6 +1808,7 @@
     const isVideoTab = activeTab === 'video' || activeTab === 'video-mobile';
     const tbody = document.getElementById('tableBody');
     const BENCH = currentBenchmarks(); // alert benchmarks == the average cards (same computation)
+    const AUCTR = adUnitCtrTotals();   // per-publication CTR totals → each row's expected CTR (vs its inventory)
 
     let rows = allRows.filter(r =>
       r.device === activeTab &&
@@ -1782,7 +1828,7 @@
           urlMap.set(r.netlifyUrl, {
             netlifyUrl: r.netlifyUrl, advertiser: r.advertiser,
             avViewable: 0, avMeasurable: 0, avViewableTime: 0, complNum: 0, complDen: 0,
-            sortKey: r.sortKey, liveStatus: null,
+            sortKey: r.sortKey, liveStatus: null, impsByAdUnit: {},
             impressions: 0, clicks: 0, videos: [], lineItemIds: new Set(), partial: false, anyUnmatched: false,
           });
         }
@@ -1800,6 +1846,11 @@
         // active-view-data.js), completion impression-weighted across the group's videos.
         g.avViewableTime += (r.avgViewableSec || 0) * (r.activeViewViewable || 0);
         if (r.completionRate != null) { g.complNum += r.completionRate * (_rfs.impressions || 0); g.complDen += (_rfs.impressions || 0); }
+        // Per-publication impressions/clicks for the group's expected-CTR benchmark (sum across its videos).
+        for (const [au, v] of Object.entries(r.impsByAdUnit || {})) {
+          const t = g.impsByAdUnit[au] || (g.impsByAdUnit[au] = { impressions: 0, clicks: 0 });
+          t.impressions += v.impressions || 0; t.clicks += v.clicks || 0;
+        }
         if (r.videoId) g.videos.push({ videoId: r.videoId, completionRate: r.completionRate, durationSec: r.durationSec ?? null, videoStarts: r.videoStarts ?? null });
         if ((r.sortKey || 0) > g.sortKey) g.sortKey = r.sortKey;
         (r.lineItemIds || []).forEach(id => g.lineItemIds.add(id));
@@ -1830,8 +1881,11 @@
         const clks   = g.clicks > 0 ? `<td class="num-cell has-data">${g.clicks.toLocaleString()}${_gPartialMark}</td>` : `<td class="num-cell no-data">—</td>`;
         // Alerts vs the average cards, gated on ≥2000 imps + a live (non-completed) line item.
         const _gated = (g.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(g.liveStatus);
-        // A red stat (<80% of average = "needs attention") flags the whole line; orange only colours its cell.
-        const _anyRed = _gated && (alertLevel(ctr, BENCH.ctr).level === 'red' || alertLevel(g.activeView, BENCH.view).level === 'red' || videoComplBand(g.videos || []) === 'red');
+        // CTR is judged vs what's normal for the inventory this skin ran on (per-publication expected),
+        // not the estate average; falls back to the estate CTR if there are no peers.
+        const _ctrBench = expectedCtr(g, AUCTR) ?? BENCH.ctr;
+        // A red stat (<80% of its benchmark = "needs attention") flags the whole line; orange only colours its cell.
+        const _anyRed = _gated && (alertLevel(ctr, _ctrBench).level === 'red' || alertLevel(g.activeView, BENCH.view).level === 'red' || videoComplBand(g.videos || []) === 'red');
         const _rowKey = alertRowKey(g.netlifyUrl);
         const _ack = alertAcks[_rowKey];
         // "Looked into" suppresses this row's highlights UNLESS a stored metric has since dropped >2%.
@@ -1845,7 +1899,7 @@
         const _ackCtrl = (_anyRed && !_suppressed)
           ? `<button class="row-ack-btn" data-key="${esc(_rowKey)}" data-ctr="${ctr ?? ''}" data-view="${g.activeView ?? ''}" data-compl="${g.completionRate ?? ''}" onclick="event.stopPropagation();ackRowFromBtn(this)" title="Mark as looked into — clears the red line (the stat pills stay)">Looked into</button>`
           : (_ack && _anyRed) ? `<span class="row-reviewed" data-key="${esc(_rowKey)}" onclick="event.stopPropagation();unackRow(this)" title="Reviewed — click to re-flag the line">✓ reviewed</span>` : '';
-        const ctrStr = ctr !== null ? `<td class="ctr-cell has-data">${statFlag(ctr + '%', ctr, BENCH.ctr, _gated)}</td>` : `<td class="ctr-cell no-data">—</td>`;
+        const ctrStr = ctr !== null ? `<td class="ctr-cell has-data">${statFlag(ctr + '%', ctr, _ctrBench, _gated, 'expected for its inventory')}</td>` : `<td class="ctr-cell no-data">—</td>`;
         const av     = (g.activeView != null && (!activeAdUnits.size || g.impressions > 0)) ? `<td class="ctr-cell has-data">${statFlag(g.activeView + '%', g.activeView, BENCH.view, _gated)}</td>` : `<td class="ctr-cell no-data">—</td>`;
         const encodedUrl = encodeURIComponent(g.netlifyUrl);
         const isPortrait = activeTab === 'mobile' || activeTab === 'video-mobile';
@@ -1887,8 +1941,11 @@
       const _fCtr  = _rfs.impressions && _rfs.clicks ? parseFloat(((_rfs.clicks / _rfs.impressions) * 100).toFixed(2)) : null;
       // Alerts vs the average cards, gated on ≥2000 imps + a live (non-completed) line item.
       const _gated = (_rfs.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(r.liveStatus);
-      // A red stat (<80% of average = "needs attention") flags the whole line; orange only colours its cell.
-      const _anyRed = _gated && (alertLevel(_fCtr, BENCH.ctr).level === 'red' || alertLevel(r.activeView, BENCH.view).level === 'red');
+      // CTR is judged vs what's normal for the inventory this skin ran on (per-publication expected),
+      // not the estate average; falls back to the estate CTR if there are no peers.
+      const _ctrBench = expectedCtr(r, AUCTR) ?? BENCH.ctr;
+      // A red stat (<80% of its benchmark = "needs attention") flags the whole line; orange only colours its cell.
+      const _anyRed = _gated && (alertLevel(_fCtr, _ctrBench).level === 'red' || alertLevel(r.activeView, BENCH.view).level === 'red');
       const _rowKey = alertRowKey(r.netlifyUrl);
       const _ack = alertAcks[_rowKey];
       // "Looked into" suppresses this row's highlights UNLESS a stored metric has since dropped >2%.
@@ -1900,7 +1957,7 @@
       const _ackCtrl = (_anyRed && !_suppressed)
         ? `<button class="row-ack-btn" data-key="${esc(_rowKey)}" data-ctr="${_fCtr ?? ''}" data-view="${r.activeView ?? ''}" data-compl="" onclick="event.stopPropagation();ackRowFromBtn(this)" title="Mark as looked into — clears the red line (the stat pills stay)">Looked into</button>`
         : (_ack && _anyRed) ? `<span class="row-reviewed" data-key="${esc(_rowKey)}" onclick="event.stopPropagation();unackRow(this)" title="Reviewed — click to re-flag the line">✓ reviewed</span>` : '';
-      const ctrStr = _fCtr !== null ? `<td class="ctr-cell has-data">${statFlag(_fCtr + '%', _fCtr, BENCH.ctr, _gated)}</td>` : `<td class="ctr-cell no-data">—</td>`;
+      const ctrStr = _fCtr !== null ? `<td class="ctr-cell has-data">${statFlag(_fCtr + '%', _fCtr, _ctrBench, _gated, 'expected for its inventory')}</td>` : `<td class="ctr-cell no-data">—</td>`;
       const encodedUrl = encodeURIComponent(r.netlifyUrl);
       const isPortrait = activeTab === 'mobile' || activeTab === 'video-mobile';
       const thumbSubdomain = (r.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
