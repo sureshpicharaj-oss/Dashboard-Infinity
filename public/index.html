@@ -771,6 +771,8 @@
   const ALERT_MIN_IMPS = 2000;                         // reasonable-sample gate
   const ALERT_LIVE = ['delivering', 'paused', 'ready']; // skip completed/ended/inactive line items
   const ALERT_WORSE = 0.98;                            // re-alert once an acked metric drops >2% below its acked value
+  const ALERT_COMPL_MIN = 20;                          // completion isn't optimisable — flag ONLY when a video
+                                                       // completes under this flat % (broken / mis-tracked), never orange
   const alertRowKey = (netlifyUrl) => `${netlifyUrl}##${activeTab}`; // one row per URL per tab
   // ratio = value / benchmark(the average card). Returns the cell severity vs the average.
   function alertLevel(value, benchmark) {
@@ -1648,28 +1650,24 @@
     }
     return out;
   }
-  // The completion benchmark for a bucket is that bucket's average card (short vs long).
-  const bucketBenchmark = (bucket, bench) => bucket === '15s' ? (bench && bench.complShort) : bucket === '30s' ? (bench && bench.complLong) : null;
-  // Worst completion band across a group's duration buckets → drives the row's line colour.
-  function videoComplBand(videos, bench) {
-    let band = null;
-    for (const { bucket, avg } of videoBucketData(videos)) {
-      const lvl = alertLevel(avg, bucketBenchmark(bucket, bench)).level;
-      if (lvl === 'red') return 'red';
-      if (lvl === 'orange') band = 'orange';
-    }
-    return band;
+  // Completion is not trafficker-optimisable, so it's NOT part of the normal RAG flag (no orange, no
+  // benchmark-relative red). It only flags 'red' when a video is completing under a flat floor
+  // (ALERT_COMPL_MIN = broken / mis-tracked). Drives the row-red the same way the other red stats do.
+  function videoComplBand(videos) {
+    return videoBucketData(videos).some(({ avg }) => avg != null && avg < ALERT_COMPL_MIN) ? 'red' : null;
   }
 
   function renderVideoCell(videos, bench, gated) {
     let html = '';
     for (const { bucket, avg } of videoBucketData(videos)) {
       const label = bucket === '15s' ? 'Short-form (~15s)' : bucket === '30s' ? 'Long-form (~30s)' : 'Video';
-      const cls = alertCellClass(avg, bucketBenchmark(bucket, bench), !!gated);
-      const ttl = alertCellTitle(avg, bucketBenchmark(bucket, bench), !!gated);
-      const icon = cls === 'cell-alert-red' ? '⚠️ ' : '';
+      // Completion flags red ONLY below the flat floor (broken / mis-tracked) — never the normal orange/red.
+      const low = !!gated && avg != null && avg < ALERT_COMPL_MIN;
+      const cls = low ? ' cell-alert-red' : '';
+      const ttl = low ? ` title="Very low completion (${avg}%) — likely a broken or mis-tracked video"` : '';
+      const icon = low ? '⚠️ ' : '';
       html += `<div class="vid-dur-group">`;
-      html += `<div class="vid-sub-item"><span class="dur-label">${label}</span></div><div><span class="comp-pill${cls ? ' ' + cls : ''}"${ttl}>${icon}${avg}%</span></div>`;
+      html += `<div class="vid-sub-item"><span class="dur-label">${label}</span></div><div><span class="comp-pill${cls}"${ttl}>${icon}${avg}%</span></div>`;
       html += `</div>`;
     }
     return `<td class="video-stack-cell">${html}</td>`;
@@ -1833,7 +1831,7 @@
         // Alerts vs the average cards, gated on ≥2000 imps + a live (non-completed) line item.
         const _gated = (g.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(g.liveStatus);
         // A red stat (<80% of average = "needs attention") flags the whole line; orange only colours its cell.
-        const _anyRed = _gated && (alertLevel(ctr, BENCH.ctr).level === 'red' || alertLevel(g.activeView, BENCH.view).level === 'red' || videoComplBand(g.videos || [], BENCH) === 'red');
+        const _anyRed = _gated && (alertLevel(ctr, BENCH.ctr).level === 'red' || alertLevel(g.activeView, BENCH.view).level === 'red' || videoComplBand(g.videos || []) === 'red');
         const _rowKey = alertRowKey(g.netlifyUrl);
         const _ack = alertAcks[_rowKey];
         // "Looked into" suppresses this row's highlights UNLESS a stored metric has since dropped >2%.
