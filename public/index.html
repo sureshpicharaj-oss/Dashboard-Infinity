@@ -624,11 +624,10 @@
         <th onclick="sortBy('clicks')" data-col="clicks" style="text-align:right;width:80px">Clicks <span class="sort-icon">↕</span></th>
         <th onclick="sortBy('ctr')" data-col="ctr" style="text-align:right;width:80px">CTR <span class="sort-icon">↕</span></th>
         <th onclick="sortBy('activeView')" data-col="activeView" style="text-align:right;width:110px">Viewability % <span class="sort-icon">↕</span></th>
-        <th onclick="sortBy('attention')" data-col="attention" style="text-align:right;width:100px" title="Transparent+ — a 0–100 attention score (viewability + dwell + CTR, plus completion for video), scored vs expectation">Transparent+ <span class="sort-icon">↕</span></th>
       </tr>
     </thead>
     <tbody id="tableBody">
-      <tr><td colspan="8" class="empty-state">Loading data…</td></tr>
+      <tr><td colspan="7" class="empty-state">Loading data…</td></tr>
     </tbody>
   </table>
 </div>
@@ -1116,7 +1115,6 @@
         <td class="num split-view">${statFlag(pct(s.viewability), s.viewability, bench && bench.view, _gated)}</td>
         ${isVideo ? `<td class="num split-comp">${pct(s.completionRate)}</td>` : ''}
         ${isVideo ? `<td class="split-vid">${vidCell}</td>` : ''}
-        <td class="num split-attn">${attnPill(s.attention)}</td>
       </tr>`;
     }).join('');
     const totCtr = (tImp && tClk) ? ((tClk / tImp) * 100).toFixed(2) + '%' : dash;
@@ -1128,7 +1126,6 @@
       <td class="num">${dash}</td>
       ${isVideo ? `<td class="num">${dash}</td>` : ''}
       ${isVideo ? `<td class="split-vid">${dash}</td>` : ''}
-      <td class="num">${dash}</td>
     </tr>`;
     return `<table class="split-table"><thead><tr>
       <th>Creative</th>
@@ -1138,7 +1135,6 @@
       <th style="text-align:right">Viewability</th>
       ${isVideo ? '<th style="text-align:right">Completion</th>' : ''}
       ${isVideo ? '<th>Video ID</th>' : ''}
-      <th style="text-align:right" title="Transparent+ attention score (0–100), scored vs expectation">Transparent+</th>
     </tr></thead><tbody>${rows}${totalRow}</tbody></table>`;
   }
 
@@ -1310,7 +1306,7 @@
       <td class="num-cell"><span class="skel skel-num"></span></td>
     </tr>`;
     document.getElementById('tableBody').innerHTML =
-      `<tr><td colspan="8" style="padding:10px 16px 4px;font-size:.8rem;color:#888" id="skelCaption">Fetching from Google Ad Manager… 0s</td></tr>` +
+      `<tr><td colspan="7" style="padding:10px 16px 4px;font-size:.8rem;color:#888" id="skelCaption">Fetching from Google Ad Manager… 0s</td></tr>` +
       Array(8).fill(0).map(skelRow).join('');
 
     try {
@@ -1682,7 +1678,7 @@
         return Object.assign({}, g, { activeView, avgViewableSec, completionRate, attention });
       });
       if (!groups.length) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No results match your search</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No results match your search</td></tr>';
         return;
       }
       tbody.innerHTML = groups.map(g => {
@@ -1733,7 +1729,7 @@
           <td class="action-cell">${vTagBtn}${vAdvBtn}${vSplitBtn}${_ackCtrl}</td>
           ${thumb}
           ${renderVideoCell(g.videos, BENCH, _gated)}
-          ${imps}${clks}${ctrStr}${av}${attnCell(g.attention)}
+          ${imps}${clks}${ctrStr}${av}
         </tr>`;
       }).join('');
       observeLazyImages();
@@ -1743,7 +1739,7 @@
     // Desktop / Mobile tabs — original per-row rendering
     rows = sortRows(rows, sortCol, sortDir);
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No results match your search</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No results match your search</td></tr>';
       return;
     }
     tbody.innerHTML = rows.map(r => {
@@ -1792,7 +1788,7 @@
         <td class="adv-cell" data-url="${encodedUrl}">${dot}<span class="adv-name">${esc(r.advertiser || '')}</span>${catChip}${advChip}${liLinks(r.lineItemIds || [])}</td>
         <td class="action-cell">${tagBtn}${advBtn}${splitBtn}${_ackCtrl}</td>
         ${thumb}
-        ${imps}${clks}${ctrStr}${av}${attnCell(r.attention)}
+        ${imps}${clks}${ctrStr}${av}
       </tr>`;
     }).join('');
     observeLazyImages();
