@@ -189,6 +189,10 @@
       width: 100%;
       padding-top: 4px;
     }
+    /* Advertiser filter row — sits under the toolbar; reuses the .adv-tag pill buttons. */
+    .adv-filter-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; width: 100%; padding: 2px 0 0; }
+    .adv-filter-row:empty { display: none; }
+    .adv-filter-label { font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #8a93a6; margin-right: 2px; }
     .adv-tag {
       font-size: .73rem;
       font-weight: 500;
@@ -230,13 +234,18 @@
     .adv-cell:hover .row-tag-btn { display:inline; }
     .row-tag-btn:hover { background:#4f7fff;border-color:#4f7fff;color:#fff; }
     .row-cat-chip { display:inline-block;font-size:10px;font-weight:600;padding:1px 7px;border-radius:10px;margin-left:5px;vertical-align:middle;background:color-mix(in srgb,var(--tc) 15%,transparent);color:var(--tc);border:1px solid color-mix(in srgb,var(--tc) 35%,transparent); }
+    /* Assigned-advertiser pill — squared corners + uppercase so it reads distinctly from the round category chip. */
+    .row-adv-chip { display:inline-block;font-size:10px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;padding:1px 7px;border-radius:4px;margin-left:5px;vertical-align:middle;background:color-mix(in srgb,var(--ac) 18%,transparent);color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 45%,transparent); }
+    .row-adv-btn { display:none;background:none;border:1px solid #3a4a6a;color:#6e93b0;border-radius:10px;font-size:11px;padding:1px 6px;cursor:pointer;margin-left:5px;vertical-align:middle;line-height:1.4; }
+    .adv-cell:hover .row-adv-btn { display:inline; }
+    .row-adv-btn:hover { background:#7b5ea7;border-color:#7b5ea7;color:#fff; }
     .row-split-btn { display:none;background:none;border:1px solid #3a4a6a;color:#6e93b0;border-radius:10px;font-size:11px;padding:1px 6px;cursor:pointer;margin-left:5px;vertical-align:middle;line-height:1.4; }
     .adv-cell:hover .row-split-btn { display:inline; }
     .row-split-btn:hover { background:#4f7fff;border-color:#4f7fff;color:#fff; }
-    /* Dedicated actions column — tag + splits buttons, always reachable regardless of name length.
+    /* Dedicated actions column — tag + advertiser + splits buttons, always reachable regardless of name length.
        min-width leaves room for the stacked "Looked into" alert control so it can't spill into the URL. */
-    .action-cell { white-space:nowrap; min-width:104px; vertical-align:top; }
-    .action-cell .row-tag-btn, .action-cell .row-split-btn { display:inline-block;margin:0 4px 0 0; }
+    .action-cell { white-space:nowrap; min-width:132px; vertical-align:top; }
+    .action-cell .row-tag-btn, .action-cell .row-adv-btn, .action-cell .row-split-btn { display:inline-block;margin:0 4px 0 0; }
 
     /* Creative-splits modal — light + colour-coded to match the dashboard stat cards */
     #splitBody { color:#1a1a2e;font-size:13px; }
@@ -257,6 +266,10 @@
     .split-comp { color:#d98324; }
     .split-vid  { color:#6a7387;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap; }
     .split-name { max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:#1a1a2e; }
+    .split-name-link { color:#2563b8;text-decoration:none; }
+    .split-name-link:hover { text-decoration:underline; }
+    .split-vid-link { color:#2563b8;text-decoration:none; }
+    .split-vid-link:hover { text-decoration:underline; }
     .split-kv { display:inline-block;font-size:10px;padding:1px 7px;margin:1px 4px 1px 0;border-radius:10px;background:#eef1f8;border:1px solid #dfe4ee;color:#42506b; }
     .split-dash { color:#c0c6d2; }
     .split-total-row td { font-weight:800;color:#1a1a2e;border-top:2px solid #d5dced;border-bottom:none;background:#f0f4ff; }
@@ -454,6 +467,14 @@
     .thumb-cell.thumb-cell-portrait { width: 318px; }
 
     .thumb-wrap { position: relative; display: inline-block; }
+    /* Merged "Preview URL" column — the thumbnail is a link to the Netlify URL, with the short URL as a caption. */
+    .thumb-link { display: block; line-height: 0; }
+    .thumb-url {
+      display: inline-block; margin-top: 5px; max-width: 300px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      color: #4f7fff; text-decoration: none; font-size: .74rem; vertical-align: middle;
+    }
+    .thumb-url:hover { text-decoration: underline; }
     .thumb-replace-btn {
       position: absolute; top: 3px; right: 3px;
       background: rgba(0,0,0,0.6); color: #fff;
@@ -633,11 +654,16 @@
   <div id="advertiserTags"></div>
 </div>
 
+<div id="advFilterBar" class="adv-filter-row"></div>
+
 <div id="errorBanner"></div>
 <div id="cachedBanner"></div>
 
 <!-- Inline tag picker -->
 <div id="tagPicker" style="display:none;position:absolute;z-index:999;background:#1a1e2e;border:1px solid #2e3650;border-radius:6px;padding:12px 14px;min-width:200px;max-width:260px;box-shadow:0 4px 20px rgba(0,0,0,.5)"></div>
+
+<!-- Inline advertiser picker (mirrors the tag picker) -->
+<div id="advPicker" style="display:none;position:absolute;z-index:999;background:#1a1e2e;border:1px solid #2e3650;border-radius:6px;padding:12px 14px;min-width:200px;max-width:260px;box-shadow:0 4px 20px rgba(0,0,0,.5)"></div>
 
 <!-- Tag editor modal -->
 <div id="tagEditorOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;align-items:center;justify-content:center">
@@ -674,10 +700,9 @@
   <table>
     <thead>
       <tr>
-        <th onclick="sortBy('advertiser')" data-col="advertiser" style="width:160px">Advertiser <span class="sort-icon">↕</span></th>
-        <th style="width:104px">Actions</th>
-        <th onclick="sortBy('netlifyUrl')" data-col="netlifyUrl" style="width:220px">Netlify URL <span class="sort-icon">↕</span></th>
-        <th style="width:320px">Preview</th>
+        <th onclick="sortBy('advertiser')" data-col="advertiser" style="width:160px">Creative <span class="sort-icon">↕</span></th>
+        <th style="width:132px">Actions</th>
+        <th style="width:320px">Preview URL</th>
         <th id="thVideos" style="display:none;width:180px">Videos</th>
         <th onclick="sortBy('impressions')" data-col="impressions" style="text-align:right;width:120px">Impressions <span class="sort-icon">↕</span></th>
         <th onclick="sortBy('clicks')" data-col="clicks" style="text-align:right;width:80px">Clicks <span class="sort-icon">↕</span></th>
@@ -688,7 +713,7 @@
       </tr>
     </thead>
     <tbody id="tableBody">
-      <tr><td colspan="10" class="empty-state">Loading data…</td></tr>
+      <tr><td colspan="9" class="empty-state">Loading data…</td></tr>
     </tbody>
   </table>
 </div>
@@ -699,6 +724,7 @@
   let sortCol = 'sortKey';
   let sortDir = -1;
   let activeCategory = null;
+  let activeAdvertiser = null;
   let activeAdUnits = new Set();
 
   const AD_UNIT_OPTIONS = ['BBCGoodFood.com','GardenersWorld.com','madeformums.com','olivemagazine.com','RadioTimes.com','TopGear.com','Historyextra.com'];
@@ -761,6 +787,9 @@
   let tagRules = {};
   // Direct URL→category assignments (overrides keyword rules)
   let urlTags = {};
+  // Manual URL→advertiser (brand) assignments — a Tags-style feature, but a real advertiser you assign per
+  // creative (the "Creative" column shows an auto-derived name; this is the brand behind it). { url: advertiser }
+  let urlAdvertisers = {};
 
   // ── Alert system ──────────────────────────────────────────────────────────
   // Colours CTR / Viewability / Completion cells by how they compare to the estate AVERAGE (the
@@ -815,6 +844,7 @@
     for (const r of allRows) {
       if (r.device !== activeTab) continue;
       if (activeCategory && getCategory(r.advertiser, r.netlifyUrl) !== activeCategory) continue;
+      if (activeAdvertiser && getAdvertiser(r.netlifyUrl) !== activeAdvertiser) continue;
       for (const [au, v] of Object.entries(r.impsByAdUnit || {})) {
         if (activeAdUnits.size && !activeAdUnits.has(au)) continue;
         const t = totals[au] || (totals[au] = { imps: 0, clicks: 0 });
@@ -859,14 +889,32 @@
     return null;
   }
 
+  // The advertiser (brand) manually assigned to a URL, or null. Purely manual — no keyword rules.
+  function getAdvertiser(netlifyUrl) {
+    return (netlifyUrl && urlAdvertisers[netlifyUrl]) || null;
+  }
+  // The distinct set of assigned advertisers (for the picker options + the filter bar).
+  function allAdvertisers() {
+    return [...new Set(Object.values(urlAdvertisers))].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }
+  // Stable colour per advertiser — reuse the tag palette but offset so a brand and a category at the same
+  // index don't collide on colour.
+  function advertiserColor(adv) {
+    const list = allAdvertisers();
+    const idx = list.indexOf(adv);
+    return TAG_PALETTE[(Math.max(0, idx) + 4) % TAG_PALETTE.length];
+  }
+
   async function loadTagRules() {
     try {
-      const [rulesRes, urlTagsRes, acksRes] = await Promise.all([fetch('/api/tag-rules'), fetch('/api/url-tags'), fetch('/api/alert-acks')]);
-      if (rulesRes.ok)   tagRules  = await rulesRes.json();
-      if (urlTagsRes.ok) urlTags   = await urlTagsRes.json();
-      if (acksRes.ok)    alertAcks = (await acksRes.json()) || {};
+      const [rulesRes, urlTagsRes, acksRes, advRes] = await Promise.all([fetch('/api/tag-rules'), fetch('/api/url-tags'), fetch('/api/alert-acks'), fetch('/api/url-advertisers')]);
+      if (rulesRes.ok)   tagRules       = await rulesRes.json();
+      if (urlTagsRes.ok) urlTags        = await urlTagsRes.json();
+      if (acksRes.ok)    alertAcks      = (await acksRes.json()) || {};
+      if (advRes.ok)     urlAdvertisers = (await advRes.json()) || {};
     } catch(e) {}
     renderTags();
+    renderAdvertiserFilter();
     renderTable();
   }
 
@@ -894,6 +942,18 @@
     await fetch('/api/url-tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, category: category || null }) });
     closeTagPicker();
     renderTags();
+    renderTable();
+  }
+
+  // Assign (or clear) the advertiser for a URL — optimistic local update + persist, mirroring setUrlTag.
+  async function setUrlAdvertiser(url, advertiser) {
+    if (advertiser) urlAdvertisers[url] = advertiser;
+    else delete urlAdvertisers[url];
+    // If the removed advertiser was the active filter and no longer present, drop the filter.
+    if (activeAdvertiser && !allAdvertisers().includes(activeAdvertiser)) activeAdvertiser = null;
+    await fetch('/api/url-advertisers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, advertiser: advertiser || null }) });
+    closeAdvPicker();
+    renderAdvertiserFilter();
     renderTable();
   }
 
@@ -929,8 +989,41 @@
     document.getElementById('tagPicker').style.display = 'none';
     tagPickerUrl = null;
   }
+
+  // ── Inline advertiser picker (mirrors the tag picker) ─────────────────────
+  let advPickerUrl = null;
+  function openAdvPickerFromBtn(btn) { openAdvPicker(btn.dataset.url, btn); }
+  function applyAdvFromPicker(btn) { setUrlAdvertiser(advPickerUrl, btn.dataset.adv); }
+  function applyNewAdvFromInput() {
+    const v = document.getElementById('apNewAdv').value.trim();
+    if (v) setUrlAdvertiser(advPickerUrl, v);
+  }
+  function openAdvPicker(url, anchorEl) {
+    advPickerUrl = url;
+    const picker = document.getElementById('advPicker');
+    const list = allAdvertisers();
+    const current = urlAdvertisers[url] || null;
+    picker.innerHTML =
+      `<div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#6e93b0;margin-bottom:8px">Assign advertiser</div>` +
+      list.map(adv => `<button class="tp-opt${current===adv?' tp-active':''}" data-adv="${esc(adv)}" onclick="applyAdvFromPicker(this)">${esc(adv)}</button>`).join('') +
+      (current ? `<button class="tp-opt tp-remove" onclick="setUrlAdvertiser(advPickerUrl,null)">&#x2715; Remove advertiser</button>` : '') +
+      `<div style="display:flex;gap:6px;margin-top:8px">
+        <input id="apNewAdv" placeholder="New advertiser…" style="flex:1;background:#0f1622;border:1px solid #2e3650;color:#e2ebf5;border-radius:4px;padding:5px 8px;font-size:12px" onkeydown="if(event.key===&#39;Enter&#39;)applyNewAdvFromInput()">
+        <button onclick="applyNewAdvFromInput()" style="background:#7b5ea7;color:#fff;border:none;border-radius:4px;padding:5px 10px;font-size:12px;cursor:pointer">Set</button>
+      </div>`;
+    const rect = anchorEl.getBoundingClientRect();
+    picker.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+    picker.style.left = (rect.left  + window.scrollX)      + 'px';
+    picker.style.display = 'block';
+  }
+  function closeAdvPicker() {
+    document.getElementById('advPicker').style.display = 'none';
+    advPickerUrl = null;
+  }
+
   document.addEventListener('click', e => {
     if (!e.target.closest('#tagPicker') && !e.target.closest('.row-tag-btn')) closeTagPicker();
+    if (!e.target.closest('#advPicker') && !e.target.closest('.row-adv-btn')) closeAdvPicker();
     if (!e.target.closest('.au-wrap')) {
       const dd = document.getElementById('adUnitDropdown');
       if (dd) dd.style.display = 'none';
@@ -961,6 +1054,22 @@
 
     container.innerHTML = allBtn + catBtns +
       `<button class="adv-tag tag-edit-btn" onclick="openTagEditor()">&#9881; Edit tags</button>`;
+  }
+
+  // The advertiser filter bar — one button per advertiser present on the active tab, plus "All".
+  // Hidden entirely when no advertisers have been assigned to any row on this tab.
+  function renderAdvertiserFilter() {
+    const bar = document.getElementById('advFilterBar');
+    if (!bar) return;
+    const tabRows = allRows.filter(r => r.device === activeTab);
+    const present = allAdvertisers().filter(a => tabRows.some(r => getAdvertiser(r.netlifyUrl) === a));
+    if (!present.length) { bar.innerHTML = ''; return; }
+    const allBtn = `<button class="adv-tag${!activeAdvertiser ? ' active' : ''}" onclick="setAdvertiserFilter(null)">All</button>`;
+    const advBtns = present.map(a => {
+      const active = activeAdvertiser === a ? ' active' : '';
+      return `<button class="adv-tag${active}" style="--tc:${advertiserColor(a)}" data-adv="${esc(a)}" onclick="setAdvertiserFilterFromBtn(this)">${esc(a)}</button>`;
+    }).join('');
+    bar.innerHTML = `<span class="adv-filter-label">Advertiser</span>` + allBtn + advBtns;
   }
 
   // ── Tag editor modal ──────────────────────────────────────────────────────
@@ -1080,6 +1189,15 @@
       const _gated = !!lineLive && (s.impressions || 0) >= ALERT_MIN_IMPS;
       const _anyRed = _gated && (alertLevel(ctrNum, ctrBench).level === 'red' || alertLevel(s.viewability, bench && bench.view).level === 'red');
       const nm = s.name || ('#' + s.creativeId);
+      // Creative name → its GAM creative page (needs both the line item + creative id). Plain text otherwise.
+      const _li = (s.lineItemIds && s.lineItemIds[0]) || null;
+      const nameCell = (_li && s.creativeId)
+        ? `<a class="split-name-link" href="${gamCreativeUrl(_li, s.creativeId)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${esc(nm)}</a>`
+        : esc(nm);
+      // Video ID → its GAM line item.
+      const vidCell = _li
+        ? `<a class="split-vid-link" href="${gamLineItemUrl(_li)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${esc(s._videoId || '—')}</a>`
+        : esc(s._videoId || '—');
       const hasSeg = !!(s.seg && s.seg.byKey && Object.keys(s.seg.byKey).length);
       const caret = hasSeg ? '<span class="split-caret">▸</span>' : '';
       const rowCls = 'split-row' + (hasSeg ? ' has-seg' : '') + (_anyRed ? ' alert-line-red' : '');
@@ -1089,13 +1207,13 @@
         : '';
       return `<tr${rowOpen}>
         <td class="split-caret-cell">${caret}</td>
-        <td class="split-name" title="${esc(nm)}">${esc(nm)}</td>
+        <td class="split-name" title="${esc(nm)}">${nameCell}</td>
         <td class="num split-imp">${num(s.impressions)}</td>
         <td class="num split-clk">${num(s.clicks)}</td>
         <td class="num split-ctr">${statFlag(ctr, ctrNum, ctrBench, _gated, 'expected for its inventory')}</td>
         <td class="num split-view">${statFlag(pct(s.viewability), s.viewability, bench && bench.view, _gated)}</td>
         ${isVideo ? `<td class="num split-comp">${pct(s.completionRate)}</td>` : ''}
-        ${isVideo ? `<td class="split-vid">${esc(s._videoId || '—')}</td>` : ''}
+        ${isVideo ? `<td class="split-vid">${vidCell}</td>` : ''}
         <td class="num split-attn">${attnPill(s.attention)}</td>
       </tr>${detail}`;
     }).join('');
@@ -1408,13 +1526,23 @@
     renderTable();
   }
 
+  function setAdvertiserFilterFromBtn(btn) { setAdvertiserFilter(btn.dataset.adv || null); }
+  function setAdvertiserFilter(adv) {
+    activeAdvertiser = adv;
+    updateStats();
+    renderAdvertiserFilter();
+    renderTable();
+  }
+
   function setTab(tab) {
     activeTab = tab;
     activeCategory = null;
+    activeAdvertiser = null;
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.getAttribute('onclick') === `setTab('${tab}')`));
     document.getElementById('thVideos').style.display = (tab === 'video' || tab === 'video-mobile') ? '' : 'none';
     updateStats();
     renderTags();
+    renderAdvertiserFilter();
     renderTable();
   }
 
@@ -1444,7 +1572,7 @@
               const ageLabel = ageHrs < 1 ? 'just now' : ageHrs < 2 ? '~1 hour ago' : `~${Math.round(ageHrs)} hours ago`;
               const elf = document.getElementById('lastFetched');
               if (elf) { elf.textContent = 'Data as of: ' + ts.toLocaleString('en-GB') + ' (' + ageLabel + ')'; elf.dataset.ts = d.lastFetched; }
-              updateStats(); renderTags(); renderTable(); loadActiveView(); loadVideoStats(); loadPerf();
+              updateStats(); renderTags(); renderAdvertiserFilter(); renderTable(); loadActiveView(); loadVideoStats(); loadPerf();
             }
           } catch(e) {}
         }, 30000);
@@ -1492,7 +1620,7 @@
       <td><span class="skel skel-line"></span></td>
     </tr>`;
     document.getElementById('tableBody').innerHTML =
-      `<tr><td colspan="10" style="padding:10px 16px 4px;font-size:.8rem;color:#888" id="skelCaption">Fetching from Google Ad Manager… 0s</td></tr>` +
+      `<tr><td colspan="9" style="padding:10px 16px 4px;font-size:.8rem;color:#888" id="skelCaption">Fetching from Google Ad Manager… 0s</td></tr>` +
       Array(8).fill(0).map(skelRow).join('');
 
     try {
@@ -1537,6 +1665,7 @@
 
       updateStats();
       renderTags();
+      renderAdvertiserFilter();
       renderTable();
       loadActiveView();
       loadVideoStats();
@@ -1559,7 +1688,8 @@
     const tabRows = allRows.filter(r =>
       r.device === activeTab &&
       (!activeAdUnits.size || (r.adUnitNames || []).some(n => activeAdUnits.has(n))) &&
-      (!activeCategory || getCategory(r.advertiser, r.netlifyUrl) === activeCategory)
+      (!activeCategory || getCategory(r.advertiser, r.netlifyUrl) === activeCategory) &&
+      (!activeAdvertiser || getAdvertiser(r.netlifyUrl) === activeAdvertiser)
     );
     const isVideo = activeTab === 'video' || activeTab === 'video-mobile';
 
@@ -1814,6 +1944,7 @@
       r.device === activeTab &&
       (!activeAdUnits.size || (r.adUnitNames || []).some(n => activeAdUnits.has(n))) &&
       (!activeCategory || getCategory(r.advertiser, r.netlifyUrl) === activeCategory) &&
+      (!activeAdvertiser || getAdvertiser(r.netlifyUrl) === activeAdvertiser) &&
       (!search ||
         (r.advertiser || '').toLowerCase().includes(search) ||
         (r.netlifyUrl || '').toLowerCase().includes(search) ||
@@ -1869,7 +2000,7 @@
         return Object.assign({}, g, { activeView, avgViewableSec, completionRate, attention });
       });
       if (!groups.length) {
-        tbody.innerHTML = '<tr><td colspan="11" class="empty-state">No results match your search</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No results match your search</td></tr>';
         return;
       }
       tbody.innerHTML = groups.map(g => {
@@ -1904,18 +2035,21 @@
         const encodedUrl = encodeURIComponent(g.netlifyUrl);
         const isPortrait = activeTab === 'mobile' || activeTab === 'video-mobile';
         const thumbSubdomain = (g.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
-        const thumb  = `<td class="thumb-cell${isPortrait ? ' thumb-cell-portrait' : ''}"><div class="thumb-wrap"><img class="thumb-img lazy${isPortrait ? ' thumb-portrait' : ''}" data-src="/api/screenshot?url=${encodedUrl}&device=${activeTab}" data-fallback="/screenshots/${thumbSubdomain}-${activeTab}.png" data-advertiser-url="${encodedUrl}" alt="preview" /><button class="thumb-replace-btn" data-url="${encodedUrl}" data-device="${activeTab}" title="Replace screenshot">↑</button></div></td>`;
+        // Merged "Preview URL" cell — the thumbnail links to the Netlify URL, with the short URL as a caption.
+        const thumb  = `<td class="thumb-cell${isPortrait ? ' thumb-cell-portrait' : ''}"><div class="thumb-wrap"><a class="thumb-link" href="${esc(g.netlifyUrl)}" target="_blank" rel="noopener"><img class="thumb-img lazy${isPortrait ? ' thumb-portrait' : ''}" data-src="/api/screenshot?url=${encodedUrl}&device=${activeTab}" data-fallback="/screenshots/${thumbSubdomain}-${activeTab}.png" data-advertiser-url="${encodedUrl}" alt="preview" /></a><button class="thumb-replace-btn" data-url="${encodedUrl}" data-device="${activeTab}" title="Replace screenshot">↑</button></div><a class="thumb-url" href="${esc(g.netlifyUrl)}" target="_blank" rel="noopener">${esc(shortUrl(g.netlifyUrl))}</a></td>`;
         const vCat = getCategory(g.advertiser, g.netlifyUrl);
         const vCatChip = vCat ? `<span class="row-cat-chip" style="--tc:${tagColor(vCat)}">${vCat}</span>` : '';
+        const vAdv = getAdvertiser(g.netlifyUrl);
+        const vAdvChip = vAdv ? `<span class="row-adv-chip" style="--ac:${advertiserColor(vAdv)}">${esc(vAdv)}</span>` : '';
         const vTagBtn = `<button class="row-tag-btn" data-url="${esc(g.netlifyUrl)}" onclick="event.stopPropagation();openTagPickerFromBtn(this)" title="Assign tag">＋</button>`;
+        const vAdvBtn = `<button class="row-adv-btn" data-url="${esc(g.netlifyUrl)}" onclick="event.stopPropagation();openAdvPickerFromBtn(this)" title="Assign advertiser">Ⓐ</button>`;
         const vSplitBtn = `<button class="row-split-btn" data-url="${encodedUrl}" data-device="${activeTab}" onclick="event.stopPropagation();openSplitFromBtn(this)" title="Show creative splits">⊞</button>`;
         const DOT_LABEL = { delivering: 'Delivering', ready: 'Ready', paused: 'Paused', inactive: 'Inactive' };
         const vDot = g.liveStatus ? `<span class="live-dot ${g.liveStatus}" title="${DOT_LABEL[g.liveStatus] || g.liveStatus}"></span>` : '';
         const vSegTd = segCellHtml((g.videos || []).map(v => `${g.netlifyUrl}##${v.videoId}##${activeTab}`));
         return `<tr class="${_lineCls}">
-          <td class="adv-cell" data-url="${encodedUrl}">${vDot}<span class="adv-name">${esc(g.advertiser || '')}</span>${vCatChip}${liLinks([...g.lineItemIds])}</td>
-          <td class="action-cell">${vTagBtn}${vSplitBtn}${_ackCtrl}</td>
-          <td class="url-cell"><a href="${esc(g.netlifyUrl)}" target="_blank" rel="noopener">${esc(shortUrl(g.netlifyUrl))}</a></td>
+          <td class="adv-cell" data-url="${encodedUrl}">${vDot}<span class="adv-name">${esc(g.advertiser || '')}</span>${vCatChip}${vAdvChip}${liLinks([...g.lineItemIds])}</td>
+          <td class="action-cell">${vTagBtn}${vAdvBtn}${vSplitBtn}${_ackCtrl}</td>
           ${thumb}
           ${renderVideoCell(g.videos, BENCH, _gated)}
           ${imps}${clks}${ctrStr}${av}${attnCell(g.attention)}${vSegTd}
@@ -1928,7 +2062,7 @@
     // Desktop / Mobile tabs — original per-row rendering
     rows = sortRows(rows, sortCol, sortDir);
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No results match your search</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No results match your search</td></tr>';
       return;
     }
     tbody.innerHTML = rows.map(r => {
@@ -1961,19 +2095,22 @@
       const encodedUrl = encodeURIComponent(r.netlifyUrl);
       const isPortrait = activeTab === 'mobile' || activeTab === 'video-mobile';
       const thumbSubdomain = (r.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
-      const thumb  = `<td class="thumb-cell${isPortrait ? ' thumb-cell-portrait' : ''}"><div class="thumb-wrap"><img class="thumb-img lazy${isPortrait ? ' thumb-portrait' : ''}" data-src="/api/screenshot?url=${encodedUrl}&device=${activeTab}" data-fallback="/screenshots/${thumbSubdomain}-${activeTab}.png" data-advertiser-url="${encodedUrl}" alt="preview" /><button class="thumb-replace-btn" data-url="${encodedUrl}" data-device="${activeTab}" title="Replace screenshot">↑</button></div></td>`;
+      // Merged "Preview URL" cell — the thumbnail links to the Netlify URL, with the short URL as a caption.
+      const thumb  = `<td class="thumb-cell${isPortrait ? ' thumb-cell-portrait' : ''}"><div class="thumb-wrap"><a class="thumb-link" href="${esc(r.netlifyUrl)}" target="_blank" rel="noopener"><img class="thumb-img lazy${isPortrait ? ' thumb-portrait' : ''}" data-src="/api/screenshot?url=${encodedUrl}&device=${activeTab}" data-fallback="/screenshots/${thumbSubdomain}-${activeTab}.png" data-advertiser-url="${encodedUrl}" alt="preview" /></a><button class="thumb-replace-btn" data-url="${encodedUrl}" data-device="${activeTab}" title="Replace screenshot">↑</button></div><a class="thumb-url" href="${esc(r.netlifyUrl)}" target="_blank" rel="noopener">${esc(shortUrl(r.netlifyUrl))}</a></td>`;
       const av     = (r.activeView != null && (!activeAdUnits.size || _rfs.impressions > 0)) ? `<td class="ctr-cell has-data">${statFlag(r.activeView + '%', r.activeView, BENCH.view, _gated)}</td>` : `<td class="ctr-cell no-data">—</td>`;
       const cat = getCategory(r.advertiser, r.netlifyUrl);
       const catChip = cat ? `<span class="row-cat-chip" style="--tc:${tagColor(cat)}">${cat}</span>` : '';
+      const adv = getAdvertiser(r.netlifyUrl);
+      const advChip = adv ? `<span class="row-adv-chip" style="--ac:${advertiserColor(adv)}">${esc(adv)}</span>` : '';
       const tagBtn = `<button class="row-tag-btn" data-url="${esc(r.netlifyUrl)}" onclick="event.stopPropagation();openTagPickerFromBtn(this)" title="Assign tag">＋</button>`;
+      const advBtn = `<button class="row-adv-btn" data-url="${esc(r.netlifyUrl)}" onclick="event.stopPropagation();openAdvPickerFromBtn(this)" title="Assign advertiser">Ⓐ</button>`;
       const splitBtn = `<button class="row-split-btn" data-url="${encodedUrl}" data-device="${activeTab}" onclick="event.stopPropagation();openSplitFromBtn(this)" title="Show creative splits">⊞</button>`;
       const DOT_LABEL = { delivering: 'Delivering', ready: 'Ready', paused: 'Paused', inactive: 'Inactive' };
       const dot = r.liveStatus ? `<span class="live-dot ${r.liveStatus}" title="${DOT_LABEL[r.liveStatus] || r.liveStatus}"></span>` : '';
       const segTd = segCellHtml([`${r.netlifyUrl}##${r.videoId || ''}##${r.device}`]);
       return `<tr class="${_lineCls}">
-        <td class="adv-cell" data-url="${encodedUrl}">${dot}<span class="adv-name">${esc(r.advertiser || '')}</span>${catChip}${liLinks(r.lineItemIds || [])}</td>
-        <td class="action-cell">${tagBtn}${splitBtn}${_ackCtrl}</td>
-        <td class="url-cell"><a href="${esc(r.netlifyUrl)}" target="_blank" rel="noopener">${esc(shortUrl(r.netlifyUrl))}</a></td>
+        <td class="adv-cell" data-url="${encodedUrl}">${dot}<span class="adv-name">${esc(r.advertiser || '')}</span>${catChip}${advChip}${liLinks(r.lineItemIds || [])}</td>
+        <td class="action-cell">${tagBtn}${advBtn}${splitBtn}${_ackCtrl}</td>
         ${thumb}
         ${imps}${clks}${ctrStr}${av}${attnCell(r.attention)}${segTd}
       </tr>`;
@@ -2012,10 +2149,19 @@
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
+  const GAM_NETWORK = '176986657';
+  function gamLineItemUrl(id) {
+    return `https://admanager.google.com/${GAM_NETWORK}#delivery/line_item/detail/line_item_id=${id}`;
+  }
+  // Deep-link to a creative within its line item (the GAM "creatives" view).
+  function gamCreativeUrl(lineItemId, creativeId) {
+    return `https://admanager.google.com/${GAM_NETWORK}#creatives/creative/detail/line_item_id=${lineItemId}&creative_id=${creativeId}`;
+  }
+
   function liLinks(ids) {
     if (!ids || !ids.length) return '';
     const links = [...new Set(ids)].map(id =>
-      `<a class="li-link" href="https://admanager.google.com/176986657#delivery/line_item/detail/line_item_id=${id}" target="_blank" rel="noopener">${id}</a>`
+      `<a class="li-link" href="${gamLineItemUrl(id)}" target="_blank" rel="noopener">${id}</a>`
     ).join('');
     return `<div class="li-links">${links}</div>`;
   }

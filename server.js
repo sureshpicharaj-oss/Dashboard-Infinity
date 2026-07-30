@@ -43,6 +43,7 @@ app.use(require('./routes/advertiser')(SCREENSHOT_DIR));
 app.use(require('./routes/active-view')(DATA_DIR));
 app.use(require('./routes/video-stats')(DATA_DIR));
 app.use(require('./routes/tags')(SCREENSHOT_DIR));
+app.use(require('./routes/advertisers')(SCREENSHOT_DIR));
 app.use(require('./routes/alerts')(SCREENSHOT_DIR));
 app.use(require('./routes/debug')());
 
