@@ -255,6 +255,7 @@
     .split-ctr  { color:#7b5ea7; }
     .split-view { color:#1aab6d; }
     .split-comp { color:#d98324; }
+    .split-vid  { color:#6a7387;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap; }
     .split-name { max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:#1a1a2e; }
     .split-kv { display:inline-block;font-size:10px;padding:1px 7px;margin:1px 4px 1px 0;border-radius:10px;background:#eef1f8;border:1px solid #dfe4ee;color:#42506b; }
     .split-dash { color:#c0c6d2; }
@@ -984,13 +985,23 @@
     const bench = currentBenchmarks();
     const lineLive = allRows.some(r => r.netlifyUrl === url && r.device === device && ALERT_LIVE.includes(r.liveStatus));
     let any = false;
-    for (const gk of groupKeys) {
-      const splits = (data[gk] || []).slice().sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
-      if (!splits.length) continue;
-      any = true;
-      const vid = gk.split('##')[1];
-      if (isVideo && vid) html += `<div class="split-group-title">VIDEO_ID: ${esc(vid)}</div>`;
-      html += splitTable(splits, isVideo, bench, lineLive);
+    if (isVideo) {
+      // Flatten every VIDEO_ID's creatives into one table with a Video ID column (tag each creative
+      // with its videoId from the group key), instead of a separate titled sub-table per VIDEO_ID.
+      const all = [];
+      for (const gk of groupKeys) {
+        const vid = gk.split('##')[1] || '';
+        for (const s of (data[gk] || [])) all.push(Object.assign({}, s, { _videoId: vid }));
+      }
+      all.sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
+      if (all.length) { any = true; html += splitTable(all, true, bench, lineLive); }
+    } else {
+      for (const gk of groupKeys) {
+        const splits = (data[gk] || []).slice().sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
+        if (!splits.length) continue;
+        any = true;
+        html += splitTable(splits, false, bench, lineLive);
+      }
     }
     body.innerHTML = any
       ? html
@@ -1010,7 +1021,7 @@
     const dash = '<span class="split-dash">—</span>';
     const num = n => (n != null && n !== '') ? Number(n).toLocaleString() : dash;
     const pct = n => (n != null) ? n + '%' : dash;
-    const cols = isVideo ? 9 : 8; // caret + Creative + Imp + Clicks + CTR + View + [Comp] + Attention + KeyValues
+    const cols = isVideo ? 9 : 7; // caret + Creative + Imp + Clicks + CTR + View + [Comp] + [Video ID] + Attention
     let tImp = 0, tClk = 0;
     const rows = splits.map(s => {
       tImp += s.impressions || 0; tClk += s.clicks || 0;
@@ -1021,9 +1032,6 @@
       // it's left uncoloured here.
       const _gated = !!lineLive && (s.impressions || 0) >= ALERT_MIN_IMPS;
       const _anyRed = _gated && (alertLevel(ctrNum, bench && bench.ctr).level === 'red' || alertLevel(s.viewability, bench && bench.view).level === 'red');
-      const kv = (s.keyValues || []).length
-        ? s.keyValues.map(k => `<span class="split-kv">${esc(k.key)}: ${esc(k.value)}</span>`).join('')
-        : dash;
       const nm = s.name || ('#' + s.creativeId);
       const hasSeg = !!(s.seg && s.seg.byKey && Object.keys(s.seg.byKey).length);
       const caret = hasSeg ? '<span class="split-caret">▸</span>' : '';
@@ -1040,8 +1048,8 @@
         <td class="num split-ctr">${statFlag(ctr, ctrNum, bench && bench.ctr, _gated)}</td>
         <td class="num split-view">${statFlag(pct(s.viewability), s.viewability, bench && bench.view, _gated)}</td>
         ${isVideo ? `<td class="num split-comp">${pct(s.completionRate)}</td>` : ''}
+        ${isVideo ? `<td class="split-vid">${esc(s._videoId || '—')}</td>` : ''}
         <td class="num split-attn">${attnPill(s.attention)}</td>
-        <td>${kv}</td>
       </tr>${detail}`;
     }).join('');
     const totCtr = (tImp && tClk) ? ((tClk / tImp) * 100).toFixed(2) + '%' : dash;
@@ -1053,8 +1061,8 @@
       <td class="num">${totCtr}</td>
       <td class="num">${dash}</td>
       ${isVideo ? `<td class="num">${dash}</td>` : ''}
+      ${isVideo ? `<td class="split-vid">${dash}</td>` : ''}
       <td class="num">${dash}</td>
-      <td></td>
     </tr>`;
     return `<table class="split-table"><thead><tr>
       <th></th>
@@ -1064,8 +1072,8 @@
       <th style="text-align:right">CTR</th>
       <th style="text-align:right">Viewability</th>
       ${isVideo ? '<th style="text-align:right">Completion</th>' : ''}
+      ${isVideo ? '<th>Video ID</th>' : ''}
       <th style="text-align:right" title="Transparent+ attention score (0–100), scored vs expectation">Transparent+</th>
-      <th>Key values</th>
     </tr></thead><tbody>${rows}${totalRow}</tbody></table>`;
   }
 
