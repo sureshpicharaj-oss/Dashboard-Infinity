@@ -467,14 +467,8 @@
     .thumb-cell.thumb-cell-portrait { width: 318px; }
 
     .thumb-wrap { position: relative; display: inline-block; }
-    /* Merged "Preview URL" column — the thumbnail is a link to the Netlify URL, with the short URL as a caption. */
+    /* Merged "Preview URL" column — the thumbnail itself is a link to the Netlify URL. */
     .thumb-link { display: block; line-height: 0; }
-    .thumb-url {
-      display: inline-block; margin-top: 5px; max-width: 300px;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      color: #4f7fff; text-decoration: none; font-size: .74rem; vertical-align: middle;
-    }
-    .thumb-url:hover { text-decoration: underline; }
     .thumb-replace-btn {
       position: absolute; top: 3px; right: 3px;
       background: rgba(0,0,0,0.6); color: #fff;
@@ -669,7 +663,7 @@
 <div id="tagEditorOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#1a1e2e;border:1px solid #2e3650;border-radius:8px;width:480px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;overflow:hidden">
     <div style="padding:18px 20px 14px;border-bottom:1px solid #2e3650;display:flex;align-items:center;justify-content:space-between">
-      <span style="font-size:15px;font-weight:600;color:#e2ebf5">Tag rules</span>
+      <span style="font-size:15px;font-weight:600;color:#e2ebf5">Categories</span>
       <button onclick="closeTagEditor()" style="background:none;border:none;color:#6e93b0;font-size:20px;cursor:pointer;line-height:1">×</button>
     </div>
     <div id="tagRulesList" style="padding:16px 20px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px"></div>
@@ -680,7 +674,7 @@
         <input id="teNewCategory" placeholder="category (e.g. Lifestyle)" style="flex:1;background:#0f1622;border:1px solid #2e3650;color:#e2ebf5;border-radius:4px;padding:7px 10px;font-size:13px" onkeydown="if(event.key==='Enter')addTagRule()">
         <button onclick="addTagRule()" style="background:#4f7fff;color:#fff;border:none;border-radius:4px;padding:7px 14px;font-size:13px;cursor:pointer">Add</button>
       </div>
-      <div style="font-size:11px;color:#6e93b0;margin-top:6px">Type a keyword that appears in the advertiser name + the category to assign it to. New categories are created automatically.</div>
+      <div style="font-size:11px;color:#6e93b0;margin-top:6px">Type a keyword that appears in the creative name + the category to assign it to. New categories are created automatically.</div>
     </div>
   </div>
 </div>
@@ -973,9 +967,9 @@
     const allCats = [...new Set([...DEFAULT_CATS, ...Object.keys(tagRules), ...Object.values(urlTags)])].filter(Boolean);
     const current = urlTags[url] || null;
     picker.innerHTML =
-      `<div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#6e93b0;margin-bottom:8px">Assign tag</div>` +
+      `<div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#6e93b0;margin-bottom:8px">Assign category</div>` +
       allCats.map(cat => `<button class="tp-opt${current===cat?' tp-active':''}" data-cat="${esc(cat)}" onclick="applyTagFromPicker(this)">${esc(cat)}</button>`).join('') +
-      (current ? `<button class="tp-opt tp-remove" onclick="setUrlTag(tagPickerUrl,null)">&#x2715; Remove tag</button>` : '') +
+      (current ? `<button class="tp-opt tp-remove" onclick="setUrlTag(tagPickerUrl,null)">&#x2715; Remove category</button>` : '') +
       `<div style="display:flex;gap:6px;margin-top:8px">
         <input id="tpNewCat" placeholder="New category…" style="flex:1;background:#0f1622;border:1px solid #2e3650;color:#e2ebf5;border-radius:4px;padding:5px 8px;font-size:12px" onkeydown="if(event.key===&#39;Enter&#39;)applyNewTagFromInput()">
         <button onclick="applyNewTagFromInput()" style="background:#4f7fff;color:#fff;border:none;border-radius:4px;padding:5px 10px;font-size:12px;cursor:pointer">Set</button>
@@ -1053,7 +1047,7 @@
     }).join('');
 
     container.innerHTML = allBtn + catBtns +
-      `<button class="adv-tag tag-edit-btn" onclick="openTagEditor()">&#9881; Edit tags</button>`;
+      `<button class="adv-tag tag-edit-btn" onclick="openTagEditor()">&#9881; Edit categories</button>`;
   }
 
   // The advertiser filter bar — one button per advertiser present on the active tab, plus "All".
@@ -1194,9 +1188,10 @@
       const nameCell = (_li && s.creativeId)
         ? `<a class="split-name-link" href="${gamCreativeUrl(_li, s.creativeId)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${esc(nm)}</a>`
         : esc(nm);
-      // Video ID → its GAM line item.
-      const vidCell = _li
-        ? `<a class="split-vid-link" href="${gamLineItemUrl(_li)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${esc(s._videoId || '—')}</a>`
+      // Video ID → the video creative in GAM (the videoId is a targeting value with no page of its own,
+      // so link it to the creative asset — same target as the creative name).
+      const vidCell = (_li && s.creativeId)
+        ? `<a class="split-vid-link" href="${gamCreativeUrl(_li, s.creativeId)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${esc(s._videoId || '—')}</a>`
         : esc(s._videoId || '—');
       const hasSeg = !!(s.seg && s.seg.byKey && Object.keys(s.seg.byKey).length);
       const caret = hasSeg ? '<span class="split-caret">▸</span>' : '';
@@ -2035,13 +2030,13 @@
         const encodedUrl = encodeURIComponent(g.netlifyUrl);
         const isPortrait = activeTab === 'mobile' || activeTab === 'video-mobile';
         const thumbSubdomain = (g.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
-        // Merged "Preview URL" cell — the thumbnail links to the Netlify URL, with the short URL as a caption.
-        const thumb  = `<td class="thumb-cell${isPortrait ? ' thumb-cell-portrait' : ''}"><div class="thumb-wrap"><a class="thumb-link" href="${esc(g.netlifyUrl)}" target="_blank" rel="noopener"><img class="thumb-img lazy${isPortrait ? ' thumb-portrait' : ''}" data-src="/api/screenshot?url=${encodedUrl}&device=${activeTab}" data-fallback="/screenshots/${thumbSubdomain}-${activeTab}.png" data-advertiser-url="${encodedUrl}" alt="preview" /></a><button class="thumb-replace-btn" data-url="${encodedUrl}" data-device="${activeTab}" title="Replace screenshot">↑</button></div><a class="thumb-url" href="${esc(g.netlifyUrl)}" target="_blank" rel="noopener">${esc(shortUrl(g.netlifyUrl))}</a></td>`;
+        // Merged "Preview URL" cell — the thumbnail itself is a link to the Netlify URL.
+        const thumb  = `<td class="thumb-cell${isPortrait ? ' thumb-cell-portrait' : ''}"><div class="thumb-wrap"><a class="thumb-link" href="${esc(g.netlifyUrl)}" target="_blank" rel="noopener" title="${esc(g.netlifyUrl)}"><img class="thumb-img lazy${isPortrait ? ' thumb-portrait' : ''}" data-src="/api/screenshot?url=${encodedUrl}&device=${activeTab}" data-fallback="/screenshots/${thumbSubdomain}-${activeTab}.png" data-advertiser-url="${encodedUrl}" alt="preview" /></a><button class="thumb-replace-btn" data-url="${encodedUrl}" data-device="${activeTab}" title="Replace screenshot">↑</button></div></td>`;
         const vCat = getCategory(g.advertiser, g.netlifyUrl);
         const vCatChip = vCat ? `<span class="row-cat-chip" style="--tc:${tagColor(vCat)}">${vCat}</span>` : '';
         const vAdv = getAdvertiser(g.netlifyUrl);
         const vAdvChip = vAdv ? `<span class="row-adv-chip" style="--ac:${advertiserColor(vAdv)}">${esc(vAdv)}</span>` : '';
-        const vTagBtn = `<button class="row-tag-btn" data-url="${esc(g.netlifyUrl)}" onclick="event.stopPropagation();openTagPickerFromBtn(this)" title="Assign tag">＋</button>`;
+        const vTagBtn = `<button class="row-tag-btn" data-url="${esc(g.netlifyUrl)}" onclick="event.stopPropagation();openTagPickerFromBtn(this)" title="Assign category">＋</button>`;
         const vAdvBtn = `<button class="row-adv-btn" data-url="${esc(g.netlifyUrl)}" onclick="event.stopPropagation();openAdvPickerFromBtn(this)" title="Assign advertiser">Ⓐ</button>`;
         const vSplitBtn = `<button class="row-split-btn" data-url="${encodedUrl}" data-device="${activeTab}" onclick="event.stopPropagation();openSplitFromBtn(this)" title="Show creative splits">⊞</button>`;
         const DOT_LABEL = { delivering: 'Delivering', ready: 'Ready', paused: 'Paused', inactive: 'Inactive' };
@@ -2095,14 +2090,14 @@
       const encodedUrl = encodeURIComponent(r.netlifyUrl);
       const isPortrait = activeTab === 'mobile' || activeTab === 'video-mobile';
       const thumbSubdomain = (r.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
-      // Merged "Preview URL" cell — the thumbnail links to the Netlify URL, with the short URL as a caption.
-      const thumb  = `<td class="thumb-cell${isPortrait ? ' thumb-cell-portrait' : ''}"><div class="thumb-wrap"><a class="thumb-link" href="${esc(r.netlifyUrl)}" target="_blank" rel="noopener"><img class="thumb-img lazy${isPortrait ? ' thumb-portrait' : ''}" data-src="/api/screenshot?url=${encodedUrl}&device=${activeTab}" data-fallback="/screenshots/${thumbSubdomain}-${activeTab}.png" data-advertiser-url="${encodedUrl}" alt="preview" /></a><button class="thumb-replace-btn" data-url="${encodedUrl}" data-device="${activeTab}" title="Replace screenshot">↑</button></div><a class="thumb-url" href="${esc(r.netlifyUrl)}" target="_blank" rel="noopener">${esc(shortUrl(r.netlifyUrl))}</a></td>`;
+      // Merged "Preview URL" cell — the thumbnail itself is a link to the Netlify URL.
+      const thumb  = `<td class="thumb-cell${isPortrait ? ' thumb-cell-portrait' : ''}"><div class="thumb-wrap"><a class="thumb-link" href="${esc(r.netlifyUrl)}" target="_blank" rel="noopener" title="${esc(r.netlifyUrl)}"><img class="thumb-img lazy${isPortrait ? ' thumb-portrait' : ''}" data-src="/api/screenshot?url=${encodedUrl}&device=${activeTab}" data-fallback="/screenshots/${thumbSubdomain}-${activeTab}.png" data-advertiser-url="${encodedUrl}" alt="preview" /></a><button class="thumb-replace-btn" data-url="${encodedUrl}" data-device="${activeTab}" title="Replace screenshot">↑</button></div></td>`;
       const av     = (r.activeView != null && (!activeAdUnits.size || _rfs.impressions > 0)) ? `<td class="ctr-cell has-data">${statFlag(r.activeView + '%', r.activeView, BENCH.view, _gated)}</td>` : `<td class="ctr-cell no-data">—</td>`;
       const cat = getCategory(r.advertiser, r.netlifyUrl);
       const catChip = cat ? `<span class="row-cat-chip" style="--tc:${tagColor(cat)}">${cat}</span>` : '';
       const adv = getAdvertiser(r.netlifyUrl);
       const advChip = adv ? `<span class="row-adv-chip" style="--ac:${advertiserColor(adv)}">${esc(adv)}</span>` : '';
-      const tagBtn = `<button class="row-tag-btn" data-url="${esc(r.netlifyUrl)}" onclick="event.stopPropagation();openTagPickerFromBtn(this)" title="Assign tag">＋</button>`;
+      const tagBtn = `<button class="row-tag-btn" data-url="${esc(r.netlifyUrl)}" onclick="event.stopPropagation();openTagPickerFromBtn(this)" title="Assign category">＋</button>`;
       const advBtn = `<button class="row-adv-btn" data-url="${esc(r.netlifyUrl)}" onclick="event.stopPropagation();openAdvPickerFromBtn(this)" title="Assign advertiser">Ⓐ</button>`;
       const splitBtn = `<button class="row-split-btn" data-url="${encodedUrl}" data-device="${activeTab}" onclick="event.stopPropagation();openSplitFromBtn(this)" title="Show creative splits">⊞</button>`;
       const DOT_LABEL = { delivering: 'Delivering', ready: 'Ready', paused: 'Paused', inactive: 'Inactive' };
