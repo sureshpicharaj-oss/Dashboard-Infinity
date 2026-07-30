@@ -39,6 +39,12 @@
   force = true
 
 [[redirects]]
+  from = "/api/alert-acks"
+  to = "/.netlify/functions/alert-acks"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/advertiser"
   to = "/.netlify/functions/advertiser"
   status = 200

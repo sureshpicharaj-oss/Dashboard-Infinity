@@ -233,8 +233,9 @@
     .row-split-btn { display:none;background:none;border:1px solid #3a4a6a;color:#6e93b0;border-radius:10px;font-size:11px;padding:1px 6px;cursor:pointer;margin-left:5px;vertical-align:middle;line-height:1.4; }
     .adv-cell:hover .row-split-btn { display:inline; }
     .row-split-btn:hover { background:#4f7fff;border-color:#4f7fff;color:#fff; }
-    /* Dedicated actions column — tag + splits buttons, always reachable regardless of name length. */
-    .action-cell { white-space:nowrap; }
+    /* Dedicated actions column — tag + splits buttons, always reachable regardless of name length.
+       min-width leaves room for the stacked "Looked into" alert control so it can't spill into the URL. */
+    .action-cell { white-space:nowrap; min-width:104px; vertical-align:top; }
     .action-cell .row-tag-btn, .action-cell .row-split-btn { display:inline-block;margin:0 4px 0 0; }
 
     /* Creative-splits modal — light + colour-coded to match the dashboard stat cards */
@@ -254,8 +255,8 @@
     .split-ctr  { color:#7b5ea7; }
     .split-view { color:#1aab6d; }
     .split-comp { color:#d98324; }
+    .split-vid  { color:#6a7387;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap; }
     .split-name { max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:#1a1a2e; }
-    .split-kv { display:inline-block;font-size:10px;padding:1px 7px;margin:1px 4px 1px 0;border-radius:10px;background:#eef1f8;border:1px solid #dfe4ee;color:#42506b; }
     .split-dash { color:#c0c6d2; }
     .split-total-row td { font-weight:800;color:#1a1a2e;border-top:2px solid #d5dced;border-bottom:none;background:#f0f4ff; }
     .split-total-row td:first-child { color:#2563b8; }
@@ -267,6 +268,25 @@
     .attn-pill.low { background:#fdece9;color:#c0392b;border:1px solid #f2c9c2; }
     .attn-pill.lowconf { opacity:.5;border-style:dashed; }
     .attn-none { color:#c8ccd6; }
+    /* Alert system — under-performing stat = compact pill with a pulsing glow; a red stat also tints the whole line. */
+    .stat-flag { display:inline-block; padding:2px 10px; border-radius:11px; font-size:13px; font-weight:800; font-variant-numeric:tabular-nums; }
+    .stat-flag.red    { background:#fde7e3; color:#a02418; border:1px solid #e0938a; animation: alertGlowRed 1.5s ease-in-out infinite; }
+    .stat-flag.orange { background:#fef3e7; color:#b5700f; border:1px solid #eec79a; animation: alertGlowOrange 1.5s ease-in-out infinite; }
+    .comp-pill.cell-alert-red    { background:#fde7e3; color:#a02418; border:1px solid #e0938a; box-shadow:none; animation: alertGlowRed 1.5s ease-in-out infinite; }
+    .comp-pill.cell-alert-orange { background:#fef3e7; color:#b5700f; border:1px solid #eec79a; box-shadow:none; animation: alertGlowOrange 1.5s ease-in-out infinite; }
+    @keyframes alertGlowRed    { 0%,100% { box-shadow:0 0 0 0 rgba(176,42,28,0); } 50% { box-shadow:0 0 0 3px rgba(176,42,28,.35); } }
+    @keyframes alertGlowOrange { 0%,100% { box-shadow:0 0 0 0 rgba(196,125,26,0); } 50% { box-shadow:0 0 0 3px rgba(196,125,26,.28); } }
+    tr.alert-line-red > td { background:#f4948b; }
+    tr.alert-line-red > td:first-child { box-shadow: inset 6px 0 0 #a02418; }
+    tr.alert-line-red > td.ctr-cell.has-data, tr.alert-line-red > td.num-cell.has-data { color:#3a1512; }
+    tr.alert-line-red.split-row > td { color:#3a1512; }
+    .row-ack-btn { display:block;width:fit-content;background:#fdece9;border:1px solid #f2c9c2;color:#c0392b;border-radius:10px;font-size:10px;font-weight:700;padding:1px 7px;cursor:pointer;margin:5px 0 0;white-space:nowrap; }
+    .row-ack-btn:hover { background:#c0392b;color:#fff;border-color:#c0392b; }
+    .row-reviewed { display:block;width:fit-content;font-size:10px;color:#8a93a6;margin:5px 0 0;cursor:pointer;white-space:nowrap; }
+    .row-reviewed:hover { color:#c0392b; }
+    @media (prefers-reduced-motion: reduce) {
+      .stat-flag.red, .stat-flag.orange, .comp-pill.cell-alert-red, .comp-pill.cell-alert-orange { animation: none; }
+    }
     .live-dot { display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle;flex-shrink:0; }
     .live-dot.delivering { background:#f59e0b;box-shadow:0 0 0 0 rgba(245,158,11,.6);animation:pulse-yellow 1.6s infinite; }
     .live-dot.ready      { background:#3b82f6;box-shadow:0 0 4px rgba(59,130,246,.7); }
@@ -496,7 +516,7 @@
     <div class="value" id="statNoData">—</div>
   </div>
   <div class="stat-card c-ctr">
-    <div class="label">CTR <select id="ctrMethod" class="ctr-method-select" onchange="updateStats()"><option value="median" selected>Median</option><option value="average">Simple Avg</option><option value="aggregate">Aggregate</option></select></div>
+    <div class="label">CTR <select id="ctrMethod" class="ctr-method-select" onchange="updateStats();renderTable()"><option value="median" selected>Median</option><option value="average">Simple Avg</option><option value="aggregate">Aggregate</option></select></div>
     <div class="value" id="statAvgCtr">—</div>
     <div id="statCtrN" style="font-size:.68rem;color:#999;margin-top:2px;"></div>
   </div>
@@ -577,7 +597,7 @@
     <thead>
       <tr>
         <th onclick="sortBy('advertiser')" data-col="advertiser" style="width:160px">Advertiser <span class="sort-icon">↕</span></th>
-        <th style="width:64px">Actions</th>
+        <th style="width:104px">Actions</th>
         <th onclick="sortBy('netlifyUrl')" data-col="netlifyUrl" style="width:220px">Netlify URL <span class="sort-icon">↕</span></th>
         <th style="width:320px">Preview</th>
         <th id="thVideos" style="display:none;width:180px">Videos</th>
@@ -663,6 +683,48 @@
   // Direct URL→category assignments (overrides keyword rules)
   let urlTags = {};
 
+  // ── Alert system ──────────────────────────────────────────────────────────
+  // Colours CTR / Viewability / Completion cells by how they compare to the estate AVERAGE (the
+  // summary card, via currentBenchmarks()): orange 80–99% of the average, red under 80%. A metric
+  // under 60% turns the whole row red. Only live line items with a real sample are flagged. A user
+  // can mark a row "looked into" to clear the row-red; it re-fires if the metric later gets worse.
+  let alertAcks = {};                                  // { rowKey: { ackAt, ctr, activeView, completionRate } }
+  const ALERT_MIN_IMPS = 2000;                         // reasonable-sample gate
+  const ALERT_LIVE = ['delivering', 'paused', 'ready']; // skip completed/ended/inactive line items
+  const ALERT_WORSE = 0.98;                            // re-alert once an acked metric drops >2% below its acked value
+  const alertRowKey = (netlifyUrl) => `${netlifyUrl}##${activeTab}`; // one row per URL per tab
+  // ratio = value / benchmark(the average card). Returns the cell severity vs the average.
+  function alertLevel(value, benchmark) {
+    if (value == null || benchmark == null || !(benchmark > 0)) return { level: 'none', severe: false };
+    const ratio = value / benchmark;
+    if (ratio >= 1)    return { level: 'none',   severe: false };
+    if (ratio >= 0.80) return { level: 'orange', severe: false };
+    if (ratio >= 0.60) return { level: 'red',    severe: false };
+    return { level: 'red', severe: true };
+  }
+  // Cell alert class, gated on sample size + live status. cls '' when neutral/gated-out.
+  function alertCellClass(value, benchmark, gated) {
+    if (!gated) return '';
+    const lvl = alertLevel(value, benchmark).level;
+    return lvl === 'none' ? '' : 'cell-alert-' + lvl;
+  }
+  // Hover tooltip spelling out the meaning: red = "needs attention", orange = "might need optimisation".
+  function alertCellTitle(value, benchmark, gated) {
+    if (!gated || value == null || benchmark == null || !(benchmark > 0)) return '';
+    const ratio = value / benchmark;
+    if (ratio >= 1) return '';
+    const msg = ratio < 0.80 ? 'Needs attention' : 'Might need optimisation';
+    return ` title="${msg} — ${Math.round(ratio * 100)}% of the ${parseFloat(benchmark.toFixed(2))}% average"`;
+  }
+  // Wraps a stat's display value in a compact pulsing pill when it's under benchmark; plain value otherwise.
+  function statFlag(display, value, benchmark, gated) {
+    const cls = alertCellClass(value, benchmark, gated);
+    if (!cls) return display;
+    const band = cls === 'cell-alert-red' ? 'red' : 'orange';
+    const icon = band === 'red' ? '⚠️ ' : ''; // caution marker on the needs-attention (red) pills
+    return `<span class="stat-flag ${band}"${alertCellTitle(value, benchmark, gated)}>${icon}${display}</span>`;
+  }
+
   // Assign a stable colour to each category by index in the rules object
   const TAG_PALETTE = ['#4f7fff','#1aab6d','#c0392b','#e67e22','#7b5ea7','#16a085','#d35400','#2980b9'];
   const DEFAULT_CATS = ['Food', 'Auto', 'Entertainment', 'Gardening'];
@@ -684,11 +746,30 @@
 
   async function loadTagRules() {
     try {
-      const [rulesRes, urlTagsRes] = await Promise.all([fetch('/api/tag-rules'), fetch('/api/url-tags')]);
-      if (rulesRes.ok)   tagRules = await rulesRes.json();
-      if (urlTagsRes.ok) urlTags  = await urlTagsRes.json();
+      const [rulesRes, urlTagsRes, acksRes] = await Promise.all([fetch('/api/tag-rules'), fetch('/api/url-tags'), fetch('/api/alert-acks')]);
+      if (rulesRes.ok)   tagRules  = await rulesRes.json();
+      if (urlTagsRes.ok) urlTags   = await urlTagsRes.json();
+      if (acksRes.ok)    alertAcks = (await acksRes.json()) || {};
     } catch(e) {}
     renderTags();
+    renderTable();
+  }
+
+  // Mark a row "looked into" — stores the row's current metric values so the alert can re-fire if it
+  // later gets worse. Optimistic local update + persist (survives reloads/refreshes, like tags).
+  function ackRowFromBtn(btn) {
+    const key = btn.dataset.key;
+    const val = s => (s !== '' && s != null) ? parseFloat(s) : null;
+    const ack = { ackAt: Date.now(), ctr: val(btn.dataset.ctr), activeView: val(btn.dataset.view), completionRate: val(btn.dataset.compl) };
+    alertAcks[key] = ack;
+    fetch('/api/alert-acks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, ack }) }).catch(() => {});
+    renderTable();
+  }
+  // Un-review a row (re-flag it).
+  function unackRow(el) {
+    const key = el.dataset.key;
+    delete alertAcks[key];
+    fetch('/api/alert-acks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, ack: null }) }).catch(() => {});
     renderTable();
   }
 
@@ -820,40 +901,57 @@
     // Same screenshot the row shows (keyed by URL + device) — one preview for the whole row.
     let html = `<div class="split-preview"><img src="/api/screenshot?url=${enc}&device=${device}" onerror="this.onerror=null;this.src='/screenshots/${sub}-${device}.png'" alt="preview" /></div>`;
     html += `<p class="split-sub">${esc(shortUrl(url))} · ${esc(device)} — individual creatives that make up the combined row.</p>`;
+    // Same alert benchmarks + gates as the main table: the average card for the current tab, and the
+    // line must still be live (any matching row delivering/paused/ready) for a creative to be flagged.
+    const bench = currentBenchmarks();
+    const lineLive = allRows.some(r => r.netlifyUrl === url && r.device === device && ALERT_LIVE.includes(r.liveStatus));
     let any = false;
-    for (const gk of groupKeys) {
-      const splits = (data[gk] || []).slice().sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
-      if (!splits.length) continue;
-      any = true;
-      const vid = gk.split('##')[1];
-      if (isVideo && vid) html += `<div class="split-group-title">VIDEO_ID: ${esc(vid)}</div>`;
-      html += splitTable(splits, isVideo);
+    if (isVideo) {
+      // Flatten every VIDEO_ID's creatives into one table with a Video ID column (tag each creative
+      // with its videoId from the group key), instead of a separate titled sub-table per VIDEO_ID.
+      const all = [];
+      for (const gk of groupKeys) {
+        const vid = gk.split('##')[1] || '';
+        for (const s of (data[gk] || [])) all.push(Object.assign({}, s, { _videoId: vid }));
+      }
+      all.sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
+      if (all.length) { any = true; html += splitTable(all, true, bench, lineLive); }
+    } else {
+      for (const gk of groupKeys) {
+        const splits = (data[gk] || []).slice().sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
+        if (!splits.length) continue;
+        any = true;
+        html += splitTable(splits, false, bench, lineLive);
+      }
     }
     body.innerHTML = any
       ? html
       : `<p class="split-sub">No per-creative split data available for this row yet. Splits are produced by the daily refresh, so a newly-trafficked row may not have them until the next run.</p>`;
   }
 
-  function splitTable(splits, isVideo) {
+  function splitTable(splits, isVideo, bench, lineLive) {
     const dash = '<span class="split-dash">—</span>';
     const num = n => (n != null && n !== '') ? Number(n).toLocaleString() : dash;
     const pct = n => (n != null) ? n + '%' : dash;
     let tImp = 0, tClk = 0;
     const rows = splits.map(s => {
       tImp += s.impressions || 0; tClk += s.clicks || 0;
-      const ctr = (s.impressions && s.clicks) ? ((s.clicks / s.impressions) * 100).toFixed(2) + '%' : dash;
-      const kv = (s.keyValues || []).length
-        ? s.keyValues.map(k => `<span class="split-kv">${esc(k.key)}: ${esc(k.value)}</span>`).join('')
-        : dash;
-      return `<tr>
-        <td class="split-name" title="${esc(s.name || ('#' + s.creativeId))}">${esc(s.name || ('#' + s.creativeId))}</td>
+      const ctrNum = (s.impressions && s.clicks) ? parseFloat(((s.clicks / s.impressions) * 100).toFixed(2)) : null;
+      const ctr = ctrNum != null ? ctrNum + '%' : dash;
+      // Same alert treatment as the main table (pill + ⚠️ on red) vs the average card, gated on the
+      // creative's own ≥2000 imps + a live line. CTR + Viewability are the per-creative signals.
+      const _gated = !!lineLive && (s.impressions || 0) >= ALERT_MIN_IMPS;
+      const _anyRed = _gated && (alertLevel(ctrNum, bench && bench.ctr).level === 'red' || alertLevel(s.viewability, bench && bench.view).level === 'red');
+      const nm = s.name || ('#' + s.creativeId);
+      return `<tr class="split-row${_anyRed ? ' alert-line-red' : ''}">
+        <td class="split-name" title="${esc(nm)}">${esc(nm)}</td>
         <td class="num split-imp">${num(s.impressions)}</td>
         <td class="num split-clk">${num(s.clicks)}</td>
-        <td class="num split-ctr">${ctr}</td>
-        <td class="num split-view">${pct(s.viewability)}</td>
+        <td class="num split-ctr">${statFlag(ctr, ctrNum, bench && bench.ctr, _gated)}</td>
+        <td class="num split-view">${statFlag(pct(s.viewability), s.viewability, bench && bench.view, _gated)}</td>
         ${isVideo ? `<td class="num split-comp">${pct(s.completionRate)}</td>` : ''}
+        ${isVideo ? `<td class="split-vid">${esc(s._videoId || '—')}</td>` : ''}
         <td class="num split-attn">${attnPill(s.attention)}</td>
-        <td>${kv}</td>
       </tr>`;
     }).join('');
     const totCtr = (tImp && tClk) ? ((tClk / tImp) * 100).toFixed(2) + '%' : dash;
@@ -864,8 +962,8 @@
       <td class="num">${totCtr}</td>
       <td class="num">${dash}</td>
       ${isVideo ? `<td class="num">${dash}</td>` : ''}
+      ${isVideo ? `<td class="split-vid">${dash}</td>` : ''}
       <td class="num">${dash}</td>
-      <td></td>
     </tr>`;
     return `<table class="split-table"><thead><tr>
       <th>Creative</th>
@@ -874,8 +972,8 @@
       <th style="text-align:right">CTR</th>
       <th style="text-align:right">Viewability</th>
       ${isVideo ? '<th style="text-align:right">Completion</th>' : ''}
+      ${isVideo ? '<th>Video ID</th>' : ''}
       <th style="text-align:right" title="Transparent+ attention score (0–100), scored vs expectation">Transparent+</th>
-      <th>Key values</th>
     </tr></thead><tbody>${rows}${totalRow}</tbody></table>`;
   }
 
@@ -1089,20 +1187,21 @@
     }
   }
 
-  function updateStats() {
+  // Computes the per-view summary stats (the average "cards") for the active tab + filters.
+  // SINGLE SOURCE OF TRUTH for both the cards (updateStats) AND the alert benchmarks (renderTable),
+  // so a cell/row alert is always measured against exactly the number shown in the card.
+  function currentBenchmarks() {
     const tabRows = allRows.filter(r =>
       r.device === activeTab &&
       (!activeAdUnits.size || (r.adUnitNames || []).some(n => activeAdUnits.has(n))) &&
       (!activeCategory || getCategory(r.advertiser, r.netlifyUrl) === activeCategory)
     );
-
     const isVideo = activeTab === 'video' || activeTab === 'video-mobile';
-    document.getElementById('cardAvgShort').style.display = isVideo ? '' : 'none';
-    document.getElementById('cardAvgLong').style.display  = isVideo ? '' : 'none';
 
     // For the video tab, aggregate per-VIDEO_ID rows into per-URL groups before computing
     // any stats — otherwise the CTR card counts VIDEO_ID rows instead of unique skin URLs.
     let statRows; // one entry per unique skin URL
+    let complShort = null, complLong = null;
     if (isVideo) {
       const urlMap = new Map();
       for (const r of tabRows) {
@@ -1130,8 +1229,8 @@
           ? parseFloat((rows.reduce((s, r) => s + r.completionRate * (r.videoStarts || 0), 0) / ts).toFixed(1))
           : parseFloat((rows.reduce((s, r) => s + r.completionRate, 0) / rows.length).toFixed(1));
       };
-      document.getElementById('statAvgShort').textContent = shortRows.length ? wAvg(shortRows) + '%' : '—';
-      document.getElementById('statAvgLong').textContent  = longRows.length  ? wAvg(longRows)  + '%' : '—';
+      complShort = shortRows.length ? wAvg(shortRows) : null;
+      complLong  = longRows.length  ? wAvg(longRows)  : null;
     } else {
       // Desktop / Mobile: server already returns one row per unique URL
       statRows = tabRows.map(r => { const _sfs = getFilteredStats(r); return Object.assign({}, r, { impressions: _sfs.impressions, clicks: _sfs.clicks }); });
@@ -1142,22 +1241,20 @@
     // (rather than counting them as a true 0% row) inflates aggregate/average/median CTR.
     const ctrRows = statRows.filter(r => r.impressions > 0);
     const ctrMethod = document.getElementById('ctrMethod').value;
-    let ctrVal = null;
+    let ctr = null;
     if (ctrRows.length) {
       if (ctrMethod === 'median') {
         const sorted = ctrRows.map(r => ((r.clicks || 0) / r.impressions) * 100).sort((a, b) => a - b);
         const mid = Math.floor(sorted.length / 2);
-        ctrVal = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+        ctr = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
       } else if (ctrMethod === 'average') {
-        ctrVal = ctrRows.reduce((s, r) => s + ((r.clicks || 0) / r.impressions) * 100, 0) / ctrRows.length;
+        ctr = ctrRows.reduce((s, r) => s + ((r.clicks || 0) / r.impressions) * 100, 0) / ctrRows.length;
       } else {
         const totalClicks = ctrRows.reduce((s, r) => s + (r.clicks || 0), 0);
         const totalImps   = ctrRows.reduce((s, r) => s + r.impressions, 0);
-        ctrVal = (totalClicks / totalImps) * 100;
+        ctr = (totalClicks / totalImps) * 100;
       }
     }
-    document.getElementById('statAvgCtr').textContent = ctrVal !== null ? parseFloat(ctrVal.toFixed(3)) + '%' : '—';
-    document.getElementById('statCtrN').textContent = ctrRows.length ? ctrRows.length + ' skin' + (ctrRows.length > 1 ? 's' : '') : '';
 
     // Viewability — Σ(viewable) / Σ(measurable) weighted across unique URLs.
     // AV isn't ad-unit-scoped, so with a filter active only count rows that have
@@ -1168,16 +1265,32 @@
       totalAvViewable   += r.activeViewViewable   ?? 0;
       totalAvMeasurable += r.activeViewMeasurable ?? 0;
     }
-    document.getElementById('statAvgView').textContent = totalAvMeasurable > 0
-      ? parseFloat(((totalAvViewable / totalAvMeasurable) * 100).toFixed(1)) + '%' : '—';
+    const view = totalAvMeasurable > 0 ? (totalAvViewable / totalAvMeasurable) * 100 : null;
 
-    // Totals bar
-    const withData  = statRows.filter(r => r.impressions > 0);
-    const totalImps = withData.reduce((s, r) => s + r.impressions, 0);
-    document.getElementById('statTotal').textContent   = statRows.length.toLocaleString();
-    document.getElementById('statImps').textContent    = totalImps.toLocaleString();
-    document.getElementById('statActive').textContent  = withData.length.toLocaleString();
-    document.getElementById('statNoData').textContent  = (statRows.length - withData.length).toLocaleString();
+    const withData = statRows.filter(r => r.impressions > 0);
+    return {
+      isVideo, ctr, view, complShort, complLong,
+      ctrN: ctrRows.length,
+      total: statRows.length,
+      imps: withData.reduce((s, r) => s + r.impressions, 0),
+      active: withData.length,
+      noData: statRows.length - withData.length,
+    };
+  }
+
+  function updateStats() {
+    const b = currentBenchmarks();
+    document.getElementById('cardAvgShort').style.display = b.isVideo ? '' : 'none';
+    document.getElementById('cardAvgLong').style.display  = b.isVideo ? '' : 'none';
+    document.getElementById('statAvgShort').textContent = b.complShort != null ? b.complShort + '%' : '—';
+    document.getElementById('statAvgLong').textContent  = b.complLong  != null ? b.complLong  + '%' : '—';
+    document.getElementById('statAvgCtr').textContent   = b.ctr !== null ? parseFloat(b.ctr.toFixed(3)) + '%' : '—';
+    document.getElementById('statCtrN').textContent     = b.ctrN ? b.ctrN + ' skin' + (b.ctrN > 1 ? 's' : '') : '';
+    document.getElementById('statAvgView').textContent  = b.view !== null ? parseFloat(b.view.toFixed(1)) + '%' : '—';
+    document.getElementById('statTotal').textContent    = b.total.toLocaleString();
+    document.getElementById('statImps').textContent     = b.imps.toLocaleString();
+    document.getElementById('statActive').textContent   = b.active.toLocaleString();
+    document.getElementById('statNoData').textContent   = b.noData.toLocaleString();
 
     // All-sections totals — sums across every tab regardless of active view
     const allImps = allRows.filter(r => r.impressions > 0).reduce((s, r) => s + r.impressions, 0);
@@ -1198,24 +1311,47 @@
     return durationSec <= 17 ? '15s' : '30s';
   }
 
-  function renderVideoCell(videos) {
+  // Per-duration-bucket completion averages for a group's videos (the values shown as comp-pills).
+  function videoBucketData(videos) {
     const groups = { '15s': [], '30s': [], 'unknown': [] };
     for (const v of videos) {
       if (v.completionRate == null) continue;
       groups[durationBucket(v.durationSec)].push(v);
     }
-    const ORDER = ['15s', '30s', 'unknown'];
-    let html = '';
-    for (const bucket of ORDER) {
+    const out = [];
+    for (const bucket of ['15s', '30s', 'unknown']) {
       const vids = groups[bucket];
       if (!vids.length) continue;
-      const label = bucket === '15s' ? 'Short-form (~15s)' : bucket === '30s' ? 'Long-form (~30s)' : 'Video';
       const totStarts = vids.reduce((s, v) => s + (v.videoStarts || 0), 0);
       const avg = totStarts > 0
         ? parseFloat((vids.reduce((s, v) => s + v.completionRate * (v.videoStarts || 0), 0) / totStarts).toFixed(1))
         : parseFloat((vids.reduce((s, v) => s + v.completionRate, 0) / vids.length).toFixed(1));
+      out.push({ bucket, avg });
+    }
+    return out;
+  }
+  // The completion benchmark for a bucket is that bucket's average card (short vs long).
+  const bucketBenchmark = (bucket, bench) => bucket === '15s' ? (bench && bench.complShort) : bucket === '30s' ? (bench && bench.complLong) : null;
+  // Worst completion band across a group's duration buckets → drives the row's line colour.
+  function videoComplBand(videos, bench) {
+    let band = null;
+    for (const { bucket, avg } of videoBucketData(videos)) {
+      const lvl = alertLevel(avg, bucketBenchmark(bucket, bench)).level;
+      if (lvl === 'red') return 'red';
+      if (lvl === 'orange') band = 'orange';
+    }
+    return band;
+  }
+
+  function renderVideoCell(videos, bench, gated) {
+    let html = '';
+    for (const { bucket, avg } of videoBucketData(videos)) {
+      const label = bucket === '15s' ? 'Short-form (~15s)' : bucket === '30s' ? 'Long-form (~30s)' : 'Video';
+      const cls = alertCellClass(avg, bucketBenchmark(bucket, bench), !!gated);
+      const ttl = alertCellTitle(avg, bucketBenchmark(bucket, bench), !!gated);
+      const icon = cls === 'cell-alert-red' ? '⚠️ ' : '';
       html += `<div class="vid-dur-group">`;
-      html += `<div class="vid-sub-item"><span class="dur-label">${label}</span></div><div><span class="comp-pill">${avg}%</span></div>`;
+      html += `<div class="vid-sub-item"><span class="dur-label">${label}</span></div><div><span class="comp-pill${cls ? ' ' + cls : ''}"${ttl}>${icon}${avg}%</span></div>`;
       html += `</div>`;
     }
     return `<td class="video-stack-cell">${html}</td>`;
@@ -1310,6 +1446,7 @@
     const search = document.getElementById('searchBox').value.trim().toLowerCase();
     const isVideoTab = activeTab === 'video' || activeTab === 'video-mobile';
     const tbody = document.getElementById('tableBody');
+    const BENCH = currentBenchmarks(); // alert benchmarks == the average cards (same computation)
 
     let rows = allRows.filter(r =>
       r.device === activeTab &&
@@ -1375,8 +1512,25 @@
                      : g.anyUnmatched ? `<td class="num-cell unmatched" title="Delivers on this site but couldn't be matched to a publication yet">unmatched</td>`
                      : `<td class="num-cell no-data">—</td>`;
         const clks   = g.clicks > 0 ? `<td class="num-cell has-data">${g.clicks.toLocaleString()}${_gPartialMark}</td>` : `<td class="num-cell no-data">—</td>`;
-        const ctrStr = ctr !== null ? `<td class="ctr-cell has-data">${ctr}%</td>` : `<td class="ctr-cell no-data">—</td>`;
-        const av     = (g.activeView != null && (!activeAdUnits.size || g.impressions > 0)) ? `<td class="ctr-cell has-data">${g.activeView}%</td>` : `<td class="ctr-cell no-data">—</td>`;
+        // Alerts vs the average cards, gated on ≥2000 imps + a live (non-completed) line item.
+        const _gated = (g.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(g.liveStatus);
+        // A red stat (<80% of average = "needs attention") flags the whole line; orange only colours its cell.
+        const _anyRed = _gated && (alertLevel(ctr, BENCH.ctr).level === 'red' || alertLevel(g.activeView, BENCH.view).level === 'red' || videoComplBand(g.videos || [], BENCH) === 'red');
+        const _rowKey = alertRowKey(g.netlifyUrl);
+        const _ack = alertAcks[_rowKey];
+        // "Looked into" suppresses this row's highlights UNLESS a stored metric has since dropped >2%.
+        const _worse = !!_ack && ((ctr != null && _ack.ctr != null && ctr < _ack.ctr * ALERT_WORSE)
+                     || (g.activeView != null && _ack.activeView != null && g.activeView < _ack.activeView * ALERT_WORSE)
+                     || (g.completionRate != null && _ack.completionRate != null && g.completionRate < _ack.completionRate * ALERT_WORSE));
+        const _suppressed = !!_ack && !_worse;
+        // Acknowledging drops the URGENT LINE tint only; the stat pills stay (it's still under-performing).
+        const _lineCls = (_anyRed && !_suppressed) ? 'alert-line-red' : '';
+        // "Looked into" only for the serious (red-line) rows.
+        const _ackCtrl = (_anyRed && !_suppressed)
+          ? `<button class="row-ack-btn" data-key="${esc(_rowKey)}" data-ctr="${ctr ?? ''}" data-view="${g.activeView ?? ''}" data-compl="${g.completionRate ?? ''}" onclick="event.stopPropagation();ackRowFromBtn(this)" title="Mark as looked into — clears the red line (the stat pills stay)">Looked into</button>`
+          : (_ack && _anyRed) ? `<span class="row-reviewed" data-key="${esc(_rowKey)}" onclick="event.stopPropagation();unackRow(this)" title="Reviewed — click to re-flag the line">✓ reviewed</span>` : '';
+        const ctrStr = ctr !== null ? `<td class="ctr-cell has-data">${statFlag(ctr + '%', ctr, BENCH.ctr, _gated)}</td>` : `<td class="ctr-cell no-data">—</td>`;
+        const av     = (g.activeView != null && (!activeAdUnits.size || g.impressions > 0)) ? `<td class="ctr-cell has-data">${statFlag(g.activeView + '%', g.activeView, BENCH.view, _gated)}</td>` : `<td class="ctr-cell no-data">—</td>`;
         const encodedUrl = encodeURIComponent(g.netlifyUrl);
         const isPortrait = activeTab === 'mobile' || activeTab === 'video-mobile';
         const thumbSubdomain = (g.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
@@ -1387,12 +1541,12 @@
         const vSplitBtn = `<button class="row-split-btn" data-url="${encodedUrl}" data-device="${activeTab}" onclick="event.stopPropagation();openSplitFromBtn(this)" title="Show creative splits">⊞</button>`;
         const DOT_LABEL = { delivering: 'Delivering', ready: 'Ready', paused: 'Paused', inactive: 'Inactive' };
         const vDot = g.liveStatus ? `<span class="live-dot ${g.liveStatus}" title="${DOT_LABEL[g.liveStatus] || g.liveStatus}"></span>` : '';
-        return `<tr>
+        return `<tr class="${_lineCls}">
           <td class="adv-cell" data-url="${encodedUrl}">${vDot}<span class="adv-name">${esc(g.advertiser || '')}</span>${vCatChip}${liLinks([...g.lineItemIds])}</td>
-          <td class="action-cell">${vTagBtn}${vSplitBtn}</td>
+          <td class="action-cell">${vTagBtn}${vSplitBtn}${_ackCtrl}</td>
           <td class="url-cell"><a href="${esc(g.netlifyUrl)}" target="_blank" rel="noopener">${esc(shortUrl(g.netlifyUrl))}</a></td>
           ${thumb}
-          ${renderVideoCell(g.videos)}
+          ${renderVideoCell(g.videos, BENCH, _gated)}
           ${imps}${clks}${ctrStr}${av}${attnCell(g.attention)}
         </tr>`;
       }).join('');
@@ -1414,21 +1568,36 @@
                    : `<td class="num-cell no-data">—</td>`;
       const clks   = _rfs.clicks > 0 ? `<td class="num-cell has-data">${_rfs.clicks.toLocaleString()}${_partialMark}</td>` : `<td class="num-cell no-data">—</td>`;
       const _fCtr  = _rfs.impressions && _rfs.clicks ? parseFloat(((_rfs.clicks / _rfs.impressions) * 100).toFixed(2)) : null;
-      const ctrStr = _fCtr !== null ? `<td class="ctr-cell has-data">${_fCtr}%</td>` : `<td class="ctr-cell no-data">—</td>`;
+      // Alerts vs the average cards, gated on ≥2000 imps + a live (non-completed) line item.
+      const _gated = (_rfs.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(r.liveStatus);
+      // A red stat (<80% of average = "needs attention") flags the whole line; orange only colours its cell.
+      const _anyRed = _gated && (alertLevel(_fCtr, BENCH.ctr).level === 'red' || alertLevel(r.activeView, BENCH.view).level === 'red');
+      const _rowKey = alertRowKey(r.netlifyUrl);
+      const _ack = alertAcks[_rowKey];
+      // "Looked into" suppresses this row's highlights UNLESS a stored metric has since dropped >2%.
+      const _worse = !!_ack && ((_fCtr != null && _ack.ctr != null && _fCtr < _ack.ctr * ALERT_WORSE)
+                   || (r.activeView != null && _ack.activeView != null && r.activeView < _ack.activeView * ALERT_WORSE));
+      const _suppressed = !!_ack && !_worse;
+      // Acknowledging drops the URGENT LINE tint only; the stat pills stay (it's still under-performing).
+      const _lineCls = (_anyRed && !_suppressed) ? 'alert-line-red' : '';
+      const _ackCtrl = (_anyRed && !_suppressed)
+        ? `<button class="row-ack-btn" data-key="${esc(_rowKey)}" data-ctr="${_fCtr ?? ''}" data-view="${r.activeView ?? ''}" data-compl="" onclick="event.stopPropagation();ackRowFromBtn(this)" title="Mark as looked into — clears the red line (the stat pills stay)">Looked into</button>`
+        : (_ack && _anyRed) ? `<span class="row-reviewed" data-key="${esc(_rowKey)}" onclick="event.stopPropagation();unackRow(this)" title="Reviewed — click to re-flag the line">✓ reviewed</span>` : '';
+      const ctrStr = _fCtr !== null ? `<td class="ctr-cell has-data">${statFlag(_fCtr + '%', _fCtr, BENCH.ctr, _gated)}</td>` : `<td class="ctr-cell no-data">—</td>`;
       const encodedUrl = encodeURIComponent(r.netlifyUrl);
       const isPortrait = activeTab === 'mobile' || activeTab === 'video-mobile';
       const thumbSubdomain = (r.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
       const thumb  = `<td class="thumb-cell${isPortrait ? ' thumb-cell-portrait' : ''}"><div class="thumb-wrap"><img class="thumb-img lazy${isPortrait ? ' thumb-portrait' : ''}" data-src="/api/screenshot?url=${encodedUrl}&device=${activeTab}" data-fallback="/screenshots/${thumbSubdomain}-${activeTab}.png" data-advertiser-url="${encodedUrl}" alt="preview" /><button class="thumb-replace-btn" data-url="${encodedUrl}" data-device="${activeTab}" title="Replace screenshot">↑</button></div></td>`;
-      const av     = (r.activeView != null && (!activeAdUnits.size || _rfs.impressions > 0)) ? `<td class="ctr-cell has-data">${r.activeView}%</td>` : `<td class="ctr-cell no-data">—</td>`;
+      const av     = (r.activeView != null && (!activeAdUnits.size || _rfs.impressions > 0)) ? `<td class="ctr-cell has-data">${statFlag(r.activeView + '%', r.activeView, BENCH.view, _gated)}</td>` : `<td class="ctr-cell no-data">—</td>`;
       const cat = getCategory(r.advertiser, r.netlifyUrl);
       const catChip = cat ? `<span class="row-cat-chip" style="--tc:${tagColor(cat)}">${cat}</span>` : '';
       const tagBtn = `<button class="row-tag-btn" data-url="${esc(r.netlifyUrl)}" onclick="event.stopPropagation();openTagPickerFromBtn(this)" title="Assign tag">＋</button>`;
       const splitBtn = `<button class="row-split-btn" data-url="${encodedUrl}" data-device="${activeTab}" onclick="event.stopPropagation();openSplitFromBtn(this)" title="Show creative splits">⊞</button>`;
       const DOT_LABEL = { delivering: 'Delivering', ready: 'Ready', paused: 'Paused', inactive: 'Inactive' };
       const dot = r.liveStatus ? `<span class="live-dot ${r.liveStatus}" title="${DOT_LABEL[r.liveStatus] || r.liveStatus}"></span>` : '';
-      return `<tr>
+      return `<tr class="${_lineCls}">
         <td class="adv-cell" data-url="${encodedUrl}">${dot}<span class="adv-name">${esc(r.advertiser || '')}</span>${catChip}${liLinks(r.lineItemIds || [])}</td>
-        <td class="action-cell">${tagBtn}${splitBtn}</td>
+        <td class="action-cell">${tagBtn}${splitBtn}${_ackCtrl}</td>
         <td class="url-cell"><a href="${esc(r.netlifyUrl)}" target="_blank" rel="noopener">${esc(shortUrl(r.netlifyUrl))}</a></td>
         ${thumb}
         ${imps}${clks}${ctrStr}${av}${attnCell(r.attention)}

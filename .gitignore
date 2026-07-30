@@ -15,6 +15,10 @@ Thumbs.db
 # The CI refresh (scripts/refresh.js) does not produce these — they are local-only.
 public/data/url_*_cache.json
 
+# Local runtime user-state stores (routes/alerts.js etc.). On Netlify these live in Blobs,
+# not the repo — the on-disk copy is local-only and must never be committed.
+public/screenshots/alert_acks.json
+
 # Local screenshot cache — hash-keyed (32 hex chars) files the interactive server
 # writes on demand. Production serves screenshots from Netlify Blobs, and the UI's
 # static fallback uses the subdomain-named files (e.g. abarth-core-desktop-…png),
