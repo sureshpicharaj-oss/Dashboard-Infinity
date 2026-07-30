@@ -720,6 +720,7 @@
   let activeCategory = null;
   let activeAdvertiser = null;
   let activeAdUnits = new Set();
+  let videoStats = {};   // videoId (or videoId_device) → { completionRate, videoStarts, complCreativeId, complLineItemId }
 
   const AD_UNIT_OPTIONS = ['BBCGoodFood.com','GardenersWorld.com','madeformums.com','olivemagazine.com','RadioTimes.com','TopGear.com','Historyextra.com'];
 
@@ -1141,7 +1142,10 @@
       const all = [];
       for (const gk of groupKeys) {
         const vid = gk.split('##')[1] || '';
-        for (const s of (data[gk] || [])) all.push(Object.assign({}, s, { _videoId: vid }));
+        // The Video ID links to the creative the completion rate is measured on (the video's tracking
+        // creative), looked up from the video-stats map by videoId(+device) — not the split's own creative.
+        const vs = videoStats[vid + '_' + device] ?? videoStats[vid] ?? {};
+        for (const s of (data[gk] || [])) all.push(Object.assign({}, s, { _videoId: vid, _complCreativeId: vs.complCreativeId, _complLineItemId: vs.complLineItemId }));
       }
       all.sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
       if (all.length) { any = true; html += splitTable(all, true, bench, lineLive, ctrBench); }
@@ -1188,10 +1192,11 @@
       const nameCell = (_li && s.creativeId)
         ? `<a class="split-name-link" href="${gamCreativeUrl(_li, s.creativeId)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${esc(nm)}</a>`
         : esc(nm);
-      // Video ID → the video creative in GAM (the videoId is a targeting value with no page of its own,
-      // so link it to the creative asset — same target as the creative name).
-      const vidCell = (_li && s.creativeId)
-        ? `<a class="split-vid-link" href="${gamCreativeUrl(_li, s.creativeId)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${esc(s._videoId || '—')}</a>`
+      // Video ID → the GAM creative the COMPLETION RATE is measured on (the video's tracking creative +
+      // its line item, from the video-stats map) — deliberately a different creative/LI than the split's
+      // own display creative above. Plain text until the video-stats cache carries those ids.
+      const vidCell = (s._complLineItemId && s._complCreativeId)
+        ? `<a class="split-vid-link" href="${gamCreativeUrl(s._complLineItemId, s._complCreativeId)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${esc(s._videoId || '—')}</a>`
         : esc(s._videoId || '—');
       const hasSeg = !!(s.seg && s.seg.byKey && Object.keys(s.seg.byKey).length);
       const caret = hasSeg ? '<span class="split-caret">▸</span>' : '';
@@ -2311,6 +2316,7 @@
       const res = await fetch('/api/video-stats');
       if (!res.ok) return;
       const vsData = await res.json(); // { videoId: {...} } or { videoId_device: {...} } for multi-device videos
+      videoStats = vsData;             // kept so the split view can deep-link the Video ID to its completion-source creative
       allRows.forEach(r => {
         if (!r.videoId) return;
         const d = vsData[r.videoId + '_' + r.device] ?? vsData[r.videoId];
