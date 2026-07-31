@@ -690,12 +690,11 @@
 
     /* ---- Data table (grid) ---- */
     .toolbar, #advFilterBar { display: none; }   /* old filter bar hidden until Phase 4b */
-    .rd-table { border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
-    /* The table body scrolls inside its own bounded region (both axes) so a wide grid never spills a
-       page-level horizontal scrollbar, and the header can stick to the top of THIS region. */
-    .rd-scroll { overflow: auto; max-height: calc(100vh - 64px); }
-    /* Sticky table header row — pinned to the top of the scroll region; the filter bar stays above it. */
-    #rdHead { position: sticky; top: 0; z-index: 20; }
+    .rd-table { border: 1px solid var(--border); border-radius: 16px; overflow: visible; }
+    .rd-scroll { overflow: visible; }
+    /* Filter bar AND table header both pin to the viewport as the WHOLE page scrolls (the overview
+       panel scrolls away normally). Header sits just below the sticky filter. */
+    #rdHead { position: sticky; top: 50px; z-index: 20; }
     .rd-hrow, .rd-row { display: grid; align-items: center; padding: 14px 20px; gap: 20px; }
     .rd-hrow { background: var(--panel-bg); border-bottom: 1px solid var(--border); font-size: 10.5px; font-weight: 500; color: var(--text-sub); border-radius: 16px 16px 0 0; }
     .rd-hrow .rd-sortable { cursor: pointer; white-space: nowrap; user-select: none; }
@@ -734,8 +733,8 @@
     .rd-all.on { background: var(--accent); border-color: var(--accent); color: #fff; }
     .rd-dd-btn.active { color: var(--accent); border-color: var(--accent); }
     .rd-caret { font-size: 9px; }
-    /* Native Sort select gets a matching chevron so every filter dropdown reads the same. */
-    .rd-sort { appearance: none; -webkit-appearance: none; padding-right: 34px;
+    /* Every filter dropdown (multi-selects + the Sort select) shows the SAME chevron. */
+    .rd-sort, .rd-dd-btn { appearance: none; -webkit-appearance: none; padding-right: 34px;
       background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="7" viewBox="0 0 10 7"><path d="M1 1l4 4 4-4" stroke="%237b869c" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>');
       background-repeat: no-repeat; background-position: right 14px center; }
     .rd-flagged { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--bad); background: #FFE9ED; color: var(--bad); padding: 9px 16px; border-radius: 20px; font-size: 12.5px; font-weight: 700; font-family: var(--font); cursor: pointer; }
@@ -1861,7 +1860,7 @@
                      : `~${Math.round(ageHrs)} hours ago`;
       el.textContent = 'Data as of: ' + ts.toLocaleString('en-GB') + ' (' + ageLabel + ')';
       el.dataset.ts = data.lastFetched;
-      el.style.color = ageHrs > 6 ? '#f59e0b' : ageHrs > 4 ? '#fbbf24' : '';
+      el.style.color = 'var(--text)';   // always the normal (near-black) text colour, not age-tinted
 
       // The server sets `cached` when it couldn't reach GAM live and served the last saved
       // snapshot instead. `cacheReason` says WHY, so we show an honest message: a network
@@ -2170,7 +2169,7 @@
   function rdClearAll(){ fCats.clear(); fAdvs.clear(); fStatuses.clear(); activeAdUnits.clear(); flaggedOnly=false; sortMode='recent'; sortCol='sortKey'; sortDir=-1; _openDD=null; const sb=document.getElementById('searchBox'); if(sb) sb.value=''; renderTable(); renderFilterBar(); }
   function rdSearchInput(){ renderTable(); const rc=document.querySelector('.rd-results'); if(rc) rc.textContent='Results · '+lastResultCount; }
   function _ddPanel(group, opts){ return `<div class="rd-dd-panel"><button class="rd-dd-clear" onclick="rdClearGroup('${group}')">Deselect all</button>${opts.map(o=>`<label class="rd-dd-opt"><input type="checkbox" ${o.checked?'checked':''} onchange="${o.onchange}">${esc(o.label)}</label>`).join('')}</div></div>`; }
-  function _dd(name, label, count, panel){ const active = count>0; return `<div class="rd-dd${_openDD===name?' open':''}"><button class="rd-dd-btn${active?' active':''}" onclick="event.stopPropagation();rdToggleDD('${name}')">${label}${count?` (${count})`:''} <span class="rd-caret">▾</span></button>${panel}`; }
+  function _dd(name, label, count, panel){ const active = count>0; return `<div class="rd-dd${_openDD===name?' open':''}"><button class="rd-dd-btn${active?' active':''}" onclick="event.stopPropagation();rdToggleDD('${name}')">${label}${count?` (${count})`:''}</button>${panel}`; }
   function renderFilterBar(){
     const bar = document.getElementById('rdFilter'); if(!bar) return;
     const tabRows = allRows.filter(r => r.device === activeTab);
@@ -2197,7 +2196,7 @@
 
   // ── v3 table helpers (designer's grid layout, wired to our real data) ──
   const RD_STATUS = { delivering:['#2f9b46','Delivering'], ready:['#E99402','Ready'], paused:['#e14a5e','Paused'], inactive:['#8B93B0','Inactive'] };
-  function rdGridStyle(isVideo){ return 'display:grid;grid-template-columns:' + (editMode?'48px ':'') + '190px 190px 60px' + (isVideo?' 130px':'') + ' 110px 100px 100px 110px;gap:20px'; }
+  function rdGridStyle(isVideo){ return 'display:grid;grid-template-columns:' + (editMode?'48px ':'') + 'minmax(120px,190px) 190px 60px' + (isVideo?' 130px':'') + ' 110px 100px 100px 110px;gap:20px'; }
   function sortArrow(c){ return sortCol===c ? (sortDir>0?' ▲':' ▼') : ''; }
   function rdStatusChip(liveStatus){ const m = RD_STATUS[liveStatus]; if(!m) return ''; return `<div class="rd-status" style="--sc:${m[0]}"><span class="rd-sdot"${liveStatus==='delivering'?' data-pulse="1"':''}></span>${m[1]}</div>`; }
   // Every CTR/Viewability value gets a pill: good/warn/bad vs our real benchmark when gated (≥2000 imps + live),
