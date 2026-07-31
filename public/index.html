@@ -1071,6 +1071,8 @@
   // The master list of advertiser NAMES (created in Filter settings), persisted in the url-advertisers store
   // under the reserved "__names" key so a new advertiser exists before it's assigned to any creative.
   let advertiserNames = new Set();
+  let nameOverrides = {};   // { netlifyUrl: customName } — saved display-name overrides, applied to rows on load
+  function applyNameOverrides(){ if (!nameOverrides || !allRows) return; allRows.forEach(r => { const n = nameOverrides[r.netlifyUrl]; if (n) r.advertiser = n; }); }
 
   // ── Alert system ──────────────────────────────────────────────────────────
   // Colours CTR / Viewability / Completion cells by how they compare to the estate AVERAGE (the
@@ -1187,11 +1189,12 @@
 
   async function loadTagRules() {
     try {
-      const [rulesRes, urlTagsRes, acksRes, advRes] = await Promise.all([fetch('/api/tag-rules'), fetch('/api/url-tags'), fetch('/api/alert-acks'), fetch('/api/url-advertisers')]);
+      const [rulesRes, urlTagsRes, acksRes, advRes, nameRes] = await Promise.all([fetch('/api/tag-rules'), fetch('/api/url-tags'), fetch('/api/alert-acks'), fetch('/api/url-advertisers'), fetch('/api/advertiser')]);
       if (rulesRes.ok)   tagRules       = await rulesRes.json();
       if (urlTagsRes.ok) urlTags        = await urlTagsRes.json();
       if (acksRes.ok)    alertAcks      = (await acksRes.json()) || {};
       if (advRes.ok)   { urlAdvertisers = (await advRes.json()) || {}; advertiserNames = new Set(urlAdvertisers.__names || []); delete urlAdvertisers.__names; }
+      if (nameRes.ok)  { nameOverrides = (await nameRes.json()) || {}; applyNameOverrides(); }
     } catch(e) {}
     renderTags();
     renderAdvertiserFilter();
@@ -1900,6 +1903,7 @@
       // then silently corrects on the next render/tab switch. loadTagRules() was kicked off at
       // init concurrently with this fetch, so this normally resolves with no added delay.
       try { await window.__boot; } catch(e) {}
+      applyNameOverrides();   // re-apply saved display-name overrides so they survive a refresh
 
       const ts = new Date(data.lastFetched);
       const ageMs = Date.now() - ts.getTime();
@@ -2303,6 +2307,7 @@
     if (name && rows.length && rows.some(r => r.advertiser !== name)) {
       fetch('/api/advertiser', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url, name }) }).catch(()=>{});
       rows.forEach(r => r.advertiser = name);
+      nameOverrides[url] = name;   // keep the local override map in sync so it persists on the next render/refresh
     }
     setUrlAdvertiser(url, adv || null);   // persists + re-renders
     setUrlTag(url, cat || null);
@@ -2675,6 +2680,7 @@
           body: JSON.stringify({ url, name: newName }),
         }).catch(() => {});
         allRows.filter(r => r.netlifyUrl === url).forEach(r => r.advertiser = newName);
+        nameOverrides[url] = newName;
       }
     }
     input.addEventListener('blur', save);

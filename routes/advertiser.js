@@ -1,47 +1,40 @@
 'use strict';
 
 /*
- * Advertiser name routes — GET and PUT endpoints for reading and overriding the
- * human-readable advertiser name shown in the dashboard for a given Netlify URL.
- * Names are stored as plain-text .txt files in SCREENSHOT_DIR, keyed by an MD5
- * hash of the base URL, so they persist across dashboard refreshes.
+ * Advertiser display-NAME routes — the human-readable name shown in the "Creative" column, overridable
+ * per Netlify URL. Stored as a single JSON map { url: name } in SCREENSHOT_DIR/url_names.json so the
+ * client can bulk-load every override on start-up and re-apply them after each refresh. (The GAM pipeline
+ * only produces the auto-derived slug name, so without applying these overrides on load the edit reverts.)
  */
 
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const crypto = require('crypto');
 const { slugToName } = require('../lib/utils');
 
 const router = express.Router();
 
 module.exports = function(SCREENSHOT_DIR) {
+  const NAMES_PATH = path.join(SCREENSHOT_DIR, 'url_names.json');
+  const readMap = () => { try { return fs.existsSync(NAMES_PATH) ? JSON.parse(fs.readFileSync(NAMES_PATH, 'utf8')) : {}; } catch(e) { return {}; } };
 
-  /* Returns the display name for a Netlify URL.
-   * Accepts ?url=<netlify-url>. Reads from the cached .txt file if present,
-   * otherwise falls back to deriving a name from the URL slug. */
+  /* GET (no ?url) returns the whole { url: name } map; GET ?url=<netlify-url> returns { name } for one URL
+   * (falling back to the derived slug name), for the per-row lookup. */
   router.get('/api/advertiser', (req, res) => {
+    const map = readMap();
     const rawUrl = req.query.url;
-    if (!rawUrl) return res.status(400).json({ error: 'Missing URL' });
-    let baseUrl;
-    try { const u = new URL(rawUrl.trim()); baseUrl = `${u.protocol}//${u.host}/`; } catch(e) { baseUrl = rawUrl; }
-    const hash = crypto.createHash('md5').update(baseUrl).digest('hex');
-    const txtPath = path.join(SCREENSHOT_DIR, `${hash}.txt`);
-    // The .txt file is the same hash-based file written by the screenshot route;
-    // reusing it here avoids a separate name-cache store.
-    const name = fs.existsSync(txtPath) ? fs.readFileSync(txtPath, 'utf8').trim() : slugToName(baseUrl);
-    res.json({ name });
+    if (!rawUrl) return res.json(map);
+    let baseUrl; try { const u = new URL(rawUrl.trim()); baseUrl = `${u.protocol}//${u.host}/`; } catch(e) { baseUrl = rawUrl; }
+    res.json({ name: map[rawUrl] || map[baseUrl] || slugToName(baseUrl) });
   });
 
-  /* Saves a custom display name for a Netlify URL.
-   * Expects a JSON body with { url, name }. Persists to the hash-keyed .txt file. */
+  /* PUT { url, name } upserts the override (empty/absent name deletes it). */
   router.put('/api/advertiser', express.json(), (req, res) => {
     const { url, name } = req.body || {};
-    if (!url || !name) return res.status(400).json({ error: 'Missing url or name' });
-    let baseUrl;
-    try { const u = new URL(url.trim()); baseUrl = `${u.protocol}//${u.host}/`; } catch(e) { baseUrl = url; }
-    const hash = crypto.createHash('md5').update(baseUrl).digest('hex');
-    fs.writeFileSync(path.join(SCREENSHOT_DIR, `${hash}.txt`), name.trim());
+    if (!url) return res.status(400).json({ error: 'Missing url' });
+    const map = readMap();
+    if (name && String(name).trim()) map[url] = String(name).trim(); else delete map[url];
+    fs.writeFileSync(NAMES_PATH, JSON.stringify(map, null, 2));
     res.json({ ok: true });
   });
 
