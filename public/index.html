@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -265,11 +265,15 @@
     .split-view { color:#1aab6d; }
     .split-comp { color:#d98324; }
     .split-vid  { color:#6a7387;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap; }
-    .split-name { max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:#1a1a2e; }
+    .split-table td.split-name { max-width:320px;vertical-align:top; }
+    .split-cname { display:block;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:#1a1a2e; }
     .split-name-link { color:#2563b8;text-decoration:none; }
     .split-name-link:hover { text-decoration:underline; }
     .split-vid-link { color:#2563b8;text-decoration:none; }
     .split-vid-link:hover { text-decoration:underline; }
+    .split-li { white-space:normal;font-size:10px;font-weight:500;color:#8a93a6;margin-top:3px;line-height:1.35; }
+    .split-li a { color:#6a7387;text-decoration:none; }
+    .split-li a:hover { color:#2563b8;text-decoration:underline; }
     .split-kv { display:inline-block;font-size:10px;padding:1px 7px;margin:1px 4px 1px 0;border-radius:10px;background:#eef1f8;border:1px solid #dfe4ee;color:#42506b; }
     .split-dash { color:#c0c6d2; }
     .split-total-row td { font-weight:800;color:#1a1a2e;border-top:2px solid #d5dced;border-bottom:none;background:#f0f4ff; }
@@ -631,6 +635,7 @@
     .sb-tile .t-lbl { color: #FCFCFC; font-size: 13px; font-weight: 600; }
     .sb-tile .t-val { color: var(--accent); font-size: 26px; font-weight: 800; margin-top: 5px; font-variant-numeric: tabular-nums; }
     .sb-tile .t-sub { color: #FCFCFC; font-size: 10px; margin-top: 2px; font-weight: 500; }
+    .sb-tiles { display: flex; flex-direction: column; gap: 10px; }
     .sidebar.collapsed .sb-tiles { display: none; }
 
     /* Main */
@@ -679,6 +684,9 @@
     .rd-row:last-child { border-bottom: none; }
     .rd-row.crit { background: var(--crit-row-tint); color: var(--crit-row-text); box-shadow: inset 4px 0 0 var(--crit-bar); }
     .rd-row.crit .rd-cname, .rd-row.crit .rd-num { color: var(--crit-row-text); }
+    /* Acked but still underperforming: keep the red left bar (persistent marker) but drop the loud
+       row tint. The bar stays until the metric recovers out of red. */
+    .rd-row.acked-red { box-shadow: inset 4px 0 0 var(--crit-bar); }
     .rd-edit-btn { width: 30px; height: 30px; border-radius: 50%; border: none; background: var(--chip-bg); display: flex; align-items: center; justify-content: center; }
     .rd-edit-btn img { width: 13px; height: 13px; }
     :root[data-theme="dark"] .rd-edit-btn img { filter: brightness(0) invert(1); }
@@ -789,7 +797,7 @@
       <button class="sb-tool" onclick="openFilterSettings()"><img src="/redesign/assets/icons/edit-filter.svg" alt=""><span class="lbl">Filter settings</span></button>
       <button class="sb-tool" id="editModeBtn" onclick="toggleEditMode()"><img src="/redesign/assets/icons/svg/edit-white.svg" alt=""><span class="lbl">Edit mode | Off</span></button>
     </div>
-    <div class="sb-tiles" style="display:flex;flex-direction:column;gap:10px">
+    <div class="sb-tiles">
       <div class="sb-tile"><div class="t-lbl">Total Infinity served</div><div class="t-val" id="statAllImps">—</div><div class="t-sub">All sections combined</div></div>
       <div class="sb-tile"><div class="t-lbl">Clicks collected</div><div class="t-val" id="statAllClicks">—</div><div class="t-sub">All sections combined</div></div>
     </div>
@@ -1372,12 +1380,19 @@
       const nameCell = (_li && s.creativeId)
         ? `<a class="split-name-link" href="${gamCreativeUrl(_li, s.creativeId)}" target="_blank" rel="noopener">${esc(nm)}</a>`
         : esc(nm);
-      // Video ID → the GAM creative the COMPLETION RATE is measured on (the tracking creative + its LI).
+      // Line item id(s) — a muted, clickable sub-line under the creative name (there if needed, never in the way).
+      const liSub = (s.lineItemIds && s.lineItemIds.length)
+        ? `<div class="split-li">${[...new Set(s.lineItemIds)].map(id => `<a href="${gamLineItemUrl(id)}" target="_blank" rel="noopener" title="Open line item ${esc(id)} in GAM">LI ${esc(id)}</a>`).join(' · ')}</div>`
+        : '';
+      // Video ID → the GAM creative the COMPLETION RATE is measured on (tracking creative + its LI) when known;
+      // otherwise fall back to this creative's own line item so the Video ID is ALWAYS clickable.
       const vidCell = (s._complLineItemId && s._complCreativeId)
         ? `<a class="split-vid-link" href="${gamCreativeUrl(s._complLineItemId, s._complCreativeId)}" target="_blank" rel="noopener">${esc(s._videoId || '—')}</a>`
+        : (_li && s._videoId)
+        ? `<a class="split-vid-link" href="${gamLineItemUrl(_li)}" target="_blank" rel="noopener" title="Completion-source creative unknown — opens this creative's line item">${esc(s._videoId)}</a>`
         : esc(s._videoId || '—');
       return `<tr class="split-row${_anyRed ? ' alert-line-red' : ''}">
-        <td class="split-name" title="${esc(nm)}">${nameCell}</td>
+        <td class="split-name" title="${esc(nm)}"><span class="split-cname">${nameCell}</span>${liSub}</td>
         <td class="num split-imp">${num(s.impressions)}</td>
         <td class="num split-clk">${num(s.clicks)}</td>
         <td class="num split-ctr">${rdPerfPill(ctrNum, ctrBench, _gated, 'expected for its inventory')}</td>
@@ -2092,7 +2107,7 @@
   let fCats = new Set(), fAdvs = new Set(), fStatuses = new Set();
   let flaggedOnly = false, sortMode = 'recent', _openDD = null;
   let lastResultCount = 0, lastFlaggedCount = 0;
-  let rowMetrics = {}, critUrls = new Set(), rdEditUrl = null;   // per-render: url→{ctr,view,compl} + which are critical (for Edit modal + looked-into)
+  let rowMetrics = {}, critUrls = new Set(), redUrls = new Set(), rdEditUrl = null;   // per-render: url→{ctr,view,compl}; critUrls = unacked red (flagged count), redUrls = ALL underperforming (acked or not) for the Edit-modal re-flag toggle
   const RD_STATUS_OPTS = [['delivering','Delivering'],['ready','Ready'],['paused','Paused'],['inactive','Inactive']];
   // Structural filters shared by the table, the Overview cards, and the CTR totals (search handled separately).
   function passFilters(r){
@@ -2146,7 +2161,9 @@
   // neutral grey when we don't have the sample to judge. ⚠ prefix on bad (matches the design).
   function rdPerfPill(value, benchmark, gated, ofLabel){ if(value==null) return '<span class="pill neutral">—</span>'; const disp = value + '%'; if(!gated) return `<span class="pill neutral">${disp}</span>`; const lvl = alertLevel(value, benchmark).level; const band = lvl==='red'?'bad':lvl==='orange'?'warn':'good'; const ic = band==='bad'?'⚠ ':''; return `<span class="pill ${band}"${alertCellTitle(value, benchmark, gated, ofLabel)}>${ic}${disp}</span>`; }
   // Videos column: one row per video (stacked). Completion pill grey normally, RED only under the flat 20% rule.
-  function rdVideoCell(videos, gated){ const vids = (videos||[]).filter(v => v.completionRate != null); if(!vids.length) return '<span class="pill neutral">—</span>'; return vids.map(v => { const red = gated && v.completionRate < ALERT_COMPL_MIN; const bk = durationBucket(v.durationSec); const label = bk === '15s' ? 'Short-form (~15s)' : bk === '30s' ? 'Long-form (~30s)' : 'Video'; return `<div class="rd-vid"><span class="rd-vid-fmt">${label}</span><span class="pill ${red?'bad':'neutral'}">${v.completionRate}%</span></div>`; }).join(''); }
+  // One pill per duration bucket — completion AVERAGED across the group's videos for Long- and
+  // Short-form (weighted by video starts), not one pill per individual video. Red only under the flat floor.
+  function rdVideoCell(videos, gated){ const buckets = videoBucketData(videos || []); if(!buckets.length) return '<span class="pill neutral">—</span>'; return buckets.map(({bucket, avg}) => { const red = gated && avg < ALERT_COMPL_MIN; const label = bucket === '15s' ? 'Short-form (~15s)' : bucket === '30s' ? 'Long-form (~30s)' : 'Video'; return `<div class="rd-vid"><span class="rd-vid-fmt">${label}</span><span class="pill ${red?'bad':'neutral'}">${avg}%</span></div>`; }).join(''); }
   function rdPreview(url, encodedUrl, sub, device){ return `<a class="rd-preview" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(url)}"><img class="thumb-img lazy" data-src="/api/screenshot?url=${encodedUrl}&device=${device}" data-fallback="/screenshots/${sub}-${device}.png" data-advertiser-url="${encodedUrl}" alt="preview"></a>`; }
   function rdSplit(encodedUrl, device){ return `<div class="rd-split"><button class="rd-split-btn" data-url="${encodedUrl}" data-device="${device}" onclick="event.stopPropagation();openSplitFromBtn(this)" title="Creative split"><img src="/redesign/assets/icons/svg/split.svg" alt="split"></button></div>`; }
   function rdEditCell(encodedUrl){ return editMode ? `<div><button class="rd-edit-btn" onclick="openRowEdit('${encodedUrl}')" title="Edit"><img src="/redesign/assets/icons/svg/edit-black.svg" alt="edit"></button></div>` : ''; }
@@ -2162,7 +2179,7 @@
     const enc = encodeURIComponent(url);
     const cats = [...new Set([...DEFAULT_CATS, ...Object.keys(tagRules), ...Object.values(urlTags)])].filter(Boolean);
     const advs = allAdvertisers();
-    const flagged = critUrls.has(url);
+    const flagged = redUrls.has(url);   // red rows only (acked or not) — lets people re-flag a looked-into row
     const looked = !!alertAcks[alertRowKey(url)];
     const opt = (v, sel) => `<option value="${esc(v)}"${v===sel?' selected':''}>${esc(v)}</option>`;
     document.getElementById('rdEditBody').innerHTML =
@@ -2269,7 +2286,7 @@
     fetch('/api/url-advertisers', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ [op]: name }) }).catch(()=>{});
   }
   function rdRow(o){
-    return `<div class="rd-row${o.crit?' crit':''}" style="${rdGridStyle(o.isVideo)}">`
+    return `<div class="rd-row${o.crit?' crit':o.ackedRed?' acked-red':''}" style="${rdGridStyle(o.isVideo)}">`
       + rdEditCell(o.encodedUrl)
       + `<div class="rd-creative"><div class="rd-cname" title="${esc(o.name)}">${esc(o.name)}</div>${rdStatusChip(o.liveStatus)}</div>`
       + rdPreview(o.url, o.encodedUrl, o.sub, o.device)
@@ -2362,13 +2379,14 @@
         const _ack = alertAcks[alertRowKey(g.netlifyUrl)];
         const _worse = !!_ack && ((ctr != null && _ack.ctr != null && ctr < _ack.ctr * ALERT_WORSE) || (g.activeView != null && _ack.activeView != null && g.activeView < _ack.activeView * ALERT_WORSE) || (g.completionRate != null && _ack.completionRate != null && g.completionRate < _ack.completionRate * ALERT_WORSE));
         const crit = _anyRed && !(_ack && !_worse);   // #FFE9ED critical row until acked in the Edit modal
+        const ackedRed = _anyRed && !!_ack && !_worse; // acked but still red → keep the left bar, drop the tint
         const encodedUrl = encodeURIComponent(g.netlifyUrl);
         const sub = (g.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
-        return { crit, url: g.netlifyUrl, ctr, view: g.activeView, compl: g.completionRate, html: rdRow({ crit, encodedUrl, url: g.netlifyUrl, name: g.advertiser, liveStatus: g.liveStatus, isVideo: true, videos: g.videos, device: activeTab, sub, imps: g.impressions || 0, clicks: g.clicks || 0, ctr, ctrBench: _ctrBench, view: g.activeView, viewBench: BENCH.view, gated: _gated }) };
+        return { crit, ackedRed, red: _anyRed, url: g.netlifyUrl, ctr, view: g.activeView, compl: g.completionRate, html: rdRow({ crit, ackedRed, encodedUrl, url: g.netlifyUrl, name: g.advertiser, liveStatus: g.liveStatus, isVideo: true, videos: g.videos, device: activeTab, sub, imps: g.impressions || 0, clicks: g.clicks || 0, ctr, ctrBench: _ctrBench, view: g.activeView, viewBench: BENCH.view, gated: _gated }) };
       });
       lastFlaggedCount = built.filter(b => b.crit).length;
-      rowMetrics = {}; critUrls.clear();
-      for (const b of built) { rowMetrics[b.url] = { ctr: b.ctr, view: b.view, compl: b.compl }; if (b.crit) critUrls.add(b.url); }
+      rowMetrics = {}; critUrls.clear(); redUrls.clear();
+      for (const b of built) { rowMetrics[b.url] = { ctr: b.ctr, view: b.view, compl: b.compl }; if (b.crit) critUrls.add(b.url); if (b.red) redUrls.add(b.url); }
       const shown = flaggedOnly ? built.filter(b => b.crit) : built;
       lastResultCount = shown.length;
       tbody.innerHTML = shown.length ? shown.map(b => b.html).join('') : '<div class="rd-empty">No creatives match your filters.</div>';
@@ -2387,13 +2405,14 @@
       const _ack = alertAcks[alertRowKey(r.netlifyUrl)];
       const _worse = !!_ack && ((_fCtr != null && _ack.ctr != null && _fCtr < _ack.ctr * ALERT_WORSE) || (r.activeView != null && _ack.activeView != null && r.activeView < _ack.activeView * ALERT_WORSE));
       const crit = _anyRed && !(_ack && !_worse);   // #FFE9ED critical row until acked in the Edit modal
+      const ackedRed = _anyRed && !!_ack && !_worse; // acked but still red → keep the left bar, drop the tint
       const encodedUrl = encodeURIComponent(r.netlifyUrl);
       const sub = (r.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
-      return { crit, url: r.netlifyUrl, ctr: _fCtr, view: r.activeView, compl: null, html: rdRow({ crit, encodedUrl, url: r.netlifyUrl, name: r.advertiser, liveStatus: r.liveStatus, isVideo: false, videos: null, device: activeTab, sub, imps: _rfs.impressions || 0, clicks: _rfs.clicks || 0, ctr: _fCtr, ctrBench: _ctrBench, view: r.activeView, viewBench: BENCH.view, gated: _gated }) };
+      return { crit, ackedRed, red: _anyRed, url: r.netlifyUrl, ctr: _fCtr, view: r.activeView, compl: null, html: rdRow({ crit, ackedRed, encodedUrl, url: r.netlifyUrl, name: r.advertiser, liveStatus: r.liveStatus, isVideo: false, videos: null, device: activeTab, sub, imps: _rfs.impressions || 0, clicks: _rfs.clicks || 0, ctr: _fCtr, ctrBench: _ctrBench, view: r.activeView, viewBench: BENCH.view, gated: _gated }) };
     });
     lastFlaggedCount = built.filter(b => b.crit).length;
-    rowMetrics = {}; critUrls.clear();
-    for (const b of built) { rowMetrics[b.url] = { ctr: b.ctr, view: b.view, compl: b.compl }; if (b.crit) critUrls.add(b.url); }
+    rowMetrics = {}; critUrls.clear(); redUrls.clear();
+    for (const b of built) { rowMetrics[b.url] = { ctr: b.ctr, view: b.view, compl: b.compl }; if (b.crit) critUrls.add(b.url); if (b.red) redUrls.add(b.url); }
     const shown = flaggedOnly ? built.filter(b => b.crit) : built;
     lastResultCount = shown.length;
     tbody.innerHTML = shown.length ? shown.map(b => b.html).join('') : '<div class="rd-empty">No creatives match your filters.</div>';
@@ -2618,13 +2637,19 @@
   let editMode = false;
   const SECTION_LABEL = { desktop:'Desktop Skin', video:'Desktop Video Skin', mobile:'Mobile Scroll', 'video-mobile':'Mobile Video Scroll' };
 
-  function toggleTheme() {
-    const r = document.documentElement;
-    const goDark = r.getAttribute('data-theme') !== 'dark';
-    r.setAttribute('data-theme', goDark ? 'dark' : 'light');
+  // Day mode is the default (data-theme="light" on <html>); the user's choice is remembered.
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
     const img = document.querySelector('.theme-toggle img');
-    if (img) img.src = '/redesign/assets/icons/svg/' + (goDark ? 'light' : 'dark') + '.svg';
+    // Icon shows the mode you'd switch TO: moon while light, sun while dark.
+    if (img) img.src = '/redesign/assets/icons/svg/' + (theme === 'dark' ? 'light' : 'dark') + '.svg';
   }
+  function toggleTheme() {
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    try { localStorage.setItem('infDashTheme', next); } catch(e){}
+    applyTheme(next);
+  }
+  (function initTheme(){ let t='light'; try { t = localStorage.getItem('infDashTheme') || 'light'; } catch(e){} applyTheme(t); })();
   function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
   function toggleEditMode() {
     editMode = !editMode;
@@ -2697,9 +2722,16 @@
       el.textContent = n; el.classList.toggle('on', n > 0);
     });
   }
-  // Auto-collapse the sidebar after idle, expand on hover (faithful to the prototype).
-  let _sbIdle = setTimeout(() => document.getElementById('sidebar')?.classList.add('collapsed'), 10000);
-  document.getElementById('sidebar')?.addEventListener('mouseenter', () => { clearTimeout(_sbIdle); document.getElementById('sidebar').classList.remove('collapsed'); });
+  // Auto-collapsing sidebar: collapsed by default (the Total-served / Clicks tiles hide with it),
+  // expands on hover, re-collapses shortly after the pointer leaves. The toggle button still works
+  // for a manual flip in between.
+  (function autoCollapseSidebar(){
+    const sb = document.getElementById('sidebar'); if (!sb) return;
+    sb.classList.add('collapsed');
+    let t;
+    sb.addEventListener('mouseenter', () => { clearTimeout(t); sb.classList.remove('collapsed'); });
+    sb.addEventListener('mouseleave', () => { clearTimeout(t); t = setTimeout(() => sb.classList.add('collapsed'), 450); });
+  })();
   // Refresh the shell title whenever the tab changes (wrap the kept setTab, no edit to its body).
   const _origSetTab = setTab;
   setTab = function(tab) {
