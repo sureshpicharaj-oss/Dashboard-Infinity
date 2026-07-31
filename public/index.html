@@ -803,6 +803,9 @@
     .split-body-block { padding: 4px 32px 32px; }
     .split-format { font-size: 19px; font-weight: 800; color: var(--text); margin-bottom: 4px; text-transform: capitalize; }
     .split-sub2 { font-size: 13px; font-weight: 500; color: var(--text-sub); margin: 0 0 20px; }
+    .split-licheck { display: flex; flex-direction: column; gap: 8px; }
+    .split-licheck-h { font-size: 12.5px; font-weight: 700; color: var(--text); }
+    .split-licheck a { color: #008EF1; text-decoration: underline; font-weight: 700; font-size: 13px; width: fit-content; }
     .split-tablewrap { border: 1px solid var(--border); border-radius: 16px; max-height: 440px; overflow: auto; }
     .split-ghead { position: sticky; top: 0; z-index: 4; background: var(--panel-bg); border-bottom: 1px solid var(--border); padding: 12px 20px; font-size: 10.5px; font-weight: 600; color: var(--text-sub); border-radius: 16px 16px 0 0; align-items: center; }
     .split-grow { padding: 14px 20px; border-bottom: 1px solid var(--border); align-items: center; position: relative; font-size: 13.5px; }
@@ -1430,9 +1433,15 @@
       + `<div class="split-head-name" title="${esc(name)}">${esc(name)}</div>`
       + `<div class="split-head-url">Preview URL: <a href="${esc(url)}" target="_blank" rel="noopener">${esc(shortUrl(url))}</a></div>`
       + `</div><div class="split-head-preview"><img src="/api/screenshot?url=${enc}&device=${device}${_bust(enc)}" onerror="this.onerror=null;this.src='/screenshots/${sub}-${device}.png'" alt="preview"></div></div>`;
+    // No per-creative delivery yet (e.g. a Ready line): we don't have creative-level data, but we do have
+    // the line item(s) — surface them as clickable GAM links so the setup can be health-checked.
+    const liIds = [...new Set(allRows.filter(r => r.netlifyUrl === url && r.device === device).flatMap(r => r.lineItemIds || []))];
+    const liCheck = liIds.length
+      ? `<div class="split-licheck"><div class="split-licheck-h">Open in Google Ad Manager to check the setup:</div>${liIds.map(id => `<a href="${gamLineItemUrl(id)}" target="_blank" rel="noopener">Line item ${esc(id)} ↗</a>`).join('')}</div>`
+      : '';
     const bodyBlock = list.length
       ? `<div class="split-body-block"><div class="split-format">${esc(fmtLabel)}</div><div class="split-sub2">Individual creatives that make up the combined row.</div>${splitTable(list, isVideo, bench, lineLive, ctrBench, parentAcked)}</div>`
-      : `<div class="split-body-block"><div class="split-format">${esc(fmtLabel)}</div><p class="split-sub2">No per-creative split data available for this row yet. Splits are produced by the daily refresh, so a newly-trafficked row may not have them until the next run.</p></div>`;
+      : `<div class="split-body-block"><div class="split-format">${esc(fmtLabel)}</div><p class="split-sub2">No per-creative delivery yet — per-creative splits appear once the line delivers (they're produced by the daily refresh).</p>${liCheck}</div>`;
     body.innerHTML = header + bodyBlock;
   }
 

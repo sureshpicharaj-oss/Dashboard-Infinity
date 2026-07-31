@@ -20,7 +20,7 @@ const GAM_INVENTORY_SOAP_ENDPOINT = 'https://ads.google.com/apis/ads/publisher/v
 const SCOPES = ['https://www.googleapis.com/auth/admanager'];
 
 // Orders whose creatives are completely excluded from the dashboard
-const EXCLUDED_ORDER_IDS = [3559958634];
+const EXCLUDED_ORDER_IDS = [3559958634, 3531877333];
 
 // Custom targeting key names that hold VIDEO_IDs on video-hosting line items.
 // GAM may use any of these depending on how the trafficker set up the line item.
