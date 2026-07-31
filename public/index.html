@@ -270,10 +270,49 @@
     .split-name-link:hover { text-decoration:underline; }
     .split-vid-link { color:#2563b8;text-decoration:none; }
     .split-vid-link:hover { text-decoration:underline; }
+    .split-kv { display:inline-block;font-size:10px;padding:1px 7px;margin:1px 4px 1px 0;border-radius:10px;background:#eef1f8;border:1px solid #dfe4ee;color:#42506b; }
     .split-dash { color:#c0c6d2; }
     .split-total-row td { font-weight:800;color:#1a1a2e;border-top:2px solid #d5dced;border-bottom:none;background:#f0f4ff; }
-    .split-total-row td:first-child { color:#2563b8; }
-    /* Transparent+ attention pill (dashboard column + splits) */
+    .split-total-row td:nth-child(2) { color:#2563b8; }
+    /* Per-creative segment dropdown (accordion) inside the splits table */
+    .split-caret-cell { width:22px;text-align:center !important;padding-right:0 !important; }
+    .split-caret { display:inline-block;color:#4f7fff;font-size:11px;transition:transform .15s; }
+    .split-row.has-seg { cursor:pointer; }
+    .split-row.has-seg:hover td { background:#eef3ff; }
+    .split-row.open td { background:#eef3ff; }
+    .split-row.open .split-caret { transform:rotate(90deg); }
+    .split-detail > td { background:#fbfcfe !important;padding:0 !important;white-space:normal;border-bottom:1px solid #e6e9f0; }
+    .split-detail-inner { padding:6px 14px 16px; }
+    .seg-detail-empty { color:#98a0b0;font-size:12px;padding:10px 4px;font-style:italic; }
+
+    /* Top-segment column chip */
+    .seg-cell { max-width:220px; }
+    .seg-none { color:#c8ccd6; }
+    .seg-chip { display:inline-block;max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;
+      font-size:11px;font-weight:600;padding:2px 9px;border-radius:11px;
+      background:#e7f7ef;color:#158a5a;border:1px solid #bfe8d3; }
+    .seg-chip .seg-k { color:#0d9488;font-weight:700; }
+    /* Performance-by-segment modal section */
+    .seg-section { margin-top:18px; }
+    .seg-key-block { margin:0 0 14px; }
+    .seg-key-title { font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#42506b;margin:0 0 6px; }
+    .seg-cols { display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start; }
+    .seg-cols > div { flex:0 1 360px;min-width:280px; }
+    .seg-empty { color:#c0c6d2;font-size:12px;padding:4px 0;font-style:italic; }
+    .seg-sub-h { font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin:0 0 4px; }
+    .seg-win { color:#158a5a; }
+    .seg-lose { color:#c0392b; }
+    .seg-item { display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;border-bottom:1px solid #f2f4f8; }
+    .seg-item-val { flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1a1a2e; }
+    .seg-item-ctr { font-weight:700;font-variant-numeric:tabular-nums; }
+    .seg-win ~ .seg-item .seg-item-ctr, .seg-item.win .seg-item-ctr { color:#158a5a; }
+    .seg-item-imp { color:#98a0b0;font-size:11px;font-variant-numeric:tabular-nums; }
+    /* Reach pill — share of the creative's delivered volume a segment carries */
+    .seg-reach { font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;white-space:nowrap;font-variant-numeric:tabular-nums;flex-shrink:0; }
+    .seg-reach.ok  { background:#e7f7ef;color:#158a5a;border:1px solid #bfe8d3; }
+    .seg-reach.mid { background:#fef3e7;color:#c47d1a;border:1px solid #f3dcc0; }
+    .seg-reach.low { background:#fdece9;color:#c0392b;border:1px solid #f2c9c2; }
+    /* Attention score pill (dashboard column + splits) */
     .attn-pill { display:inline-block;font-size:12px;font-weight:800;padding:2px 9px;border-radius:11px;
       font-variant-numeric:tabular-nums;min-width:34px;text-align:center; }
     .attn-pill.ok  { background:#e7f7ef;color:#158a5a;border:1px solid #bfe8d3; }
@@ -281,7 +320,10 @@
     .attn-pill.low { background:#fdece9;color:#c0392b;border:1px solid #f2c9c2; }
     .attn-pill.lowconf { opacity:.5;border-style:dashed; }
     .attn-none { color:#c8ccd6; }
-    /* Alert system — under-performing stat = compact pill with a pulsing glow; a red stat also tints the whole line. */
+    /* Alert system — cell RAG (vs the average card) + whole-row escalation. Higher specificity than
+       .ctr-cell.has-data (which forces green) so the alert colour wins on the CTR/Viewability cells. */
+    /* Under-performing stat → a compact pill with a pulsing glow (not a full-cell fill). Kept a light
+       fill so it still pops against the bright-red line tint. */
     .stat-flag { display:inline-block; padding:2px 10px; border-radius:11px; font-size:13px; font-weight:800; font-variant-numeric:tabular-nums; }
     .stat-flag.red    { background:#fde7e3; color:#a02418; border:1px solid #e0938a; animation: alertGlowRed 1.5s ease-in-out infinite; }
     .stat-flag.orange { background:#fef3e7; color:#b5700f; border:1px solid #eec79a; animation: alertGlowOrange 1.5s ease-in-out infinite; }
@@ -289,17 +331,53 @@
     .comp-pill.cell-alert-orange { background:#fef3e7; color:#b5700f; border:1px solid #eec79a; box-shadow:none; animation: alertGlowOrange 1.5s ease-in-out infinite; }
     @keyframes alertGlowRed    { 0%,100% { box-shadow:0 0 0 0 rgba(176,42,28,0); } 50% { box-shadow:0 0 0 3px rgba(176,42,28,.35); } }
     @keyframes alertGlowOrange { 0%,100% { box-shadow:0 0 0 0 rgba(196,125,26,0); } 50% { box-shadow:0 0 0 3px rgba(196,125,26,.28); } }
+    /* Full-line highlight — bright red so a "needs attention" line is unmissable. Dark stat text keeps
+       the row readable over the red. */
     tr.alert-line-red > td { background:#f4948b; }
     tr.alert-line-red > td:first-child { box-shadow: inset 6px 0 0 #a02418; }
     tr.alert-line-red > td.ctr-cell.has-data, tr.alert-line-red > td.num-cell.has-data { color:#3a1512; }
-    tr.alert-line-red.split-row > td { color:#3a1512; }
+    tr.alert-line-red.split-row > td { color:#3a1512; } /* same red line inside the splits modal */
+    @media (prefers-reduced-motion: reduce) {
+      .stat-flag.red, .stat-flag.orange, .comp-pill.cell-alert-red, .comp-pill.cell-alert-orange { animation: none; }
+    }
+    /* The "looked into" control lives in the Actions column, stacked under the tag/split icons. */
     .row-ack-btn { display:block;width:fit-content;background:#fdece9;border:1px solid #f2c9c2;color:#c0392b;border-radius:10px;font-size:10px;font-weight:700;padding:1px 7px;cursor:pointer;margin:5px 0 0;white-space:nowrap; }
     .row-ack-btn:hover { background:#c0392b;color:#fff;border-color:#c0392b; }
     .row-reviewed { display:block;width:fit-content;font-size:10px;color:#8a93a6;margin:5px 0 0;cursor:pointer;white-space:nowrap; }
     .row-reviewed:hover { color:#c0392b; }
-    @media (prefers-reduced-motion: reduce) {
-      .stat-flag.red, .stat-flag.orange, .comp-pill.cell-alert-red, .comp-pill.cell-alert-orange { animation: none; }
-    }
+    /* Performance-by-segment summary one-liners */
+    .seg-summary { background:#f6f8fc;border:1px solid #e6e9f0;border-radius:8px;padding:10px 14px;margin:0 0 18px; }
+    .seg-sum-row { font-size:13px;line-height:1.5;padding:3px 0;color:#1a1a2e; }
+    .seg-sum-tag { display:inline-block;min-width:74px;text-align:center;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:10px;margin-right:10px;vertical-align:middle; }
+    .seg-sum-tag.ctx { background:#eef3ff;color:#2563b8; }
+    .seg-sum-tag.aud { background:#fef0e7;color:#d9822b; }
+    .seg-sum-tag.perm { background:#f0eefb;color:#7b5ea7; }
+    .seg-summary b { color:#158a5a;font-variant-numeric:tabular-nums; }
+    .seg-sum-tag.safe { background:#e7f7ef;color:#158a5a; }
+    /* Reach caption, colour legend and honesty footnote */
+    .seg-caption { font-size:12px;color:#5b6472;line-height:1.45;margin:-6px 0 12px;font-style:italic; }
+    .seg-caption b { color:#158a5a;font-style:normal; }
+    .seg-basis { font-size:11px;line-height:1.45;margin:-4px 0 12px;font-weight:600; }
+    .seg-basis.ok { color:#158a5a; }
+    .seg-basis.warn { color:#b06a15; }
+    .seg-legend { font-size:11px;color:#6b7280;line-height:1.5;margin:2px 0 14px; }
+    .seg-legend .lg { display:inline-block;width:9px;height:9px;border-radius:3px;margin:0 4px 0 12px;vertical-align:middle;border:1px solid rgba(0,0,0,.08); }
+    .seg-legend .lg.ok { background:#158a5a; } .seg-legend .lg.mid { background:#c47d1a; } .seg-legend .lg.low { background:#c0392b; }
+    .seg-foot { font-size:11px;color:#98a0b0;line-height:1.5;margin:14px 0 0;border-top:1px solid #eef1f6;padding-top:8px; }
+    /* "Will it still deliver in full?" panel */
+    .seg-deliv { background:#f3f7ff;border:1px solid #dbe6fb;border-radius:8px;padding:12px 14px;margin:0 0 16px; }
+    .seg-deliv-h { font-size:12px;font-weight:800;letter-spacing:.03em;color:#1f3a68;margin:0 0 8px;text-transform:uppercase; }
+    .seg-deliv-note { font-size:13px;line-height:1.5;color:#28324a;margin:0 0 8px; }
+    .seg-deliv-note.ok  { color:#158a5a; }
+    .seg-deliv-note.mid { color:#b06a15; }
+    .seg-deliv-note.low { color:#c0392b;font-weight:600; }
+    .seg-deliv-row { font-size:13px;line-height:1.6;color:#28324a;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:2px 0; }
+    .seg-deliv-lab { display:inline-block;min-width:150px;font-weight:700;color:#42506b; }
+    .dv-badge { font-size:11px;font-weight:700;padding:1px 8px;border-radius:10px;white-space:nowrap; }
+    .dv-badge.ok  { background:#e7f7ef;color:#158a5a;border:1px solid #bfe8d3; }
+    .dv-badge.mid { background:#fef3e7;color:#c47d1a;border:1px solid #f3dcc0; }
+    .dv-badge.low { background:#fdece9;color:#c0392b;border:1px solid #f2c9c2; }
+    .seg-deliv-caveat { font-size:11px;color:#7a8397;line-height:1.45;margin:8px 0 0;font-style:italic; }
     .live-dot { display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle;flex-shrink:0; }
     .live-dot.delivering { background:#f59e0b;box-shadow:0 0 0 0 rgba(245,158,11,.6);animation:pulse-yellow 1.6s infinite; }
     .live-dot.ready      { background:#3b82f6;box-shadow:0 0 4px rgba(59,130,246,.7); }
@@ -495,82 +573,264 @@
     }
     .comp-pill.pending { background: #f5f5f5; color: #aaa; box-shadow: none; }
   </style>
+  <!-- ============ v3 redesign: fonts + design tokens + shell CSS ============ -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/redesign/tokens.css">
+  <style id="rd-shell">
+    /* ---- App shell ---- */
+    body { background: var(--page-bg); color: var(--text); font-family: var(--font); }
+    .app-shell { display: flex; min-height: 100vh; align-items: stretch; }
+
+    /* Sidebar */
+    .sidebar { flex: none; width: 264px; position: sticky; top: 0; align-self: flex-start; height: 100vh;
+      background: #0b1024 url('/redesign/assets/sidebar-bg.png') center/cover no-repeat;
+      border-radius: 0 22px 22px 0; padding: 22px 16px; box-sizing: border-box;
+      display: flex; flex-direction: column; gap: 18px; overflow: hidden; transition: width .18s ease; }
+    .sidebar.collapsed { width: 92px; padding: 22px 14px; }
+    .sb-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .sb-logo { height: 30px; width: auto; }
+    .sidebar.collapsed .sb-logo { display: none; }
+    .sb-toggle { flex: none; width: 40px; height: 40px; border-radius: 12px; border: none;
+      background: rgba(255,255,255,.12); display: flex; align-items: center; justify-content: center; }
+    .sb-toggle img { width: 18px; height: 18px; filter: brightness(0) invert(1); }
+    .sidebar.collapsed .sb-toggle img { transform: scaleX(-1); }
+    .sb-label { color: #92a1b4; font-size: 11px; font-weight: 600; letter-spacing: .04em; padding: 0 6px; }
+    .sidebar.collapsed .sb-label { text-align: center; padding: 0; }
+    .sb-nav { display: flex; flex-direction: column; gap: 8px; }
+    .sb-scroll { flex: 1; display: flex; flex-direction: column; gap: 18px; overflow-y: auto; min-height: 0; }
+    .sb-scroll::-webkit-scrollbar { display: none; }
+    .tab-btn { position: relative; border: none; cursor: pointer; height: 52px; border-radius: 999px;
+      background: rgba(255,255,255,.07); color: #fff; font-size: 14.5px; font-weight: 700; font-family: var(--font);
+      display: flex; align-items: center; gap: 12px; padding: 0 16px; width: 100%;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tab-btn::before { content: ''; flex: none; width: 22px; height: 22px; background-size: contain;
+      background-repeat: no-repeat; background-position: center; filter: brightness(0) invert(1); }
+    .tab-btn[data-tab="desktop"]::before      { background-image: url('/redesign/assets/icons/desktop.svg'); }
+    .tab-btn[data-tab="video"]::before         { background-image: url('/redesign/assets/icons/desktop-video.svg'); }
+    .tab-btn[data-tab="mobile"]::before        { background-image: url('/redesign/assets/icons/mobile.svg'); }
+    .tab-btn[data-tab="video-mobile"]::before  { background-image: url('/redesign/assets/icons/mobile-video.svg'); }
+    .tab-btn.active { background: var(--accent); }
+    .tab-btn .nav-badge { position: absolute; top: 8px; right: 14px; min-width: 18px; height: 18px; padding: 0 5px;
+      border-radius: 9px; background: var(--bad); color: #fff; font-size: 11px; font-weight: 800;
+      display: none; align-items: center; justify-content: center; }
+    .tab-btn .nav-badge.on { display: flex; }
+    .sidebar.collapsed .tab-btn { width: 52px; height: 52px; border-radius: 50%; padding: 0; justify-content: center; margin: 0 auto; }
+    .sidebar.collapsed .tab-btn .nav-badge { top: 4px; right: -2px; }
+    .sidebar.collapsed .tab-btn .lbl { display: none; }
+    /* Sidebar tools */
+    .sb-tool { border: none; cursor: pointer; width: 100%; border-radius: 999px; height: 46px; padding: 0 16px;
+      background: rgba(255,255,255,.1); color: #fff; font-size: 13.5px; font-weight: 700; font-family: var(--font);
+      display: flex; align-items: center; gap: 10px; }
+    .sb-tool img { width: 17px; height: 17px; filter: brightness(0) invert(1); flex: none; }
+    .sidebar.collapsed .sb-tool { width: 46px; height: 46px; border-radius: 50%; padding: 0; justify-content: center; margin: 0 auto; }
+    .sidebar.collapsed .sb-tool .lbl { display: none; }
+    .sb-tool.on { background: var(--accent); }
+    /* Sidebar stat tiles */
+    .sb-tile { background: #0d1024; border: 1px solid rgba(27,139,234,.4); border-radius: 12px; padding: 14px 16px; }
+    .sb-tile .t-lbl { color: #FCFCFC; font-size: 13px; font-weight: 600; }
+    .sb-tile .t-val { color: var(--accent); font-size: 26px; font-weight: 800; margin-top: 5px; font-variant-numeric: tabular-nums; }
+    .sb-tile .t-sub { color: #FCFCFC; font-size: 10px; margin-top: 2px; font-weight: 500; }
+    .sidebar.collapsed .sb-tiles { display: none; }
+
+    /* Main */
+    .main { flex: 1; min-width: 0; background: var(--panel-bg); padding: 34px 44px 60px; }
+    .topbar { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .rd-title { font-size: 20px; font-weight: 800; color: var(--text); margin: 0; }
+    .rd-updated { font-size: 11.5px; color: var(--text-sub); font-weight: 500; }
+
+    /* Overview bento */
+    .overview { background: #12162c; border-radius: 16px; padding: 20px; margin-bottom: 26px; }
+    .overview > .ov-h { color: #fff; font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+    .ov-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .ov-card { background: #1b2136; border-radius: 12px; padding: 16px 18px; min-height: 74px; }
+    .ov-card .lbl { color: #FCFCFC; font-size: 10.5px; font-weight: 500; }
+    .ov-card .val { color: #fff; font-size: 22px; font-weight: 800; margin-top: 6px; font-variant-numeric: tabular-nums;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ov-card.ctr .lbl-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+    .ctr-method-select { background: rgba(255,255,255,.1); color: #fff; border: none; border-radius: 6px;
+      font-size: 9.5px; padding: 2px 6px; font-weight: 500; font-family: var(--font); cursor: pointer; }
+
+    /* Transitional filter bar (Phase 4 restyles into dropdowns) */
+    .rd-filterbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+
+    /* Dark-mode toggle (fixed circle) */
+    .theme-toggle { position: fixed; right: 22px; bottom: 22px; z-index: 1200; width: 48px; height: 48px;
+      border-radius: 50%; border: none; cursor: pointer; background: var(--accent); color: #fff;
+      display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(0,0,0,.28); }
+    .theme-toggle img { width: 22px; height: 22px; }
+
+    /* Mobile gate */
+    .mobile-gate { position: fixed; inset: 0; z-index: 3000; flex-direction: column; gap: 14px;
+      align-items: center; justify-content: center; text-align: center; padding: 32px;
+      background: #0b1024 url('/redesign/assets/login-hero.png') center/cover no-repeat; color: #fff; }
+    .mobile-gate img { width: 160px; margin-bottom: 8px; }
+    .mobile-gate h2 { font-size: 20px; font-weight: 800; margin: 0; }
+    .mobile-gate p { font-size: 14px; font-weight: 500; opacity: .9; max-width: 320px; margin: 0; }
+
+    /* ---- Data table (grid) ---- */
+    .toolbar, #advFilterBar { display: none; }   /* old filter bar hidden until Phase 4b */
+    .rd-table { border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+    .rd-scroll { overflow-x: auto; }
+    .rd-hrow, .rd-row { display: grid; align-items: center; padding: 14px 20px; gap: 20px; }
+    .rd-hrow { background: var(--panel-bg); border-bottom: 1px solid var(--border); font-size: 10.5px; font-weight: 500; color: var(--text-sub); }
+    .rd-hrow .rd-sortable { cursor: pointer; white-space: nowrap; user-select: none; }
+    .rd-row { border-bottom: 1px solid var(--row-border); position: relative; font-size: 13.5px; }
+    .rd-row:last-child { border-bottom: none; }
+    .rd-row.crit { background: var(--crit-row-tint); color: var(--crit-row-text); box-shadow: inset 4px 0 0 var(--crit-bar); }
+    .rd-row.crit .rd-cname, .rd-row.crit .rd-num { color: var(--crit-row-text); }
+    .rd-edit-btn { width: 30px; height: 30px; border-radius: 50%; border: none; background: var(--chip-bg); display: flex; align-items: center; justify-content: center; }
+    .rd-edit-btn img { width: 13px; height: 13px; }
+    :root[data-theme="dark"] .rd-edit-btn img { filter: brightness(0) invert(1); }
+    .rd-creative { min-width: 0; }
+    .rd-cname { font-weight: 700; font-size: 13.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rd-status { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--sc); border-radius: 7px; padding: 3px 9px; width: fit-content; margin-top: 6px; font-size: 12px; font-weight: 700; color: var(--sc); }
+    .rd-sdot { width: 8px; height: 8px; border-radius: 50%; background: var(--sc); flex: none; }
+    .rd-sdot[data-pulse] { animation: statusPulse 2s infinite; }
+    .rd-preview { display: block; width: 190px; height: 95px; border-radius: 8px; overflow: hidden; border: 1px solid var(--preview-b); background: var(--preview-a); }
+    .rd-preview img { width: 190px; height: 95px; object-fit: cover; object-position: top; display: block; }
+    .rd-split { display: flex; justify-content: center; }
+    .rd-split-btn { width: 30px; height: 30px; border-radius: 50%; border: none; background: var(--icon-btn-bg); display: flex; align-items: center; justify-content: center; }
+    .rd-split-btn img { width: 15px; height: 15px; filter: brightness(0) invert(1); }
+    .rd-num { font-size: 13.5px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .rd-video { display: flex; flex-direction: column; gap: 5px; }
+    .rd-vid { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+    .rd-vid-fmt { font-size: 11.5px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+    .pill.neutral { background: var(--chip-bg); color: var(--text-muted); }
+    .rd-empty { padding: 40px; text-align: center; color: var(--text-sub); font-size: 13px; font-weight: 500; }
+
+    /* ---- Filter bar ---- */
+    .rd-filter { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+    .rd-filter-left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .rd-results { font-size: 18px; font-weight: 800; color: var(--text); min-width: 110px; }
+    .rd-all, .rd-dd-btn, .rd-sort { border: 1px solid var(--border); background: var(--input-bg); color: var(--text-muted); padding: 9px 16px; border-radius: 20px; font-size: 12.5px; font-weight: 600; font-family: var(--font); cursor: pointer; }
+    .rd-all.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .rd-dd-btn.active { color: var(--accent); border-color: var(--accent); }
+    .rd-caret { font-size: 9px; }
+    .rd-flagged { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--bad); background: var(--input-bg); color: var(--bad); padding: 9px 16px; border-radius: 20px; font-size: 12.5px; font-weight: 700; font-family: var(--font); cursor: pointer; }
+    .rd-flagged.on { background: var(--bad); color: #fff; }
+    .rd-flag-badge { background: var(--bad); color: #fff; min-width: 18px; height: 18px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; padding: 0 5px; }
+    .rd-flagged.on .rd-flag-badge { background: #fff; color: var(--bad); }
+    .rd-dd { position: relative; }
+    .rd-dd-panel { display: none; position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; background: var(--panel-bg); border: 1px solid var(--border); border-radius: 12px; padding: 6px; min-width: 210px; max-height: 300px; overflow-y: auto; box-shadow: 0 12px 30px rgba(0,0,0,.18); }
+    .rd-dd.open .rd-dd-panel { display: block; }
+    .rd-dd-clear { display: block; width: 100%; text-align: left; border: none; background: transparent; color: var(--accent); font-size: 12.5px; font-weight: 600; padding: 8px; border-radius: 8px; cursor: pointer; text-decoration: underline; font-family: var(--font); }
+    .rd-dd-opt { display: flex; align-items: center; gap: 9px; padding: 8px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--text-muted); cursor: pointer; }
+    .rd-dd-opt input { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+    .rd-clear { border: none; background: transparent; color: var(--text-muted); font-size: 12.5px; font-weight: 600; cursor: pointer; text-decoration: underline; padding: 9px 2px; font-family: var(--font); }
+    .rd-search input { width: 190px; background: var(--input-bg); border: 1px solid var(--border); color: var(--text); padding: 10px 16px; border-radius: 20px; font-size: 13px; outline: none; font-weight: 500; font-family: var(--font); }
+
+    /* ---- Modals ---- */
+    .rd-overlay { position: fixed; inset: 0; z-index: 1100; background: rgba(11,17,48,.6); display: flex; align-items: center; justify-content: center; }
+    /* Creative-split modal — kept a light card (the split table styling is light) */
+    .rd-split-modal { background: #fff; border-radius: 16px; width: 80vw; height: 80vh; max-width: 1100px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 70px rgba(20,30,60,.4); }
+    .rd-split-head { padding: 18px 24px; border-bottom: 1px solid #e3e6f0; display: flex; align-items: center; justify-content: space-between; }
+    .rd-split-head span { font-size: 18px; font-weight: 800; color: #0b1130; }
+    .rd-split-close { background: #f3f4f9; border: none; color: #0b1130; font-size: 18px; cursor: pointer; width: 30px; height: 30px; border-radius: 50%; }
+    .rd-split-body { padding: 20px 24px; overflow: auto; flex: 1; background: #fff; }
+    /* Edit-creative modal (uses ef tokens; theme-aware) */
+    .rd-modal-card { background: var(--ef-card); border: 1px solid var(--ef-card-border); border-radius: 20px; padding: 30px 24px; width: 384px; max-width: 92vw; max-height: 88vh; overflow-y: auto; display: flex; flex-direction: column; gap: 22px; color: var(--ef-text); box-sizing: border-box; }
+    .rd-modal-h { display: flex; justify-content: space-between; align-items: center; }
+    .rd-modal-h h3 { font-size: 22px; font-weight: 700; margin: 0; color: var(--ef-text); }
+    .rd-modal-x { background: none; border: none; cursor: pointer; font-size: 20px; color: var(--ef-text); line-height: 1; }
+    .rd-fieldset { display: flex; flex-direction: column; gap: 22px; border-top: 1px solid var(--ef-divider); padding-top: 22px; }
+    .rd-field { display: flex; flex-direction: column; gap: 10px; }
+    .rd-field-h { font-size: 15px; font-weight: 600; color: var(--ef-text); }
+    .rd-field-h.flag { color: var(--bad); font-weight: 700; }
+    .rd-in, .rd-sel { background: var(--ef-input-bg); border: none; color: var(--ef-input-text); padding: 12px 16px; border-radius: 10px; font-size: 14px; font-weight: 500; font-family: var(--font); outline: none; width: 100%; box-sizing: border-box; }
+    .rd-in-sm { padding: 9px 14px; font-size: 13px; }
+    .rd-prev-edit { width: 150px; height: 75px; border-radius: 8px; object-fit: cover; border: 1px solid var(--ef-card-border); background: var(--preview-a); flex: none; }
+    .rd-upload { border: 1px solid var(--ef-card-border); background: var(--ef-input-bg); color: var(--ef-input-text); padding: 10px 18px; border-radius: 20px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: var(--font); }
+    .rd-modal-foot { display: flex; gap: 12px; }
+    .rd-btn-1 { flex: 1; height: 48px; border: none; border-radius: 24px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; font-family: var(--font); }
+    .rd-btn-2 { flex: 1; height: 48px; border: 1px solid var(--ef-card-border); border-radius: 24px; background: transparent; color: var(--ef-text); font-size: 14px; font-weight: 700; cursor: pointer; font-family: var(--font); }
+    .rd-swrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .rd-toggle { width: 44px; height: 24px; border-radius: 12px; border: none; background: var(--border); position: relative; cursor: pointer; flex: none; }
+    .rd-toggle.on { background: var(--good); }
+    .rd-toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: left .15s; }
+    .rd-toggle.on::after { left: 22px; }
+    /* Filter-settings chips */
+    .rd-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .rd-chip { display: inline-flex; align-items: center; gap: 8px; background: var(--ef-chip-bg); color: var(--ef-chip-text); padding: 8px 12px; border-radius: 100px; font-size: 12.5px; font-weight: 500; }
+    .rd-chip button { border: none; background: none; cursor: pointer; color: var(--ef-chip-text); display: flex; padding: 0; opacity: .7; font-size: 12px; line-height: 1; }
+    .rd-chip button:hover { opacity: 1; color: var(--bad); }
+    .rd-addrow { display: flex; gap: 10px; }
+    .rd-addrow input { flex: 1; min-width: 0; }
+    .rd-addbtn { border: none; background: var(--accent); color: #fff; padding: 0 18px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: var(--font); }
+    .rd-note { font-size: 12px; color: var(--text-faint); font-weight: 500; }
+    .rd-empty-note { color: var(--text-faint); font-size: 13px; font-weight: 500; }
+  </style>
 </head>
 <body>
 
-<header>
-  <div>
-    <h1>Infinity Dashboard</h1>
-    <div class="meta" id="lastFetched">Not yet loaded</div>
-  </div>
-</header>
-<div id="loadBar"><div id="loadBarFill"></div></div>
-
-<div class="tabs">
-  <button class="tab-btn active" onclick="setTab('desktop')">Desktop Skin</button>
-  <button class="tab-btn" onclick="setTab('video')">Desktop Video Skin</button>
-  <button class="tab-btn" onclick="setTab('mobile')">Mobile Scroll</button>
-  <button class="tab-btn" onclick="setTab('video-mobile')">Mobile Video Scroll</button>
+<div class="mobile-gate">
+  <img src="/redesign/assets/logo-white.png" alt="Infinity">
+  <h2>Best viewed on a larger screen</h2>
+  <p>The Infinity dashboard is designed for desktop widths — please open it on a larger device.</p>
 </div>
 
-<div class="stats-bar">
-  <div class="stat-card c-total">
-    <div class="label">Creatives</div>
-    <div class="value" id="statTotal">—</div>
-  </div>
-  <div class="stat-card c-imps">
-    <div class="label">Total Impressions</div>
-    <div class="value" id="statImps">—</div>
-  </div>
-  <div class="stat-card c-active">
-    <div class="label">With Data</div>
-    <div class="value" id="statActive">—</div>
-  </div>
-  <div class="stat-card c-nodata">
-    <div class="label">No Data</div>
-    <div class="value" id="statNoData">—</div>
-  </div>
-  <div class="stat-card c-ctr">
-    <div class="label">CTR <select id="ctrMethod" class="ctr-method-select" onchange="updateStats();renderTable()"><option value="median" selected>Median</option><option value="average">Simple Avg</option><option value="aggregate">Aggregate</option></select></div>
-    <div class="value" id="statAvgCtr">—</div>
-    <div id="statCtrN" style="font-size:.68rem;color:#999;margin-top:2px;"></div>
-  </div>
-  <div class="stat-card c-view">
-    <div class="label">Avg Viewability %</div>
-    <div class="value" id="statAvgView">—</div>
-  </div>
-  <div class="stat-card c-short" id="cardAvgShort" style="display:none">
-    <div class="label">Avg Short-form</div>
-    <div class="value" id="statAvgShort">—</div>
-  </div>
-  <div class="stat-card c-long" id="cardAvgLong" style="display:none">
-    <div class="label">Avg Long-form</div>
-    <div class="value" id="statAvgLong">—</div>
-  </div>
-  <div class="stats-bar-right">
-    <div class="stat-card c-allimps">
-      <div class="label">Total Infinity Served</div>
-      <div class="value" id="statAllImps">—</div>
-      <div class="sublabel">All sections combined</div>
+<div class="app-shell" id="appShell">
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-top">
+      <img class="sb-logo" src="/redesign/assets/logo-white.png" alt="Infinity">
+      <button class="sb-toggle" onclick="toggleSidebar()" title="Collapse / expand"><img src="/redesign/assets/icons/svg/sidebar-toggle.svg" alt=""></button>
     </div>
-    <div class="stat-card c-allclicks">
-      <div class="label">Clicks Collected</div>
-      <div class="value" id="statAllClicks">—</div>
-      <div class="sublabel">All sections combined</div>
+    <div class="sb-scroll">
+      <div class="sb-label">Menu</div>
+      <nav class="sb-nav">
+        <button class="tab-btn active" data-tab="desktop" onclick="setTab('desktop')"><span class="lbl">Desktop Skin</span><span class="nav-badge" id="badge-desktop">0</span></button>
+        <button class="tab-btn" data-tab="video" onclick="setTab('video')"><span class="lbl">Desktop Video Skin</span><span class="nav-badge" id="badge-video">0</span></button>
+        <button class="tab-btn" data-tab="mobile" onclick="setTab('mobile')"><span class="lbl">Mobile Scroll</span><span class="nav-badge" id="badge-mobile">0</span></button>
+        <button class="tab-btn" data-tab="video-mobile" onclick="setTab('video-mobile')"><span class="lbl">Mobile Video Scroll</span><span class="nav-badge" id="badge-video-mobile">0</span></button>
+      </nav>
     </div>
+    <div class="sb-label">Tools</div>
+    <div class="sb-nav">
+      <button class="sb-tool" onclick="openFilterSettings()"><img src="/redesign/assets/icons/edit-filter.svg" alt=""><span class="lbl">Filter settings</span></button>
+      <button class="sb-tool" id="editModeBtn" onclick="toggleEditMode()"><img src="/redesign/assets/icons/svg/edit-white.svg" alt=""><span class="lbl">Edit mode | Off</span></button>
+    </div>
+    <div class="sb-tiles" style="display:flex;flex-direction:column;gap:10px">
+      <div class="sb-tile"><div class="t-lbl">Total Infinity served</div><div class="t-val" id="statAllImps">—</div><div class="t-sub">All sections combined</div></div>
+      <div class="sb-tile"><div class="t-lbl">Clicks collected</div><div class="t-val" id="statAllClicks">—</div><div class="t-sub">All sections combined</div></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1 class="rd-title" id="sectionTitle">Desktop Skin</h1>
+      <div class="rd-updated" id="lastFetched">Not yet loaded</div>
+    </div>
+    <div id="loadBar"><div id="loadBarFill"></div></div>
+
+<div class="overview">
+  <div class="ov-h">Overview</div>
+  <div class="ov-grid">
+    <div class="ov-card"><div class="lbl">Creatives</div><div class="val" id="statTotal">—</div></div>
+    <div class="ov-card"><div class="lbl">With data</div><div class="val" id="statActive">—</div></div>
+    <div class="ov-card ctr">
+      <div class="lbl-row"><span class="lbl">CTR</span>
+        <select id="ctrMethod" class="ctr-method-select" onchange="updateStats();renderTable()"><option value="median" selected>Median</option><option value="average">Simple avg</option><option value="aggregate">Aggregate</option></select>
+      </div>
+      <div class="val" id="statAvgCtr">—</div>
+      <div id="statCtrN" style="font-size:9px;color:#8fa0c0;margin-top:2px"></div>
+    </div>
+    <div class="ov-card"><div class="lbl">Total impressions</div><div class="val" id="statImps">—</div></div>
+    <div class="ov-card"><div class="lbl">No data</div><div class="val" id="statNoData">—</div></div>
+    <div class="ov-card"><div class="lbl">Avg viewability</div><div class="val" id="statAvgView">—</div></div>
+    <div class="ov-card" id="cardAvgShort" style="display:none"><div class="lbl">Avg short-form (~15s)</div><div class="val" id="statAvgShort">—</div></div>
+    <div class="ov-card" id="cardAvgLong" style="display:none"><div class="lbl">Avg long-form (~30s)</div><div class="val" id="statAvgLong">—</div></div>
   </div>
 </div>
 
-<div class="toolbar">
-  <input id="searchBox" type="search" placeholder="Search by name or URL…" oninput="renderTable()" />
-  <div class="au-wrap">
-    <button class="adv-tag" id="adUnitBtn" onclick="toggleAdUnitDropdown()">Ad Units<span id="adUnitCount"></span></button>
-    <div class="au-dropdown" id="adUnitDropdown"></div>
-  </div>
+<!-- legacy filter elements kept hidden so retained helpers (renderTags/renderAdvertiserFilter/ad-unit) don't error -->
+<div class="toolbar" aria-hidden="true">
+  <div class="au-wrap"><button class="adv-tag" id="adUnitBtn" onclick="toggleAdUnitDropdown()">Ad Units<span id="adUnitCount"></span></button><div class="au-dropdown" id="adUnitDropdown"></div></div>
   <div id="advertiserTags"></div>
 </div>
-
 <div id="advFilterBar" class="adv-filter-row"></div>
+
+<!-- v3 filter bar — always visible, independent of Edit mode -->
+<div id="rdFilter" class="rd-filter"></div>
 
 <div id="errorBanner"></div>
 <div id="cachedBanner"></div>
@@ -602,35 +862,37 @@
 </div>
 
 <!-- Creative splits drill-down modal -->
-<div id="splitOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,22,40,.5);z-index:1001;align-items:center;justify-content:center;backdrop-filter:blur(3px)" onclick="if(event.target===this)closeSplitModal()">
-  <div style="background:#fff;border-radius:12px;width:75vw;height:75vh;max-width:75vw;max-height:75vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px rgba(20,30,60,.4)">
-    <div style="padding:16px 22px;background:linear-gradient(135deg,#1a3a6e,#2563b8,#3b82f6);display:flex;align-items:center;justify-content:space-between">
-      <span id="splitTitle" style="font-size:15px;font-weight:700;color:#fff">Creative splits</span>
-      <button onclick="closeSplitModal()" title="Close" style="background:rgba(255,255,255,.18);border:none;color:#fff;font-size:18px;cursor:pointer;line-height:1;width:28px;height:28px;border-radius:6px">×</button>
+<div id="splitOverlay" class="rd-overlay" style="display:none" onclick="if(event.target===this)closeSplitModal()">
+  <div class="rd-split-modal">
+    <div class="rd-split-head">
+      <span id="splitTitle">Creative split</span>
+      <button onclick="closeSplitModal()" title="Close" class="rd-split-close">×</button>
     </div>
-    <div id="splitBody" style="padding:18px 22px;overflow:auto;flex:1;background:#fff"></div>
+    <div id="splitBody" class="rd-split-body"></div>
   </div>
 </div>
 
-<div class="table-wrapper">
-  <table>
-    <thead>
-      <tr>
-        <th onclick="sortBy('advertiser')" data-col="advertiser" style="width:160px">Creative <span class="sort-icon">↕</span></th>
-        <th style="width:132px">Actions</th>
-        <th style="width:320px">Preview URL</th>
-        <th id="thVideos" style="display:none;width:180px">Videos</th>
-        <th onclick="sortBy('impressions')" data-col="impressions" style="text-align:right;width:120px">Impressions <span class="sort-icon">↕</span></th>
-        <th onclick="sortBy('clicks')" data-col="clicks" style="text-align:right;width:80px">Clicks <span class="sort-icon">↕</span></th>
-        <th onclick="sortBy('ctr')" data-col="ctr" style="text-align:right;width:80px">CTR <span class="sort-icon">↕</span></th>
-        <th onclick="sortBy('activeView')" data-col="activeView" style="text-align:right;width:110px">Viewability % <span class="sort-icon">↕</span></th>
-      </tr>
-    </thead>
-    <tbody id="tableBody">
-      <tr><td colspan="7" class="empty-state">Loading data…</td></tr>
-    </tbody>
-  </table>
+<!-- v3 Edit-creative modal (opened by the Edit-mode pencil; no roles) -->
+<div class="rd-overlay" id="rdEditOverlay" style="display:none" onclick="if(event.target===this)closeRowEdit()">
+  <div class="rd-modal-card" id="rdEditBody"></div>
 </div>
+
+<!-- v3 Filter settings modal (sidebar) — manage category rules + assigned advertisers -->
+<div class="rd-overlay" id="rdFilterOverlay" style="display:none" onclick="if(event.target===this)closeFilterSettings()">
+  <div class="rd-modal-card" id="rdFilterBody"></div>
+</div>
+
+<div class="rd-table">
+  <div class="rd-scroll">
+    <div id="rdHead"></div>
+    <div id="tableBody"><div class="rd-empty">Loading data…</div></div>
+    <!-- hidden thead marker kept so setTab's thVideos toggle doesn't error -->
+    <span id="thVideos" style="display:none"></span>
+  </div>
+</div>
+  </main>
+</div>
+<button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode"><img src="/redesign/assets/icons/svg/dark.svg" alt="theme"></button>
 
 <script>
   let allRows = [];
@@ -705,6 +967,9 @@
   // Manual URL→advertiser (brand) assignments — a Tags-style feature, but a real advertiser you assign per
   // creative (the "Creative" column shows an auto-derived name; this is the brand behind it). { url: advertiser }
   let urlAdvertisers = {};
+  // The master list of advertiser NAMES (created in Filter settings), persisted in the url-advertisers store
+  // under the reserved "__names" key so a new advertiser exists before it's assigned to any creative.
+  let advertiserNames = new Set();
 
   // ── Alert system ──────────────────────────────────────────────────────────
   // Colours CTR / Viewability / Completion cells by how they compare to the estate AVERAGE (the
@@ -757,9 +1022,7 @@
   function adUnitCtrTotals() {
     const totals = {};
     for (const r of allRows) {
-      if (r.device !== activeTab) continue;
-      if (activeCategory && getCategory(r.advertiser, r.netlifyUrl) !== activeCategory) continue;
-      if (activeAdvertiser && getAdvertiser(r.netlifyUrl) !== activeAdvertiser) continue;
+      if (!passFilters(r)) continue;
       for (const [au, v] of Object.entries(r.impsByAdUnit || {})) {
         if (activeAdUnits.size && !activeAdUnits.has(au)) continue;
         const t = totals[au] || (totals[au] = { imps: 0, clicks: 0 });
@@ -808,9 +1071,9 @@
   function getAdvertiser(netlifyUrl) {
     return (netlifyUrl && urlAdvertisers[netlifyUrl]) || null;
   }
-  // The distinct set of assigned advertisers (for the picker options + the filter bar).
+  // The advertiser names available to assign: those created in Filter settings PLUS any already assigned.
   function allAdvertisers() {
-    return [...new Set(Object.values(urlAdvertisers))].filter(Boolean).sort((a, b) => a.localeCompare(b));
+    return [...new Set([...advertiserNames, ...Object.values(urlAdvertisers)])].filter(Boolean).sort((a, b) => a.localeCompare(b));
   }
   // Stable colour per advertiser — reuse the tag palette but offset so a brand and a category at the same
   // index don't collide on colour.
@@ -826,7 +1089,7 @@
       if (rulesRes.ok)   tagRules       = await rulesRes.json();
       if (urlTagsRes.ok) urlTags        = await urlTagsRes.json();
       if (acksRes.ok)    alertAcks      = (await acksRes.json()) || {};
-      if (advRes.ok)     urlAdvertisers = (await advRes.json()) || {};
+      if (advRes.ok)   { urlAdvertisers = (await advRes.json()) || {}; advertiserNames = new Set(urlAdvertisers.__names || []); delete urlAdvertisers.__names; }
     } catch(e) {}
     renderTags();
     renderAdvertiserFilter();
@@ -937,6 +1200,7 @@
   }
 
   document.addEventListener('click', e => {
+    if (_openDD && !e.target.closest('.rd-dd')) { _openDD = null; renderFilterBar(); }
     if (!e.target.closest('#tagPicker') && !e.target.closest('.row-tag-btn')) closeTagPicker();
     if (!e.target.closest('#advPicker') && !e.target.closest('.row-adv-btn')) closeAdvPicker();
     if (!e.target.closest('.au-wrap')) {
@@ -1082,6 +1346,15 @@
       : `<p class="split-sub">No per-creative split data available for this row yet. Splits are produced by the daily refresh, so a newly-trafficked row may not have them until the next run.</p>`;
   }
 
+  // Toggle a creative's segment-detail dropdown row (the <tr> immediately after the clicked row).
+  function toggleSplitDetail(tr) {
+    const detail = tr.nextElementSibling;
+    if (!detail || !detail.classList.contains('split-detail')) return;
+    const open = detail.style.display !== 'none';
+    detail.style.display = open ? 'none' : '';
+    tr.classList.toggle('open', !open);
+  }
+
   function splitTable(splits, isVideo, bench, lineLive, ctrBench) {
     const dash = '<span class="split-dash">—</span>';
     const num = n => (n != null && n !== '') ? Number(n).toLocaleString() : dash;
@@ -1090,29 +1363,25 @@
     const rows = splits.map(s => {
       tImp += s.impressions || 0; tClk += s.clicks || 0;
       const ctrNum = (s.impressions && s.clicks) ? parseFloat(((s.clicks / s.impressions) * 100).toFixed(2)) : null;
-      const ctr = ctrNum != null ? ctrNum + '%' : dash;
-      // Same alert treatment as the main table (pill + ⚠️ on red) vs the average card, gated on the
-      // creative's own ≥2000 imps + a live line. CTR + Viewability are the per-creative signals.
+      // Same RAG pills as the main table, gated on the creative's own ≥2000 imps + a live line.
       const _gated = !!lineLive && (s.impressions || 0) >= ALERT_MIN_IMPS;
       const _anyRed = _gated && (alertLevel(ctrNum, ctrBench).level === 'red' || alertLevel(s.viewability, bench && bench.view).level === 'red');
       const nm = s.name || ('#' + s.creativeId);
-      // Creative name → its GAM creative page (needs both the line item + creative id). Plain text otherwise.
       const _li = (s.lineItemIds && s.lineItemIds[0]) || null;
+      // Creative name → its GAM creative page (line item + creative id). Plain text otherwise.
       const nameCell = (_li && s.creativeId)
         ? `<a class="split-name-link" href="${gamCreativeUrl(_li, s.creativeId)}" target="_blank" rel="noopener">${esc(nm)}</a>`
         : esc(nm);
-      // Video ID → the GAM creative the COMPLETION RATE is measured on (the video's tracking creative +
-      // its line item, from the video-stats map) — deliberately a different creative/LI than the split's
-      // own display creative above. Plain text until the video-stats cache carries those ids.
+      // Video ID → the GAM creative the COMPLETION RATE is measured on (the tracking creative + its LI).
       const vidCell = (s._complLineItemId && s._complCreativeId)
-        ? `<a class="split-vid-link" href="${gamCreativeUrl(s._complLineItemId, s._complCreativeId)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${esc(s._videoId || '—')}</a>`
+        ? `<a class="split-vid-link" href="${gamCreativeUrl(s._complLineItemId, s._complCreativeId)}" target="_blank" rel="noopener">${esc(s._videoId || '—')}</a>`
         : esc(s._videoId || '—');
       return `<tr class="split-row${_anyRed ? ' alert-line-red' : ''}">
         <td class="split-name" title="${esc(nm)}">${nameCell}</td>
         <td class="num split-imp">${num(s.impressions)}</td>
         <td class="num split-clk">${num(s.clicks)}</td>
-        <td class="num split-ctr">${statFlag(ctr, ctrNum, ctrBench, _gated, 'expected for its inventory')}</td>
-        <td class="num split-view">${statFlag(pct(s.viewability), s.viewability, bench && bench.view, _gated)}</td>
+        <td class="num split-ctr">${rdPerfPill(ctrNum, ctrBench, _gated, 'expected for its inventory')}</td>
+        <td class="num split-view">${rdPerfPill(s.viewability, bench && bench.view, _gated, 'average')}</td>
         ${isVideo ? `<td class="num split-comp">${pct(s.completionRate)}</td>` : ''}
         ${isVideo ? `<td class="split-vid">${vidCell}</td>` : ''}
       </tr>`;
@@ -1148,6 +1417,210 @@
       if (ov && ov.style.display === 'flex') closeSplitModal();
     }
   });
+
+  // Segment performance is a held-back feature on production: its data cache
+  // (perf_by_segment_cache.json) and rendering are not shipped here. perfData stays
+  // null so the unused segment helpers below no-op cleanly.
+  let perfData = null;
+  function segBestForKeys(groupKeys) {
+    if (!perfData) return null;
+    let best = null;
+    for (const gk of groupKeys) {
+      const b = perfData[gk] && perfData[gk].best;
+      if (b && b.clicks > 0 && (!best || b.ctr > best.ctr)) best = b;
+    }
+    return best;
+  }
+  function segCellHtml(groupKeys) {
+    const b = segBestForKeys(groupKeys);
+    if (!b) return `<td class="seg-cell"><span class="seg-none">—</span></td>`;
+    const val = b.value.length > 20 ? b.value.slice(0, 19) + '…' : b.value;
+    return `<td class="seg-cell"><span class="seg-chip" title="Best CTR: ${esc(b.key)}=${esc(b.value)} · ${b.ctr}% CTR (${(b.impressions || 0).toLocaleString()} imp)">▲ <span class="seg-k">${esc(b.key)}</span>: ${esc(val)} · ${b.ctr}%</span></td>`;
+  }
+  const SEG_KEY_LABEL = {
+    cat:'Contextual (cat)', subcat:'Sub-category', primary_cat:'Primary category',
+    posttag:'Post tag', diet:'Diet', 'meal-type':'Meal type', occasion:'Occasion',
+    tags:'Tags', channel:'Channel', cuisine:'Cuisine', garden:'Garden',
+    'content-classification':'Content classification', location:'Location', topic:'Topic',
+    mission:'Mission', person:'Person', titles:'Titles', tag:'Tag', content_type:'Content type',
+    title:'Title', author:'Author', make:'Make', range:'Range', category:'Category',
+    cars_body_style:'Body style', price_brackets:'Price bracket', categories:'Categories',
+    ap_gen:'Audience: gender', ap_stda:'Audience: age', ap_inc:'Audience: income',
+    ap_hhs:'Audience: household size', ap_emp:'Audience: employment',
+    ap_edu:'Audience: education', ap_chi:'Audience: children in HH',
+    permutive:'Permutive (audience)'
+  };
+  const SEG_KEY_ORDER = ['cat','subcat','primary_cat','diet','meal-type','occasion','cuisine','garden','content-classification','category','make','range','cars_body_style','price_brackets','topic','mission','person','location','author','title','titles','content_type','tag','tags','channel','posttag','categories','ap_gen','ap_stda','ap_inc','ap_hhs','ap_emp','ap_edu','ap_chi','permutive'];
+  // Reach = a segment's share of the creative's delivered impressions. It answers the user's
+  // worry directly: "if I narrow to this segment, how much of what this creative delivers do I
+  // keep?" A dazzling CTR on a segment carrying 3% of volume is a trap — narrowing to it would
+  // starve delivery. Green ≥20% is broad enough to lean on; red <5% is high-CTR-but-tiny.
+  const REACH_GREEN = 20;        // % of the creative's volume → safe to lean on
+  const REACH_RED = 5;           // % below which a segment is too narrow to target alone
+  const SAFE_REACH_TARGET = 60;  // Safe-pick bundle aims to retain at least this % of volume
+  function reachTier(pct) { return pct >= REACH_GREEN ? 'ok' : pct < REACH_RED ? 'low' : 'mid'; }
+  function segRow(v, win, totImp) {
+    const val = v.value.length > 30 ? v.value.slice(0, 29) + '…' : v.value;
+    const reach = totImp > 0 ? Math.min(100, (v.impressions / totImp) * 100) : 0;
+    // Colour the pill by the SAME rounded number we display, so the label and the traffic-light
+    // never disagree at a boundary (a "20%" pill is never amber, a "5%" pill never red).
+    const rp = reach >= 1 ? Math.round(reach) : parseFloat(reach.toFixed(1));
+    const tier = reachTier(rp);
+    const rLabel = tier === 'low' ? `${rp}% reach · narrow` : `${rp}% reach`;
+    const rTitle = tier === 'low'
+      ? `Only ${rp}% of this creative's impressions — targeting this alone risks underdelivery`
+      : tier === 'ok'
+        ? `${rp}% of this creative's impressions — broad enough to lean on`
+        : `${rp}% of this creative's impressions — moderate reach`;
+    return `<div class="seg-item${win ? ' win' : ''}"><span class="seg-item-val" title="${esc(v.value)}">${esc(val)}</span><span class="seg-item-ctr" style="color:${win ? '#158a5a' : '#c0392b'}">${v.ctr}%</span><span class="seg-reach ${tier}" title="${esc(rTitle)}">${rLabel}</span><span class="seg-item-imp">${(v.impressions || 0).toLocaleString()} imp</span></div>`;
+  }
+  // Attribution basis note — is the segment data specific to this creative, or blended with
+  // other creatives sharing its line item(s)?
+  function segBasisNote(basis) {
+    if (basis === 'line-item') return `<div class="seg-basis warn">⚠ Line-item level — this creative shares its line item(s) with other creatives that couldn't be separated, so their delivery is included in the figures below.</div>`;
+    if (basis === 'partial')   return `<div class="seg-basis warn">⚠ Mostly this creative — but some figures include other creatives on a shared line item that couldn't be isolated.</div>`;
+    if (basis === 'creative')  return `<div class="seg-basis ok">✓ Figures below are specific to this creative.</div>`;
+    return '';
+  }
+  // ---- "Will it still deliver in full?" panel (precomputed in scripts/refresh.js) ----
+  function fmtPct(f) { return (f == null || !isFinite(f)) ? '—' : Math.round(Math.max(0, Math.min(1, f)) * 100) + '%'; }
+  // A reach range as text — collapses a near-zero or equal-bounds range to a readable phrase
+  // instead of a confusing "0%–0%".
+  function rangePct(lo, hi) {
+    if (lo == null || hi == null || !isFinite(lo) || !isFinite(hi)) return '—';
+    const a = Math.round(Math.max(0, Math.min(1, lo)) * 100), b = Math.round(Math.max(0, Math.min(1, hi)) * 100);
+    if (b < 1) return 'under 1%';
+    if (a === b) return a + '%';
+    return a + '%–' + b + '%';
+  }
+  function delivVerdictBadge(v) {
+    if (v === 'safe')     return '<span class="dv-badge ok">✓ delivers in full</span>';
+    if (v === 'maybe')    return '<span class="dv-badge mid">~ borderline</span>';
+    if (v === 'unlikely') return '<span class="dv-badge low">✗ would underdeliver</span>';
+    return '';
+  }
+  function deliveryHtml(d) {
+    if (!d) return '';
+    const rrf = d.requiredRetainFrac;
+    // Behind pace either by GAM's own indicator or because keeping even 100% still misses goal.
+    const behind = d.behind || (rrf != null && rrf > 1);
+    let ctx;
+    if (d.completed) {
+      ctx = `<div class="seg-deliv-note ok">✓ Flight complete — the segments below are retrospective. Apply the strongest to the next comparable line item.</div>`;
+    } else if (behind) {
+      ctx = `<div class="seg-deliv-note low">⚠ Already behind pace — even full targeting is short of the booked goal, so narrowing would make it worse. The strong segments below are shown for insight, not for restricting targeting yet.</div>`;
+    } else if (d.sponsorship && !d.hasGoal) {
+      ctx = `<div class="seg-deliv-note mid">Sponsorship line — the share-of-inventory goal still fills on a narrower pool, but absolute volume drops to the reach shown below.</div>`;
+    } else if (!d.hasGoal) {
+      ctx = `<div class="seg-deliv-note">No booked impression goal on these line items — narrowing carries no underdelivery risk. Figures below are share of recent delivered volume.</div>`;
+    } else {
+      const by = d.endTs ? ` by ${new Date(d.endTs).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}` : '';
+      const goalTxt = d.goalUnits ? `${Number(d.goalUnits).toLocaleString()} imps` : 'its goal';
+      ctx = `<div class="seg-deliv-note">Booked <b>${goalTxt}</b>${by}. To finish in full you must keep <b>≥${fmtPct(rrf)}</b> of current delivery.</div>`;
+    }
+    const led = d.incBestKey ? ` (led by ${esc(SEG_KEY_LABEL[d.incBestKey] || d.incBestKey)})` : '';
+    const inc = `<div class="seg-deliv-row"><span class="seg-deliv-lab">Target only the strong</span><span>keeps ${rangePct(d.incLowerFrac, d.incUpperFrac)} of delivery${led}</span> ${delivVerdictBadge(d.verdictIncl)}</div>`;
+    const exc = `<div class="seg-deliv-row"><span class="seg-deliv-lab">Switch off the weak</span><span>keeps ${rangePct(d.exclWorstFrac, d.exclBestFrac)} of delivery</span> ${delivVerdictBadge(d.verdictExcl)}</div>`;
+    const caveat = `<div class="seg-deliv-caveat">Ranges are wide because contextual keys overlap — the same impression is tagged on every key, so the combined figure can't be pinned exactly. A ✓ means even the cautious end of the range clears the goal.</div>`;
+    return `<div class="seg-deliv"><div class="seg-deliv-h">Will it still deliver in full?</div>${ctx}${inc}${exc}${caveat}</div>`;
+  }
+  const AUD_AP_KEYS = ['ap_gen','ap_stda','ap_inc','ap_hhs','ap_emp','ap_edu','ap_chi'];
+  // Renders ONE creative's segment performance (its dropdown in the splits modal): its delivery
+  // read, strong/weak segments with reach pills, and the summary one-liners. Fed the per-creative
+  // `seg` object { best, byKey, delivery, segBasis } from splits_cache; totImp/avgCtr are the
+  // creative's own impressions and CTR.
+  function segDetailHtml(seg, totImp, avgCtr) {
+    if (!seg || !seg.byKey || !Object.keys(seg.byKey).length) return '<div class="seg-detail-empty">No segment breakdown for this creative.</div>';
+    const present = new Set(Object.keys(seg.byKey));
+    const ranked = {}; // key -> [{value,impressions,clicks,ctr}] desc by ctr
+    for (const key of present) {
+      const m = new Map();
+      for (const v of [...(seg.byKey[key].top || []), ...(seg.byKey[key].bottom || [])]) {
+        const ex = m.get(v.value);
+        if (!ex || v.impressions > ex.impressions) m.set(v.value, v);
+      }
+      ranked[key] = [...m.values()].sort((a, b) => b.ctr - a.ctr);
+    }
+    const deliv = seg.delivery || null;
+    const segBasis = seg.segBasis || 'creative';
+    const rowCtr = avgCtr || (deliv && deliv.rowCtr) || 0;
+
+    // Only show segments performing at ≥90% of the creative's overall CTR ("pulling their weight").
+    const threshold = rowCtr * 0.9;
+    const isAud = k => AUD_AP_KEYS.includes(k);
+    const isCtx = k => !isAud(k) && k !== 'permutive';
+
+    // ---- Summary one-liners ----
+    // Content: strongest contextual segments (≥ threshold), across all contextual keys.
+    const ctxAll = [];
+    for (const k of present) if (isCtx(k)) for (const v of ranked[k]) ctxAll.push(v);
+    ctxAll.sort((a, b) => b.ctr - a.ctr);
+    const ctxTop = ctxAll.filter(v => v.ctr >= threshold).slice(0, 3);
+    // Audience: the best-performing value in each ap_ demographic (the winning profile).
+    const audBits = [];
+    for (const k of AUD_AP_KEYS) if (ranked[k] && ranked[k].length) audBits.push(ranked[k][0].value);
+    // Permutive: top named cohort.
+    const permTop = ranked['permutive'] && ranked['permutive'][0];
+
+    // Safe pick: the broadest within-ONE-key bundle of ≥threshold winners. Values of a single
+    // key are mutually exclusive per impression, so their reach sums honestly (a union); mixing
+    // different keys would double-count overlapping impressions, so we never combine across keys.
+    // Grow the bundle by CTR until it retains ≥SAFE_REACH_TARGET% of volume, then pick the key
+    // whose winning bundle keeps the MOST volume — the safest strong option, not the narrowest.
+    // Because every member clears the 90%-of-avg bar, the impression-weighted blend stays ≥ it.
+    let bundle = null;
+    for (const k of present) {
+      if (!isCtx(k)) continue;
+      const wins = ranked[k].filter(v => v.ctr >= threshold); // already sorted CTR desc
+      if (!wins.length) continue;
+      let imp = 0, clk = 0; const chosen = [];
+      for (const v of wins) {
+        chosen.push(v); imp += v.impressions || 0; clk += v.clicks || 0;
+        if (totImp > 0 && (imp / totImp) * 100 >= SAFE_REACH_TARGET) break; // enough volume
+      }
+      const reach = totImp > 0 ? Math.min(100, (imp / totImp) * 100) : 0;
+      if (!bundle || reach > bundle.reach) bundle = { key: k, chosen, imp, clk, reach };
+    }
+
+    const dash = '<span class="split-dash">—</span>';
+    let summary = `<div class="seg-summary">`;
+    summary += `<div class="seg-sum-row"><span class="seg-sum-tag ctx">Content</span>${ctxTop.length ? ctxTop.map(v => `${esc(v.value)} <b>${v.ctr}%</b>`).join('  ·  ') : '<span class="split-dash">no standout</span>'}</div>`;
+    summary += `<div class="seg-sum-row"><span class="seg-sum-tag aud">Audience</span>${audBits.length ? esc(audBits.join('  ·  ')) : dash}</div>`;
+    summary += `<div class="seg-sum-row"><span class="seg-sum-tag perm">Permutive</span>${permTop ? esc(permTop.value) + ` <b>${permTop.ctr}%</b>` : '<span class="split-dash">no named cohort</span>'}</div>`;
+    if (bundle) {
+      const names = bundle.chosen.map(v => `<b>${esc(v.value)}</b>`).join(', ');
+      const bctr = bundle.imp > 0 ? (bundle.clk / bundle.imp * 100).toFixed(2) : '0.00';
+      const r = Math.round(bundle.reach);
+      const caveat = bundle.reach < 25 ? ' — still narrow, pair with broader targeting' : '';
+      summary += `<div class="seg-sum-row"><span class="seg-sum-tag safe">Safe pick</span>Targeting ${names} keeps ~${r}% of this creative's volume at ${bctr}% CTR (vs ${rowCtr.toFixed(2)}% avg)${caveat}.</div>`;
+    } else {
+      summary += `<div class="seg-sum-row"><span class="seg-sum-tag safe">Safe pick</span>No content segment is broad enough to target on its own — treat the above as signals, not filters, to avoid underdelivery.</div>`;
+    }
+    summary += `</div>`;
+
+    // ---- Per-key detail ----
+    // Top by CTR = only segments performing at ≥90% of the row's overall CTR — a segment
+    // pulling half the row CTR isn't a "good performer", so it doesn't belong here.
+    // Underperformed = the lowest-CTR segments, NO threshold, always shown (what didn't work).
+    const N = 4;
+    const orderedKeys = [...SEG_KEY_ORDER.filter(k => present.has(k)), ...[...present].filter(k => !SEG_KEY_ORDER.includes(k))];
+    let blocks = '';
+    for (const key of orderedKeys) {
+      const winners = ranked[key].filter(v => v.ctr >= threshold).slice(0, N);
+      const losers = ranked[key].filter(v => v.ctr < threshold).slice(-N).reverse();
+      if (!winners.length && !losers.length) continue;
+      // Fixed layout — good performers ALWAYS on the left, underperformers ALWAYS on the
+      // right, with a placeholder when a side is empty, so the columns never shift/swap.
+      const topCol = `<div><div class="seg-sub-h seg-win">Strongest CTR — targeting signals</div>${winners.length ? winners.map(v => segRow(v, true, totImp)).join('') : '<div class="seg-empty">— none reaching 90%</div>'}</div>`;
+      const loseCol = `<div><div class="seg-sub-h seg-lose">Underperformed</div>${losers.length ? losers.map(v => segRow(v, false, totImp)).join('') : '<div class="seg-empty">— none</div>'}</div>`;
+      blocks += `<div class="seg-key-block"><div class="seg-key-title">${esc(SEG_KEY_LABEL[key] || key)}</div><div class="seg-cols">${topCol}${loseCol}</div></div>`;
+    }
+
+    const caption = `<div class="seg-caption">Optimization signals, not hard filters — targeting only the smallest high-CTR segments risks underdelivery. Use the <b>Safe pick</b> to balance CTR with reach.</div>`;
+    const legend = `<div class="seg-legend"><b>Reach</b> = share of this creative's impressions.<span class="lg ok"></span>green ≥${REACH_GREEN}% safe to lean on<span class="lg mid"></span>amber moderate<span class="lg low"></span>red &lt;${REACH_RED}% high CTR but tiny — risky to target alone.</div>`;
+    const foot = `<div class="seg-foot">Reach is the share of this creative's <b>recent delivered</b> impressions — a historical guide, not a forward inventory forecast.</div>`;
+    return `<div class="seg-section">${segBasisNote(segBasis)}${deliveryHtml(deliv)}${caption}${summary}${legend}${blocks}${foot}</div>`;
+  }
 
   function renderTagEditor() {
     const list = document.getElementById('tagRulesList');
@@ -1258,7 +1731,7 @@
               const ageLabel = ageHrs < 1 ? 'just now' : ageHrs < 2 ? '~1 hour ago' : `~${Math.round(ageHrs)} hours ago`;
               const elf = document.getElementById('lastFetched');
               if (elf) { elf.textContent = 'Data as of: ' + ts.toLocaleString('en-GB') + ' (' + ageLabel + ')'; elf.dataset.ts = d.lastFetched; }
-              updateStats(); renderTags(); renderAdvertiserFilter(); renderTable(); loadActiveView(); loadVideoStats();
+              updateStats(); renderTags(); renderAdvertiserFilter(); renderTable(); renderFilterBar(); renderShell(); loadActiveView(); loadVideoStats();
             }
           } catch(e) {}
         }, 30000);
@@ -1303,10 +1776,10 @@
       <td class="num-cell"><span class="skel skel-num"></span></td>
       <td class="num-cell"><span class="skel skel-num"></span></td>
       <td class="num-cell"><span class="skel skel-num"></span></td>
-      <td class="num-cell"><span class="skel skel-num"></span></td>
+      <td><span class="skel skel-line"></span></td>
     </tr>`;
     document.getElementById('tableBody').innerHTML =
-      `<tr><td colspan="7" style="padding:10px 16px 4px;font-size:.8rem;color:#888" id="skelCaption">Fetching from Google Ad Manager… 0s</td></tr>` +
+      `<tr><td colspan="9" style="padding:10px 16px 4px;font-size:.8rem;color:#888" id="skelCaption">Fetching from Google Ad Manager… 0s</td></tr>` +
       Array(8).fill(0).map(skelRow).join('');
 
     try {
@@ -1332,12 +1805,19 @@
       el.dataset.ts = data.lastFetched;
       el.style.color = ageHrs > 6 ? '#f59e0b' : ageHrs > 4 ? '#fbbf24' : '';
 
-      // The server sets `cached` when it couldn't reach GAM live and served the last
-      // saved snapshot instead — most often because the local refresh token has expired.
+      // The server sets `cached` when it couldn't reach GAM live and served the last saved
+      // snapshot instead. `cacheReason` says WHY, so we show an honest message: a network
+      // failure (e.g. broken IPv6 route / timeout) is NOT the same as an expired token.
       const cachedBanner = document.getElementById('cachedBanner');
       if (data.cached) {
+        const asOf = '<strong>' + ts.toLocaleString('en-GB') + '</strong>';
+        const cause = data.cacheReason === 'auth'
+          ? 'the local GAM token has expired or been revoked (re-authorise at <code>/auth</code>)'
+          : data.cacheReason === 'network'
+          ? 'the local machine couldn’t reach Google Ad Manager (network/connectivity)'
+          : 'the live Google Ad Manager fetch failed';
         cachedBanner.style.display = 'block';
-        cachedBanner.innerHTML = '⚠ <strong>Showing cached data.</strong> The live Google Ad Manager refresh is unavailable (the local token has expired), so this is the last saved snapshot from <strong>' + ts.toLocaleString('en-GB') + '</strong>. The live site and the daily refresh are unaffected.';
+        cachedBanner.innerHTML = '⚠ <strong>Showing cached data.</strong> ' + cause + ', so this is the last saved snapshot from ' + asOf + '. The live site and the daily refresh are unaffected.';
       } else {
         cachedBanner.style.display = 'none';
       }
@@ -1346,6 +1826,8 @@
       renderTags();
       renderAdvertiserFilter();
       renderTable();
+      renderFilterBar();
+      renderShell();
       loadActiveView();
       loadVideoStats();
     } catch (e) {
@@ -1363,12 +1845,7 @@
   // SINGLE SOURCE OF TRUTH for both the cards (updateStats) AND the alert benchmarks (renderTable),
   // so a cell/row alert is always measured against exactly the number shown in the card.
   function currentBenchmarks() {
-    const tabRows = allRows.filter(r =>
-      r.device === activeTab &&
-      (!activeAdUnits.size || (r.adUnitNames || []).some(n => activeAdUnits.has(n))) &&
-      (!activeCategory || getCategory(r.advertiser, r.netlifyUrl) === activeCategory) &&
-      (!activeAdvertiser || getAdvertiser(r.netlifyUrl) === activeAdvertiser)
-    );
+    const tabRows = allRows.filter(passFilters);
     const isVideo = activeTab === 'video' || activeTab === 'video-mobile';
 
     // For the video tab, aggregate per-VIDEO_ID rows into per-URL groups before computing
@@ -1611,18 +2088,218 @@
     });
   }
 
+  // ── v3 filter bar (multi-select, always visible; Brand site reuses activeAdUnits) ──
+  let fCats = new Set(), fAdvs = new Set(), fStatuses = new Set();
+  let flaggedOnly = false, sortMode = 'recent', _openDD = null;
+  let lastResultCount = 0, lastFlaggedCount = 0;
+  let rowMetrics = {}, critUrls = new Set(), rdEditUrl = null;   // per-render: url→{ctr,view,compl} + which are critical (for Edit modal + looked-into)
+  const RD_STATUS_OPTS = [['delivering','Delivering'],['ready','Ready'],['paused','Paused'],['inactive','Inactive']];
+  // Structural filters shared by the table, the Overview cards, and the CTR totals (search handled separately).
+  function passFilters(r){
+    if (r.device !== activeTab) return false;
+    if (activeAdUnits.size && !(r.adUnitNames||[]).some(n => activeAdUnits.has(n))) return false;
+    if (fCats.size && !fCats.has(getCategory(r.advertiser, r.netlifyUrl))) return false;
+    if (fAdvs.size && !fAdvs.has(getAdvertiser(r.netlifyUrl))) return false;
+    if (fStatuses.size && !fStatuses.has(r.liveStatus)) return false;
+    return true;
+  }
+  function setSortMode(m){ sortMode = m; if(m==='az'){ sortCol='advertiser'; sortDir=1; } else if(m==='za'){ sortCol='advertiser'; sortDir=-1; } else { sortCol='sortKey'; sortDir=-1; } renderTable(); renderFilterBar(); }
+  function rdToggleDD(name){ _openDD = (_openDD===name ? null : name); renderFilterBar(); }
+  function rdToggleVal(group, val){ const S = group==='cat'?fCats : group==='adv'?fAdvs : fStatuses; if(S.has(val)) S.delete(val); else S.add(val); renderTable(); renderFilterBar(); }
+  function rdToggleBrand(val){ if(activeAdUnits.has(val)) activeAdUnits.delete(val); else activeAdUnits.add(val); renderTable(); renderFilterBar(); }
+  function rdClearGroup(group){ if(group==='cat')fCats.clear(); else if(group==='adv')fAdvs.clear(); else if(group==='status')fStatuses.clear(); else if(group==='brand')activeAdUnits.clear(); renderTable(); renderFilterBar(); }
+  function rdToggleFlagged(){ flaggedOnly = !flaggedOnly; renderTable(); renderFilterBar(); }
+  function rdClearAll(){ fCats.clear(); fAdvs.clear(); fStatuses.clear(); activeAdUnits.clear(); flaggedOnly=false; sortMode='recent'; sortCol='sortKey'; sortDir=-1; _openDD=null; const sb=document.getElementById('searchBox'); if(sb) sb.value=''; renderTable(); renderFilterBar(); }
+  function rdSearchInput(){ renderTable(); const rc=document.querySelector('.rd-results'); if(rc) rc.textContent='Results · '+lastResultCount; }
+  function _ddPanel(group, opts){ return `<div class="rd-dd-panel"><button class="rd-dd-clear" onclick="rdClearGroup('${group}')">Deselect all</button>${opts.map(o=>`<label class="rd-dd-opt"><input type="checkbox" ${o.checked?'checked':''} onchange="${o.onchange}">${esc(o.label)}</label>`).join('')}</div></div>`; }
+  function _dd(name, label, count, panel){ const active = count>0; return `<div class="rd-dd${_openDD===name?' open':''}"><button class="rd-dd-btn${active?' active':''}" onclick="event.stopPropagation();rdToggleDD('${name}')">${label}${count?` (${count})`:''} <span class="rd-caret">▾</span></button>${panel}`; }
+  function renderFilterBar(){
+    const bar = document.getElementById('rdFilter'); if(!bar) return;
+    const tabRows = allRows.filter(r => r.device === activeTab);
+    const cats = [...new Set([...DEFAULT_CATS, ...Object.keys(tagRules), ...Object.values(urlTags)])].filter(Boolean).filter(c => tabRows.some(r => getCategory(r.advertiser, r.netlifyUrl) === c));
+    const advs = allAdvertisers().filter(a => tabRows.some(r => getAdvertiser(r.netlifyUrl) === a));
+    const sts  = RD_STATUS_OPTS.filter(([v]) => tabRows.some(r => r.liveStatus === v));
+    const brs  = AD_UNIT_OPTIONS.filter(b => tabRows.some(r => (r.adUnitNames||[]).includes(b)));
+    const anyFilter = fCats.size||fAdvs.size||fStatuses.size||activeAdUnits.size||flaggedOnly;
+    const q = (document.getElementById('searchBox')||{}).value || '';
+    bar.innerHTML =
+      `<div class="rd-filter-left">`
+      + `<div class="rd-results">Results · ${lastResultCount}</div>`
+      + `<button class="rd-all${anyFilter?'':' on'}" onclick="rdClearAll()">All</button>`
+      + (lastFlaggedCount>0 ? `<button class="rd-flagged${flaggedOnly?' on':''}" onclick="rdToggleFlagged()"><span class="rd-flag-badge">${lastFlaggedCount}</span> Flagged</button>` : '')
+      + _dd('cat','Category',fCats.size, _ddPanel('cat', cats.map(c=>({label:c, checked:fCats.has(c), onchange:`rdToggleVal('cat', ${esc(JSON.stringify(c))})`}))))
+      + _dd('adv','Advertiser',fAdvs.size, _ddPanel('adv', advs.map(a=>({label:a, checked:fAdvs.has(a), onchange:`rdToggleVal('adv', ${esc(JSON.stringify(a))})`}))))
+      + _dd('status','Status',fStatuses.size, _ddPanel('status', sts.map(([v,l])=>({label:l, checked:fStatuses.has(v), onchange:`rdToggleVal('status', '${v}')`}))))
+      + _dd('brand','Brand site',activeAdUnits.size, _ddPanel('brand', brs.map(b=>({label:b, checked:activeAdUnits.has(b), onchange:`rdToggleBrand(${esc(JSON.stringify(b))})`}))))
+      + `<select class="rd-sort" onchange="setSortMode(this.value)"><option value="recent"${sortMode==='recent'?' selected':''}>Sort: recent</option><option value="az"${sortMode==='az'?' selected':''}>A to Z</option><option value="za"${sortMode==='za'?' selected':''}>Z to A</option></select>`
+      + `<button class="rd-clear" onclick="rdClearAll()">Clear</button>`
+      + `</div>`
+      + `<div class="rd-search"><input id="searchBox" type="search" placeholder="Search by name or URL…" value="${esc(q)}" oninput="rdSearchInput()"></div>`;
+  }
+
+  // ── v3 table helpers (designer's grid layout, wired to our real data) ──
+  const RD_STATUS = { delivering:['#2f9b46','Delivering'], ready:['#E99402','Ready'], paused:['#e14a5e','Paused'], inactive:['#8B93B0','Inactive'] };
+  function rdGridStyle(isVideo){ return 'display:grid;grid-template-columns:' + (editMode?'48px ':'') + '190px 190px 60px' + (isVideo?' 130px':'') + ' 110px 100px 100px 110px;gap:20px'; }
+  function sortArrow(c){ return sortCol===c ? (sortDir>0?' ▲':' ▼') : ''; }
+  function rdStatusChip(liveStatus){ const m = RD_STATUS[liveStatus]; if(!m) return ''; return `<div class="rd-status" style="--sc:${m[0]}"><span class="rd-sdot"${liveStatus==='delivering'?' data-pulse="1"':''}></span>${m[1]}</div>`; }
+  // Every CTR/Viewability value gets a pill: good/warn/bad vs our real benchmark when gated (≥2000 imps + live),
+  // neutral grey when we don't have the sample to judge. ⚠ prefix on bad (matches the design).
+  function rdPerfPill(value, benchmark, gated, ofLabel){ if(value==null) return '<span class="pill neutral">—</span>'; const disp = value + '%'; if(!gated) return `<span class="pill neutral">${disp}</span>`; const lvl = alertLevel(value, benchmark).level; const band = lvl==='red'?'bad':lvl==='orange'?'warn':'good'; const ic = band==='bad'?'⚠ ':''; return `<span class="pill ${band}"${alertCellTitle(value, benchmark, gated, ofLabel)}>${ic}${disp}</span>`; }
+  // Videos column: one row per video (stacked). Completion pill grey normally, RED only under the flat 20% rule.
+  function rdVideoCell(videos, gated){ const vids = (videos||[]).filter(v => v.completionRate != null); if(!vids.length) return '<span class="pill neutral">—</span>'; return vids.map(v => { const red = gated && v.completionRate < ALERT_COMPL_MIN; const bk = durationBucket(v.durationSec); const label = bk === '15s' ? 'Short-form (~15s)' : bk === '30s' ? 'Long-form (~30s)' : 'Video'; return `<div class="rd-vid"><span class="rd-vid-fmt">${label}</span><span class="pill ${red?'bad':'neutral'}">${v.completionRate}%</span></div>`; }).join(''); }
+  function rdPreview(url, encodedUrl, sub, device){ return `<a class="rd-preview" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(url)}"><img class="thumb-img lazy" data-src="/api/screenshot?url=${encodedUrl}&device=${device}" data-fallback="/screenshots/${sub}-${device}.png" data-advertiser-url="${encodedUrl}" alt="preview"></a>`; }
+  function rdSplit(encodedUrl, device){ return `<div class="rd-split"><button class="rd-split-btn" data-url="${encodedUrl}" data-device="${device}" onclick="event.stopPropagation();openSplitFromBtn(this)" title="Creative split"><img src="/redesign/assets/icons/svg/split.svg" alt="split"></button></div>`; }
+  function rdEditCell(encodedUrl){ return editMode ? `<div><button class="rd-edit-btn" onclick="openRowEdit('${encodedUrl}')" title="Edit"><img src="/redesign/assets/icons/svg/edit-black.svg" alt="edit"></button></div>` : ''; }
+  // ── Edit-creative modal (Edit mode; no roles) ──
+  function openRowEdit(enc){ rdEditUrl = decodeURIComponent(enc); renderEditModal(); document.getElementById('rdEditOverlay').style.display = 'flex'; }
+  function closeRowEdit(){ document.getElementById('rdEditOverlay').style.display = 'none'; rdEditUrl = null; }
+  function renderEditModal(){
+    const url = rdEditUrl; if(!url) return;
+    const row = allRows.find(r => r.netlifyUrl === url);
+    const name = row ? (row.advertiser || '') : '';
+    const cat = getCategory(row ? row.advertiser : '', url) || '';
+    const adv = getAdvertiser(url) || '';
+    const enc = encodeURIComponent(url);
+    const cats = [...new Set([...DEFAULT_CATS, ...Object.keys(tagRules), ...Object.values(urlTags)])].filter(Boolean);
+    const advs = allAdvertisers();
+    const flagged = critUrls.has(url);
+    const looked = !!alertAcks[alertRowKey(url)];
+    const opt = (v, sel) => `<option value="${esc(v)}"${v===sel?' selected':''}>${esc(v)}</option>`;
+    document.getElementById('rdEditBody').innerHTML =
+      `<div class="rd-modal-h"><h3>Edit creative</h3><button class="rd-modal-x" onclick="closeRowEdit()">×</button></div>`
+      + `<div class="rd-fieldset">`
+        + `<div class="rd-field"><div class="rd-field-h">Preview image</div><div style="display:flex;align-items:center;gap:14px">`
+          + `<img class="rd-prev-edit" src="/api/screenshot?url=${enc}&device=${activeTab}" onerror="this.onerror=null;this.style.opacity=.4" alt="preview">`
+          + `<button class="rd-upload" onclick="uploadRowEditImage('${enc}','${activeTab}')">Upload image</button>`
+        + `</div></div>`
+        + `<div class="rd-field"><div class="rd-field-h">Creative name</div><input id="rdEditName" class="rd-in" value="${esc(name)}"></div>`
+        + `<div class="rd-field"><div class="rd-field-h">Advertiser</div><select id="rdEditAdv" class="rd-sel"><option value="">— none —</option>${advs.map(a=>opt(a,adv)).join('')}</select><div class="rd-note">Add new advertisers in Filter settings.</div></div>`
+        + `<div class="rd-field"><div class="rd-field-h">Category</div><select id="rdEditCat" class="rd-sel"><option value="">— none —</option>${cats.map(c=>opt(c,cat)).join('')}</select><div class="rd-note">Add new categories in Filter settings.</div></div>`
+        + (flagged ? `<div class="rd-field"><div class="rd-field-h flag">Flagged issue</div><div class="rd-swrow"><div style="font-size:14px;font-weight:500">Has this been looked into?</div><button class="rd-toggle${looked?' on':''}" onclick="toggleLookedInto()" title="${looked?'Yes':'No'}"></button></div></div>` : '')
+      + `</div>`
+      + `<div class="rd-modal-foot"><button class="rd-btn-2" onclick="closeRowEdit()">Cancel</button><button class="rd-btn-1" onclick="saveRowEdit()">Apply</button></div>`;
+  }
+  function saveRowEdit(){
+    const url = rdEditUrl; if(!url) return;
+    const name = (document.getElementById('rdEditName').value || '').trim();
+    const adv = document.getElementById('rdEditAdv').value;   // assign existing only (create in Filter settings)
+    const cat = document.getElementById('rdEditCat').value;
+    const row = allRows.find(r => r.netlifyUrl === url);
+    if (name && row && name !== row.advertiser) {
+      fetch('/api/advertiser', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url, name }) }).catch(()=>{});
+      row.advertiser = name;
+    }
+    setUrlAdvertiser(url, adv || null);   // persists + re-renders
+    setUrlTag(url, cat || null);
+    closeRowEdit();
+    renderTable(); renderFilterBar(); renderShell();
+  }
+  function toggleLookedInto(){
+    const url = rdEditUrl; if(!url) return;
+    const key = alertRowKey(url), m = rowMetrics[url] || {};
+    if (alertAcks[key]) {
+      delete alertAcks[key];
+      fetch('/api/alert-acks', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ key, ack: null }) }).catch(()=>{});
+    } else {
+      const ack = { ackAt: Date.now(), ctr: m.ctr ?? null, activeView: m.view ?? null, completionRate: m.compl ?? null };
+      alertAcks[key] = ack;
+      fetch('/api/alert-acks', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ key, ack }) }).catch(()=>{});
+    }
+    renderTable(); renderShell(); renderEditModal();
+  }
+  function uploadRowEditImage(enc, dev){
+    const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*';
+    input.onchange = async () => {
+      const f = input.files[0]; if(!f) return;
+      try {
+        const resp = await fetch(`/api/screenshot/upload?url=${enc}&device=${dev}`, { method:'POST', headers:{'Content-Type': f.type || 'image/png'}, body: f });
+        if(!resp.ok) throw new Error(await resp.text());
+        renderEditModal(); renderTable();
+      } catch(e) { alert('Upload failed: ' + e.message); }
+    };
+    input.click();
+  }
+
+  // ── Filter settings modal (sidebar) — category rules + assigned advertisers ──
+  function openFilterSettings(){ renderFilterSettings(); document.getElementById('rdFilterOverlay').style.display = 'flex'; }
+  function closeFilterSettings(){ document.getElementById('rdFilterOverlay').style.display = 'none'; }
+  function renderFilterSettings(){
+    const cats = [...new Set([...DEFAULT_CATS, ...Object.keys(tagRules), ...Object.values(urlTags)])].filter(Boolean).sort((a, b) => a.localeCompare(b));
+    const advs = allAdvertisers();
+    const js = v => esc(JSON.stringify(v));
+    const catChip = c => `<span class="rd-chip">${esc(c)}${DEFAULT_CATS.includes(c) ? '' : `<button onclick="rdRemoveCategory(${js(c)})" title="Remove">✕</button>`}</span>`;
+    document.getElementById('rdFilterBody').innerHTML =
+      `<div class="rd-modal-h"><h3>Filter settings</h3><button class="rd-modal-x" onclick="closeFilterSettings()">×</button></div>`
+      + `<div class="rd-fieldset">`
+        + `<div class="rd-field"><div class="rd-field-h">Categories</div>`
+          + `<div class="rd-note">Create the categories you can assign to a creative from its Edit.</div>`
+          + `<div class="rd-chips">${cats.map(catChip).join('')}</div>`
+          + `<div class="rd-addrow"><input id="rdNewCat" class="rd-in" placeholder="New category (e.g. Travel)" onkeydown="if(event.key==='Enter')rdAddCategory()"><button class="rd-addbtn" onclick="rdAddCategory()">Add</button></div>`
+        + `</div>`
+        + `<div class="rd-field"><div class="rd-field-h">Advertisers</div>`
+          + `<div class="rd-note">Create the advertisers (brands) you can assign to a creative from its Edit.</div>`
+          + (advs.length ? `<div class="rd-chips">${advs.map(a => `<span class="rd-chip">${esc(a)}<button onclick="rdRemoveAdvertiser(${js(a)})" title="Remove">✕</button></span>`).join('')}</div>` : `<div class="rd-empty-note">No advertisers yet — add one below.</div>`)
+          + `<div class="rd-addrow"><input id="rdNewAdv" class="rd-in" placeholder="New advertiser (e.g. Honda)" onkeydown="if(event.key==='Enter')rdAddAdvertiser()"><button class="rd-addbtn" onclick="rdAddAdvertiser()">Add</button></div>`
+        + `</div>`
+      + `</div>`
+      + `<div class="rd-modal-foot"><button class="rd-btn-1" onclick="closeFilterSettings()">Done</button></div>`;
+  }
+  function rdAddCategory(){
+    const name = (document.getElementById('rdNewCat').value || '').trim(); if(!name) return;
+    if(!tagRules[name]) tagRules[name] = [];   // a category name = a (keyword-less) tag-rules entry; persists + shows in the Edit dropdown
+    saveTagRules(); renderFilterSettings(); renderFilterBar();
+  }
+  function rdRemoveCategory(name){
+    delete tagRules[name];
+    Object.keys(urlTags).forEach(url => { if(urlTags[url] === name) setUrlTag(url, null); });   // unassign it everywhere
+    saveTagRules(); renderFilterSettings(); renderTable(); renderFilterBar();
+  }
+  function rdAddAdvertiser(){
+    const name = (document.getElementById('rdNewAdv').value || '').trim(); if(!name) return;
+    advertiserNames.add(name); persistAdvertiserNames('addName', name);
+    renderFilterSettings(); renderFilterBar();
+  }
+  function rdRemoveAdvertiser(name){
+    advertiserNames.delete(name);
+    Object.keys(urlAdvertisers).forEach(url => { if(urlAdvertisers[url] === name) setUrlAdvertiser(url, null); });   // unassign everywhere
+    persistAdvertiserNames('removeName', name);
+    renderFilterSettings(); renderTable(); renderFilterBar();
+  }
+  function persistAdvertiserNames(op, name){
+    fetch('/api/url-advertisers', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ [op]: name }) }).catch(()=>{});
+  }
+  function rdRow(o){
+    return `<div class="rd-row${o.crit?' crit':''}" style="${rdGridStyle(o.isVideo)}">`
+      + rdEditCell(o.encodedUrl)
+      + `<div class="rd-creative"><div class="rd-cname" title="${esc(o.name)}">${esc(o.name)}</div>${rdStatusChip(o.liveStatus)}</div>`
+      + rdPreview(o.url, o.encodedUrl, o.sub, o.device)
+      + rdSplit(o.encodedUrl, o.device)
+      + (o.isVideo ? `<div class="rd-video">${rdVideoCell(o.videos, o.gated)}</div>` : '')
+      + `<div class="rd-num">${o.imps > 0 ? o.imps.toLocaleString() : '—'}</div>`
+      + `<div class="rd-num">${o.clicks > 0 ? o.clicks.toLocaleString() : '—'}</div>`
+      + `<div>${rdPerfPill(o.ctr, o.ctrBench, o.gated, 'expected for its inventory')}</div>`
+      + `<div>${rdPerfPill(o.view, o.viewBench, o.gated, 'average')}</div>`
+      + `</div>`;
+  }
+
   function renderTable() {
-    const search = document.getElementById('searchBox').value.trim().toLowerCase();
+    const search = (document.getElementById('searchBox')?.value || '').trim().toLowerCase();
     const isVideoTab = activeTab === 'video' || activeTab === 'video-mobile';
     const tbody = document.getElementById('tableBody');
     const BENCH = currentBenchmarks(); // alert benchmarks == the average cards (same computation)
     const AUCTR = adUnitCtrTotals();   // per-publication CTR totals → each row's expected CTR (vs its inventory)
+    const _head = document.getElementById('rdHead');
+    if (_head) _head.innerHTML = `<div class="rd-hrow" style="${rdGridStyle(isVideoTab)}">`
+      + (editMode ? '<div>Edit</div>' : '')
+      + '<div>Creative</div><div>Preview URL</div><div style="text-align:center">Creative split</div>'
+      + (isVideoTab ? '<div>Videos</div>' : '')
+      + `<div class="rd-sortable" onclick="sortBy('impressions')">Impressions${sortArrow('impressions')}</div>`
+      + `<div class="rd-sortable" onclick="sortBy('clicks')">Clicks${sortArrow('clicks')}</div>`
+      + `<div class="rd-sortable" onclick="sortBy('ctr')">CTR${sortArrow('ctr')}</div>`
+      + `<div class="rd-sortable" onclick="sortBy('activeView')">Viewability %${sortArrow('activeView')}</div>`
+      + '</div>';
 
-    let rows = allRows.filter(r =>
-      r.device === activeTab &&
-      (!activeAdUnits.size || (r.adUnitNames || []).some(n => activeAdUnits.has(n))) &&
-      (!activeCategory || getCategory(r.advertiser, r.netlifyUrl) === activeCategory) &&
-      (!activeAdvertiser || getAdvertiser(r.netlifyUrl) === activeAdvertiser) &&
+    let rows = allRows.filter(r => passFilters(r) &&
       (!search ||
         (r.advertiser || '').toLowerCase().includes(search) ||
         (r.netlifyUrl || '').toLowerCase().includes(search) ||
@@ -1677,120 +2354,49 @@
         const attention = computeAttentionClient({ device: activeTab, activeView, avgViewableSec, ctr: gctr, completionRate, impressions: g.impressions });
         return Object.assign({}, g, { activeView, avgViewableSec, completionRate, attention });
       });
-      if (!groups.length) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No results match your search</td></tr>';
-        return;
-      }
-      tbody.innerHTML = groups.map(g => {
+      const built = groups.map(g => {
         const ctr = g.impressions && g.clicks ? parseFloat(((g.clicks / g.impressions) * 100).toFixed(2)) : null;
-        const _gPartialMark = g.partial ? '<span class="partial-mark" title="Partial ad-unit coverage — some of this row\'s delivery could not be matched to a publication, so this figure may undercount">+</span>' : '';
-        const imps   = g.impressions > 0 ? `<td class="num-cell has-data">${g.impressions.toLocaleString()}${_gPartialMark}</td>`
-                     : g.anyUnmatched ? `<td class="num-cell unmatched" title="Delivers on this site but couldn't be matched to a publication yet">unmatched</td>`
-                     : `<td class="num-cell no-data">—</td>`;
-        const clks   = g.clicks > 0 ? `<td class="num-cell has-data">${g.clicks.toLocaleString()}${_gPartialMark}</td>` : `<td class="num-cell no-data">—</td>`;
-        // Alerts vs the average cards, gated on ≥2000 imps + a live (non-completed) line item.
         const _gated = (g.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(g.liveStatus);
-        // CTR is judged vs what's normal for the inventory this skin ran on (per-publication expected),
-        // not the estate average; falls back to the estate CTR if there are no peers.
-        const _ctrBench = expectedCtr(g, AUCTR) ?? BENCH.ctr;
-        // A red stat (<80% of its benchmark = "needs attention") flags the whole line; orange only colours its cell.
+        const _ctrBench = expectedCtr(g, AUCTR) ?? BENCH.ctr;   // per-publication expected CTR (our real logic)
         const _anyRed = _gated && (alertLevel(ctr, _ctrBench).level === 'red' || alertLevel(g.activeView, BENCH.view).level === 'red' || videoComplBand(g.videos || []) === 'red');
-        const _rowKey = alertRowKey(g.netlifyUrl);
-        const _ack = alertAcks[_rowKey];
-        // "Looked into" suppresses this row's highlights UNLESS a stored metric has since dropped >2%.
-        const _worse = !!_ack && ((ctr != null && _ack.ctr != null && ctr < _ack.ctr * ALERT_WORSE)
-                     || (g.activeView != null && _ack.activeView != null && g.activeView < _ack.activeView * ALERT_WORSE)
-                     || (g.completionRate != null && _ack.completionRate != null && g.completionRate < _ack.completionRate * ALERT_WORSE));
-        const _suppressed = !!_ack && !_worse;
-        // Acknowledging drops the URGENT LINE tint only; the stat pills stay (it's still under-performing).
-        const _lineCls = (_anyRed && !_suppressed) ? 'alert-line-red' : '';
-        // "Looked into" only for the serious (red-line) rows.
-        const _ackCtrl = (_anyRed && !_suppressed)
-          ? `<button class="row-ack-btn" data-key="${esc(_rowKey)}" data-ctr="${ctr ?? ''}" data-view="${g.activeView ?? ''}" data-compl="${g.completionRate ?? ''}" onclick="event.stopPropagation();ackRowFromBtn(this)" title="Mark as looked into — clears the red line (the stat pills stay)">Looked into</button>`
-          : (_ack && _anyRed) ? `<span class="row-reviewed" data-key="${esc(_rowKey)}" onclick="event.stopPropagation();unackRow(this)" title="Reviewed — click to re-flag the line">✓ reviewed</span>` : '';
-        const ctrStr = ctr !== null ? `<td class="ctr-cell has-data">${statFlag(ctr + '%', ctr, _ctrBench, _gated, 'expected for its inventory')}</td>` : `<td class="ctr-cell no-data">—</td>`;
-        const av     = (g.activeView != null && (!activeAdUnits.size || g.impressions > 0)) ? `<td class="ctr-cell has-data">${statFlag(g.activeView + '%', g.activeView, BENCH.view, _gated)}</td>` : `<td class="ctr-cell no-data">—</td>`;
+        const _ack = alertAcks[alertRowKey(g.netlifyUrl)];
+        const _worse = !!_ack && ((ctr != null && _ack.ctr != null && ctr < _ack.ctr * ALERT_WORSE) || (g.activeView != null && _ack.activeView != null && g.activeView < _ack.activeView * ALERT_WORSE) || (g.completionRate != null && _ack.completionRate != null && g.completionRate < _ack.completionRate * ALERT_WORSE));
+        const crit = _anyRed && !(_ack && !_worse);   // #FFE9ED critical row until acked in the Edit modal
         const encodedUrl = encodeURIComponent(g.netlifyUrl);
-        const isPortrait = activeTab === 'mobile' || activeTab === 'video-mobile';
-        const thumbSubdomain = (g.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
-        // Merged "Preview URL" cell — the thumbnail itself is a link to the Netlify URL.
-        const thumb  = `<td class="thumb-cell${isPortrait ? ' thumb-cell-portrait' : ''}"><div class="thumb-wrap"><a class="thumb-link" href="${esc(g.netlifyUrl)}" target="_blank" rel="noopener" title="${esc(g.netlifyUrl)}"><img class="thumb-img lazy${isPortrait ? ' thumb-portrait' : ''}" data-src="/api/screenshot?url=${encodedUrl}&device=${activeTab}" data-fallback="/screenshots/${thumbSubdomain}-${activeTab}.png" data-advertiser-url="${encodedUrl}" alt="preview" /></a><button class="thumb-replace-btn" data-url="${encodedUrl}" data-device="${activeTab}" title="Replace screenshot">↑</button></div></td>`;
-        const vCat = getCategory(g.advertiser, g.netlifyUrl);
-        const vCatChip = vCat ? `<span class="row-cat-chip" style="--tc:${tagColor(vCat)}">${vCat}</span>` : '';
-        const vAdv = getAdvertiser(g.netlifyUrl);
-        const vAdvChip = vAdv ? `<span class="row-adv-chip" style="--ac:${advertiserColor(vAdv)}">${esc(vAdv)}</span>` : '';
-        const vTagBtn = `<button class="row-tag-btn" data-url="${esc(g.netlifyUrl)}" onclick="event.stopPropagation();openTagPickerFromBtn(this)" title="Assign category">＋</button>`;
-        const vAdvBtn = `<button class="row-adv-btn" data-url="${esc(g.netlifyUrl)}" onclick="event.stopPropagation();openAdvPickerFromBtn(this)" title="Assign advertiser">Ⓐ</button>`;
-        const vSplitBtn = `<button class="row-split-btn" data-url="${encodedUrl}" data-device="${activeTab}" onclick="event.stopPropagation();openSplitFromBtn(this)" title="Show creative splits">⊞</button>`;
-        const DOT_LABEL = { delivering: 'Delivering', ready: 'Ready', paused: 'Paused', inactive: 'Inactive' };
-        const vDot = g.liveStatus ? `<span class="live-dot ${g.liveStatus}" title="${DOT_LABEL[g.liveStatus] || g.liveStatus}"></span>` : '';
-        return `<tr class="${_lineCls}">
-          <td class="adv-cell" data-url="${encodedUrl}">${vDot}<span class="adv-name">${esc(g.advertiser || '')}</span>${vCatChip}${vAdvChip}${liLinks([...g.lineItemIds])}</td>
-          <td class="action-cell">${vTagBtn}${vAdvBtn}${vSplitBtn}${_ackCtrl}</td>
-          ${thumb}
-          ${renderVideoCell(g.videos, BENCH, _gated)}
-          ${imps}${clks}${ctrStr}${av}
-        </tr>`;
-      }).join('');
+        const sub = (g.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
+        return { crit, url: g.netlifyUrl, ctr, view: g.activeView, compl: g.completionRate, html: rdRow({ crit, encodedUrl, url: g.netlifyUrl, name: g.advertiser, liveStatus: g.liveStatus, isVideo: true, videos: g.videos, device: activeTab, sub, imps: g.impressions || 0, clicks: g.clicks || 0, ctr, ctrBench: _ctrBench, view: g.activeView, viewBench: BENCH.view, gated: _gated }) };
+      });
+      lastFlaggedCount = built.filter(b => b.crit).length;
+      rowMetrics = {}; critUrls.clear();
+      for (const b of built) { rowMetrics[b.url] = { ctr: b.ctr, view: b.view, compl: b.compl }; if (b.crit) critUrls.add(b.url); }
+      const shown = flaggedOnly ? built.filter(b => b.crit) : built;
+      lastResultCount = shown.length;
+      tbody.innerHTML = shown.length ? shown.map(b => b.html).join('') : '<div class="rd-empty">No creatives match your filters.</div>';
       observeLazyImages();
       return;
     }
 
-    // Desktop / Mobile tabs — original per-row rendering
+    // Desktop / Mobile tabs — per-row rendering
     rows = sortRows(rows, sortCol, sortDir);
-    if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No results match your search</td></tr>';
-      return;
-    }
-    tbody.innerHTML = rows.map(r => {
-      const _rfs   = getFilteredStats(r);
-      const _partialMark = _rfs.partial ? '<span class="partial-mark" title="Partial ad-unit coverage — some of this row\'s delivery could not be matched to a publication, so this figure may undercount">+</span>' : '';
-      const imps   = _rfs.impressions > 0 ? `<td class="num-cell has-data">${_rfs.impressions.toLocaleString()}${_partialMark}</td>`
-                   : _rfs.unmatched ? `<td class="num-cell unmatched" title="Delivers on this site but couldn't be matched to a publication yet">unmatched</td>`
-                   : `<td class="num-cell no-data">—</td>`;
-      const clks   = _rfs.clicks > 0 ? `<td class="num-cell has-data">${_rfs.clicks.toLocaleString()}${_partialMark}</td>` : `<td class="num-cell no-data">—</td>`;
-      const _fCtr  = _rfs.impressions && _rfs.clicks ? parseFloat(((_rfs.clicks / _rfs.impressions) * 100).toFixed(2)) : null;
-      // Alerts vs the average cards, gated on ≥2000 imps + a live (non-completed) line item.
+    const built = rows.map(r => {
+      const _rfs = getFilteredStats(r);
+      const _fCtr = _rfs.impressions && _rfs.clicks ? parseFloat(((_rfs.clicks / _rfs.impressions) * 100).toFixed(2)) : null;
       const _gated = (_rfs.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(r.liveStatus);
-      // CTR is judged vs what's normal for the inventory this skin ran on (per-publication expected),
-      // not the estate average; falls back to the estate CTR if there are no peers.
-      const _ctrBench = expectedCtr(r, AUCTR) ?? BENCH.ctr;
-      // A red stat (<80% of its benchmark = "needs attention") flags the whole line; orange only colours its cell.
+      const _ctrBench = expectedCtr(r, AUCTR) ?? BENCH.ctr;   // per-publication expected CTR (our real logic)
       const _anyRed = _gated && (alertLevel(_fCtr, _ctrBench).level === 'red' || alertLevel(r.activeView, BENCH.view).level === 'red');
-      const _rowKey = alertRowKey(r.netlifyUrl);
-      const _ack = alertAcks[_rowKey];
-      // "Looked into" suppresses this row's highlights UNLESS a stored metric has since dropped >2%.
-      const _worse = !!_ack && ((_fCtr != null && _ack.ctr != null && _fCtr < _ack.ctr * ALERT_WORSE)
-                   || (r.activeView != null && _ack.activeView != null && r.activeView < _ack.activeView * ALERT_WORSE));
-      const _suppressed = !!_ack && !_worse;
-      // Acknowledging drops the URGENT LINE tint only; the stat pills stay (it's still under-performing).
-      const _lineCls = (_anyRed && !_suppressed) ? 'alert-line-red' : '';
-      const _ackCtrl = (_anyRed && !_suppressed)
-        ? `<button class="row-ack-btn" data-key="${esc(_rowKey)}" data-ctr="${_fCtr ?? ''}" data-view="${r.activeView ?? ''}" data-compl="" onclick="event.stopPropagation();ackRowFromBtn(this)" title="Mark as looked into — clears the red line (the stat pills stay)">Looked into</button>`
-        : (_ack && _anyRed) ? `<span class="row-reviewed" data-key="${esc(_rowKey)}" onclick="event.stopPropagation();unackRow(this)" title="Reviewed — click to re-flag the line">✓ reviewed</span>` : '';
-      const ctrStr = _fCtr !== null ? `<td class="ctr-cell has-data">${statFlag(_fCtr + '%', _fCtr, _ctrBench, _gated, 'expected for its inventory')}</td>` : `<td class="ctr-cell no-data">—</td>`;
+      const _ack = alertAcks[alertRowKey(r.netlifyUrl)];
+      const _worse = !!_ack && ((_fCtr != null && _ack.ctr != null && _fCtr < _ack.ctr * ALERT_WORSE) || (r.activeView != null && _ack.activeView != null && r.activeView < _ack.activeView * ALERT_WORSE));
+      const crit = _anyRed && !(_ack && !_worse);   // #FFE9ED critical row until acked in the Edit modal
       const encodedUrl = encodeURIComponent(r.netlifyUrl);
-      const isPortrait = activeTab === 'mobile' || activeTab === 'video-mobile';
-      const thumbSubdomain = (r.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
-      // Merged "Preview URL" cell — the thumbnail itself is a link to the Netlify URL.
-      const thumb  = `<td class="thumb-cell${isPortrait ? ' thumb-cell-portrait' : ''}"><div class="thumb-wrap"><a class="thumb-link" href="${esc(r.netlifyUrl)}" target="_blank" rel="noopener" title="${esc(r.netlifyUrl)}"><img class="thumb-img lazy${isPortrait ? ' thumb-portrait' : ''}" data-src="/api/screenshot?url=${encodedUrl}&device=${activeTab}" data-fallback="/screenshots/${thumbSubdomain}-${activeTab}.png" data-advertiser-url="${encodedUrl}" alt="preview" /></a><button class="thumb-replace-btn" data-url="${encodedUrl}" data-device="${activeTab}" title="Replace screenshot">↑</button></div></td>`;
-      const av     = (r.activeView != null && (!activeAdUnits.size || _rfs.impressions > 0)) ? `<td class="ctr-cell has-data">${statFlag(r.activeView + '%', r.activeView, BENCH.view, _gated)}</td>` : `<td class="ctr-cell no-data">—</td>`;
-      const cat = getCategory(r.advertiser, r.netlifyUrl);
-      const catChip = cat ? `<span class="row-cat-chip" style="--tc:${tagColor(cat)}">${cat}</span>` : '';
-      const adv = getAdvertiser(r.netlifyUrl);
-      const advChip = adv ? `<span class="row-adv-chip" style="--ac:${advertiserColor(adv)}">${esc(adv)}</span>` : '';
-      const tagBtn = `<button class="row-tag-btn" data-url="${esc(r.netlifyUrl)}" onclick="event.stopPropagation();openTagPickerFromBtn(this)" title="Assign category">＋</button>`;
-      const advBtn = `<button class="row-adv-btn" data-url="${esc(r.netlifyUrl)}" onclick="event.stopPropagation();openAdvPickerFromBtn(this)" title="Assign advertiser">Ⓐ</button>`;
-      const splitBtn = `<button class="row-split-btn" data-url="${encodedUrl}" data-device="${activeTab}" onclick="event.stopPropagation();openSplitFromBtn(this)" title="Show creative splits">⊞</button>`;
-      const DOT_LABEL = { delivering: 'Delivering', ready: 'Ready', paused: 'Paused', inactive: 'Inactive' };
-      const dot = r.liveStatus ? `<span class="live-dot ${r.liveStatus}" title="${DOT_LABEL[r.liveStatus] || r.liveStatus}"></span>` : '';
-      return `<tr class="${_lineCls}">
-        <td class="adv-cell" data-url="${encodedUrl}">${dot}<span class="adv-name">${esc(r.advertiser || '')}</span>${catChip}${advChip}${liLinks(r.lineItemIds || [])}</td>
-        <td class="action-cell">${tagBtn}${advBtn}${splitBtn}${_ackCtrl}</td>
-        ${thumb}
-        ${imps}${clks}${ctrStr}${av}
-      </tr>`;
-    }).join('');
+      const sub = (r.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
+      return { crit, url: r.netlifyUrl, ctr: _fCtr, view: r.activeView, compl: null, html: rdRow({ crit, encodedUrl, url: r.netlifyUrl, name: r.advertiser, liveStatus: r.liveStatus, isVideo: false, videos: null, device: activeTab, sub, imps: _rfs.impressions || 0, clicks: _rfs.clicks || 0, ctr: _fCtr, ctrBench: _ctrBench, view: r.activeView, viewBench: BENCH.view, gated: _gated }) };
+    });
+    lastFlaggedCount = built.filter(b => b.crit).length;
+    rowMetrics = {}; critUrls.clear();
+    for (const b of built) { rowMetrics[b.url] = { ctr: b.ctr, view: b.view, compl: b.compl }; if (b.crit) critUrls.add(b.url); }
+    const shown = flaggedOnly ? built.filter(b => b.crit) : built;
+    lastResultCount = shown.length;
+    tbody.innerHTML = shown.length ? shown.map(b => b.html).join('') : '<div class="rd-empty">No creatives match your filters.</div>';
     observeLazyImages();
   }
 
@@ -2008,9 +2614,105 @@
   }
 
   // Auto-load on page open
+  // ───────────────────────── v3 shell interactions ─────────────────────────
+  let editMode = false;
+  const SECTION_LABEL = { desktop:'Desktop Skin', video:'Desktop Video Skin', mobile:'Mobile Scroll', 'video-mobile':'Mobile Video Scroll' };
+
+  function toggleTheme() {
+    const r = document.documentElement;
+    const goDark = r.getAttribute('data-theme') !== 'dark';
+    r.setAttribute('data-theme', goDark ? 'dark' : 'light');
+    const img = document.querySelector('.theme-toggle img');
+    if (img) img.src = '/redesign/assets/icons/svg/' + (goDark ? 'light' : 'dark') + '.svg';
+  }
+  function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
+  function toggleEditMode() {
+    editMode = !editMode;
+    const b = document.getElementById('editModeBtn');
+    if (b) { b.classList.toggle('on', editMode); const l = b.querySelector('.lbl'); if (l) l.textContent = 'Edit mode | ' + (editMode ? 'On' : 'Off'); }
+    document.body.classList.toggle('edit-on', editMode);
+    renderTable();
+  }
+  function renderShell() {
+    const t = document.getElementById('sectionTitle');
+    if (t) t.textContent = SECTION_LABEL[activeTab] || '';
+    updateNavBadges();
+  }
+  // Count of UNRESOLVED critical rows for a tab (ignores the active filters — it's a per-tab total).
+  // Reuses the real benchmark + alert logic by briefly swapping the globals it reads, then restoring.
+  function flaggedCountForTab(tab) {
+    const _t = activeTab, _au = activeAdUnits, _c = fCats, _a = fAdvs, _s = fStatuses;
+    activeTab = tab; activeAdUnits = new Set(); fCats = new Set(); fAdvs = new Set(); fStatuses = new Set();
+    let n = 0;
+    try {
+      const BENCH = currentBenchmarks(), AUCTR = adUnitCtrTotals();
+      const isVideo = tab === 'video' || tab === 'video-mobile';
+      const rows = allRows.filter(passFilters);
+      const critFor = (url, ctr, view, compl, anyRed) => {
+        const ack = alertAcks[alertRowKey(url)];
+        const worse = !!ack && ((ctr != null && ack.ctr != null && ctr < ack.ctr * ALERT_WORSE) || (view != null && ack.activeView != null && view < ack.activeView * ALERT_WORSE) || (compl != null && ack.completionRate != null && compl < ack.completionRate * ALERT_WORSE));
+        return anyRed && !(ack && !worse);
+      };
+      if (isVideo) {
+        const m = new Map();
+        for (const r of rows) {
+          let g = m.get(r.netlifyUrl);
+          if (!g) { g = { url: r.netlifyUrl, imps: 0, clicks: 0, avV: 0, avM: 0, cNum: 0, cDen: 0, liveStatus: null, impsByAdUnit: {}, videos: [] }; m.set(r.netlifyUrl, g); }
+          const f = getFilteredStats(r); g.imps += f.impressions || 0; g.clicks += f.clicks || 0;
+          g.avV += r.activeViewViewable || 0; g.avM += r.activeViewMeasurable || 0;
+          if (r.completionRate != null) { g.cNum += r.completionRate * (f.impressions || 0); g.cDen += (f.impressions || 0); }
+          for (const [au, v] of Object.entries(r.impsByAdUnit || {})) { const t2 = g.impsByAdUnit[au] || (g.impsByAdUnit[au] = { impressions: 0, clicks: 0 }); t2.impressions += v.impressions || 0; t2.clicks += v.clicks || 0; }
+          if (r.videoId) g.videos.push({ completionRate: r.completionRate, durationSec: r.durationSec });
+          const ORD = { ready: 0, delivering: 1, paused: 2, inactive: 3 };
+          if ((ORD[r.liveStatus] ?? 99) < (ORD[g.liveStatus] ?? 99)) g.liveStatus = r.liveStatus;
+        }
+        for (const g of m.values()) {
+          const ctr = g.imps && g.clicks ? parseFloat(((g.clicks / g.imps) * 100).toFixed(2)) : null;
+          const av = g.avM > 0 ? parseFloat(((g.avV / g.avM) * 100).toFixed(1)) : null;
+          const compl = g.cDen > 0 ? (g.cNum / g.cDen) : null;
+          const gated = (g.imps || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(g.liveStatus);
+          const cb = expectedCtr(g, AUCTR) ?? BENCH.ctr;
+          const anyRed = gated && (alertLevel(ctr, cb).level === 'red' || alertLevel(av, BENCH.view).level === 'red' || videoComplBand(g.videos) === 'red');
+          if (critFor(g.url, ctr, av, compl, anyRed)) n++;
+        }
+      } else {
+        for (const r of rows) {
+          const f = getFilteredStats(r);
+          const ctr = f.impressions && f.clicks ? parseFloat(((f.clicks / f.impressions) * 100).toFixed(2)) : null;
+          const gated = (f.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(r.liveStatus);
+          const cb = expectedCtr(r, AUCTR) ?? BENCH.ctr;
+          const anyRed = gated && (alertLevel(ctr, cb).level === 'red' || alertLevel(r.activeView, BENCH.view).level === 'red');
+          if (critFor(r.netlifyUrl, ctr, r.activeView, null, anyRed)) n++;
+        }
+      }
+    } catch (e) { /* leave n as counted so far */ }
+    finally { activeTab = _t; activeAdUnits = _au; fCats = _c; fAdvs = _a; fStatuses = _s; }
+    return n;
+  }
+  function updateNavBadges() {
+    if (!allRows.length) return;
+    ['desktop', 'video', 'mobile', 'video-mobile'].forEach(tab => {
+      const el = document.getElementById('badge-' + tab); if (!el) return;
+      const n = flaggedCountForTab(tab);
+      el.textContent = n; el.classList.toggle('on', n > 0);
+    });
+  }
+  // Auto-collapse the sidebar after idle, expand on hover (faithful to the prototype).
+  let _sbIdle = setTimeout(() => document.getElementById('sidebar')?.classList.add('collapsed'), 10000);
+  document.getElementById('sidebar')?.addEventListener('mouseenter', () => { clearTimeout(_sbIdle); document.getElementById('sidebar').classList.remove('collapsed'); });
+  // Refresh the shell title whenever the tab changes (wrap the kept setTab, no edit to its body).
+  const _origSetTab = setTab;
+  setTab = function(tab) {
+    fCats.clear(); fAdvs.clear(); fStatuses.clear(); activeAdUnits.clear();
+    flaggedOnly = false; sortMode = 'recent'; sortCol = 'sortKey'; sortDir = -1; _openDD = null;
+    _origSetTab(tab); renderShell(); renderFilterBar();
+  };
+
   initAdUnitDropdown();
   loadTagRules();
   loadData();
+  renderShell();
+  renderFilterBar();
 </script>
 </body>
 </html>

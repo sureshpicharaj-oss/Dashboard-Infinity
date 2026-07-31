@@ -1,0 +1,152 @@
+/* ============================================================================
+ * Infinity Dashboard — design tokens (v3 rebuild)
+ * Extracted verbatim from the design handoff prototype (Infinity Dashboard.dc.html,
+ * the `t` / `ef` token objects + `chip()` + the <style> block). Translated from the
+ * prototype's per-theme JS objects into CSS custom properties for our vanilla stack.
+ * Theme is switched by toggling `data-theme="dark"` on <html> (default = light).
+ * Font: Barlow (the app must <link> it: fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800).
+ * ==========================================================================*/
+
+:root {
+  /* Surfaces / text (light) */
+  --page-bg:      #eef1f8;
+  --panel-bg:     #ffffff;
+  --text:         #0b1130;
+  --text-sub:     #000000;
+  --text-muted:   #3a3f55;
+  --text-faint:   #8B93B0;   /* secondary muted from the brief */
+  --border:       #e3e6f0;
+  --row-border:   #edeff5;
+  --input-bg:     #ffffff;
+  --chip-bg:      #f3f4f9;
+  --preview-a:    #eef0f6;   /* thumbnail gradient stops */
+  --preview-b:    #e3e6f0;
+  --modal-bg:     #ffffff;
+  --tag-chip-bg:  #e5f2fe;
+  --tag-chip-text:#0b5fa8;
+
+  /* Brand + fixed surfaces (do NOT theme) */
+  --accent:       #1B8BEA;   /* hover/active = brightness(1.12) filter */
+  --icon-btn-bg:  #1B8BEA;
+  --active-bg:    #1B8BEA;
+  --overview-bg:  #1E293C;   /* Overview panel + dark modal surface — fixed in BOTH themes */
+  --text-on-dark: #FCFCFC;
+
+  /* Semantic status (NEVER themes — same in light + dark) */
+  --good:         #2f9b46;
+  --warn:         #E99402;
+  --bad:          #e14a5e;
+  --status-fg:    #ffffff;
+  --crit-row-tint:#FFE9ED;   /* full-row tint on a bad CTR/Viewability row */
+  --crit-row-text:#0b1130;   /* row text flips to dark navy over the tint */
+  --crit-bar:     #e14a5e;   /* 4px rounded left bar on a critical row */
+  /* live-status dots */
+  --dot-inactive: #8B93B0;
+  --dot-ready:    #E99402;
+  --dot-delivering:#2f9b46;
+  --dot-paused:   #e14a5e;
+  --dot-completed:#1B8BEA;
+
+  /* Edit/Filter modal token set (`ef` — light) */
+  --ef-card:      #ffffff;
+  --ef-card-border:#e3e6f0;
+  --ef-text:      #0b1130;
+  --ef-divider:   #e3e6f0;
+  --ef-chip-bg:   #eef1f8;
+  --ef-chip-text: #0b1130;
+  --ef-input-bg:  #f3f4f9;
+  --ef-input-text:#0b1130;
+}
+
+:root[data-theme="dark"] {
+  --page-bg:      #0d0f1a;
+  --panel-bg:     #1e293c;
+  --text:         #eef1fb;
+  --text-sub:     #FCFCFC;
+  --text-muted:   #c3c8de;
+  --text-faint:   #92A1B4;
+  --border:       #2f3a4d;
+  --row-border:   #2f3a4d;
+  --input-bg:     #324154;
+  --chip-bg:      #324154;
+  --preview-a:    #232847;
+  --preview-b:    #2b3153;
+  --modal-bg:     #1b2140;
+  --tag-chip-bg:  rgba(27,139,234,.22);
+  --tag-chip-text:#8fc6fb;
+
+  --ef-card:      #1e293c;
+  --ef-card-border:rgba(255,255,255,.14);
+  --ef-text:      #fcfcfc;
+  --ef-divider:   #2f3a4d;
+  --ef-chip-bg:   #324154;
+  --ef-chip-text: #fcfcfc;
+  --ef-input-bg:  #324154;
+  --ef-input-text:#ffffff;
+}
+
+/* Follow the OS preference on first paint until the user toggles (toggle stamps data-theme). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page-bg:#0d0f1a; --panel-bg:#1e293c; --text:#eef1fb; --text-sub:#FCFCFC; --text-muted:#c3c8de;
+    --text-faint:#92A1B4; --border:#2f3a4d; --row-border:#2f3a4d; --input-bg:#324154; --chip-bg:#324154;
+    --preview-a:#232847; --preview-b:#2b3153; --modal-bg:#1b2140; --tag-chip-bg:rgba(27,139,234,.22); --tag-chip-text:#8fc6fb;
+    --ef-card:#1e293c; --ef-card-border:rgba(255,255,255,.14); --ef-text:#fcfcfc; --ef-divider:#2f3a4d;
+    --ef-chip-bg:#324154; --ef-chip-text:#fcfcfc; --ef-input-bg:#324154; --ef-input-text:#ffffff;
+  }
+}
+
+/* ---- Type scale (Barlow; never lighter than 500; letter-spacing:0) ---- */
+:root {
+  --font: 'Barlow', system-ui, -apple-system, sans-serif;
+  --fs-title: 20px;   --fw-title: 800;
+  --fs-cardnum: 24px; --fw-cardnum: 800;
+  --fs-cardlabel: 11px; --fw-cardlabel: 500;
+  --fs-th: 12px;      --fw-th: 700;
+  --fs-cell: 13.5px;  --fw-cell: 700;
+  --fs-pill: 12.5px;  --fw-pill: 700;
+  --fs-modaltitle: 24px; --fw-modaltitle: 700;
+  --fs-btn: 14px;     --fw-btn: 700;
+  --fs-caption: 11.5px; --fw-caption: 500;
+}
+
+/* ---- Base resets (from the prototype <style>) ---- */
+body { margin:0; -webkit-font-smoothing:antialiased; font-family:var(--font); background:var(--page-bg); color:var(--text); }
+a { color:inherit; text-decoration:none; }
+input, select, button { font-family:inherit; }
+button { transition:filter .15s ease, opacity .15s ease, background .15s ease; cursor:pointer; }
+button:hover, a:hover { filter:brightness(1.12); }
+button:active { filter:brightness(0.95); }
+img { transition:opacity .15s ease; }
+[data-hoverable="preview-cell"]:hover { opacity:.75; }
+*, *::before, *::after { box-sizing:border-box; }
+.num, [data-num] { font-variant-numeric:tabular-nums; }
+
+/* ---- Pills (status) — chip() from the prototype: 4px 10px / radius 7 / 12.5px / 700 ---- */
+.pill { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:7px;
+        font-size:var(--fs-pill); font-weight:700; white-space:nowrap; color:var(--status-fg); }
+.pill.good { background:var(--good); }
+.pill.warn { background:var(--warn); animation:pillPulseWarn 2.2s infinite; }
+.pill.bad  { background:var(--bad);  animation:pillPulseBad 2.2s infinite; }
+
+/* ---- Critical row ---- */
+tr.crit > td, .row.crit { background:var(--crit-row-tint); color:var(--crit-row-text); }
+tr.crit > td:first-child, .row.crit { box-shadow: inset 4px 0 0 var(--crit-bar); }
+
+/* ---- Live-status dot ---- */
+.dot { width:9px; height:9px; border-radius:50%; display:inline-block; flex:none; }
+.dot.inactive   { background:var(--dot-inactive); }
+.dot.ready      { background:var(--dot-ready); }
+.dot.delivering { background:var(--dot-delivering); animation:statusPulse 2s infinite; }
+.dot.paused     { background:var(--dot-paused); }
+.dot.completed  { background:var(--dot-completed); }
+
+/* ---- Keyframes (verbatim from the prototype) ---- */
+@keyframes statusPulse   { 0%{box-shadow:0 0 0 0 rgba(47,155,70,.55)} 70%{box-shadow:0 0 0 7px rgba(47,155,70,0)} 100%{box-shadow:0 0 0 0 rgba(47,155,70,0)} }
+@keyframes pillPulseWarn { 0%{box-shadow:0 0 0 0 rgba(233,148,2,.45)} 70%{box-shadow:0 0 0 6px rgba(233,148,2,0)} 100%{box-shadow:0 0 0 0 rgba(233,148,2,0)} }
+@keyframes pillPulseBad  { 0%{box-shadow:0 0 0 0 rgba(225,74,94,.45)} 70%{box-shadow:0 0 0 6px rgba(225,74,94,0)} 100%{box-shadow:0 0 0 0 rgba(225,74,94,0)} }
+@media (prefers-reduced-motion: reduce) { .pill.warn, .pill.bad, .dot.delivering { animation:none !important; } }
+
+/* ---- Mobile gate (<900px) ---- */
+.mobile-gate { display:none; }
+@media (max-width:900px) { .mobile-gate { display:flex !important; } .app-shell { display:none !important; } }

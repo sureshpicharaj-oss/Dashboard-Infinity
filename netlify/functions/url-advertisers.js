@@ -19,12 +19,13 @@ exports.handler = async (event) => {
   }
 
   if (event.httpMethod === 'POST') {
-    const { url, advertiser } = JSON.parse(event.body || '{}');
-    if (!url) return { statusCode: 400, body: JSON.stringify({ error: 'url required' }) };
+    const { url, advertiser, addName, removeName } = JSON.parse(event.body || '{}');
     const raw = await store.get('url_advertisers', { type: 'text' }).catch(() => null);
     const map = raw ? JSON.parse(raw) : {};
-    if (advertiser) map[url] = advertiser;
-    else delete map[url];
+    if (addName) { const s = new Set(map.__names || []); s.add(addName); map.__names = [...s]; }
+    else if (removeName) { map.__names = (map.__names || []).filter(n => n !== removeName); }
+    else if (url) { if (advertiser) map[url] = advertiser; else delete map[url]; }
+    else return { statusCode: 400, body: JSON.stringify({ error: 'url or name required' }) };
     await store.set('url_advertisers', JSON.stringify(map));
     return {
       statusCode: 200,

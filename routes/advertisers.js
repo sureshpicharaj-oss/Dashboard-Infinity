@@ -26,15 +26,19 @@ module.exports = function(SCREENSHOT_DIR) {
     } catch(e) { res.status(500).json({ error: e.message }); }
   });
 
-  /* Sets or removes the advertiser for a single URL.
-   * Expects { url, advertiser }. Omitting advertiser (or sending null/empty) removes the entry. */
+  /* Three ops on the url-advertisers store:
+   *  - { url, advertiser }        assign (or remove, if advertiser is null/empty) an advertiser to a URL
+   *  - { addName: "Honda" }       register an advertiser NAME (master list, reserved "__names" key)
+   *  - { removeName: "Honda" }    drop a name from the master list
+   * The name list lets an advertiser exist (assignable from a creative's Edit) before it's assigned anywhere. */
   router.post('/api/url-advertisers', express.json(), (req, res) => {
     try {
-      const { url, advertiser } = req.body;
-      if (!url) return res.status(400).json({ error: 'url required' });
+      const { url, advertiser, addName, removeName } = req.body || {};
       const map = fs.existsSync(URL_ADVERTISERS_PATH) ? JSON.parse(fs.readFileSync(URL_ADVERTISERS_PATH, 'utf8')) : {};
-      if (advertiser) map[url] = advertiser;
-      else delete map[url];
+      if (addName) { const s = new Set(map.__names || []); s.add(addName); map.__names = [...s]; }
+      else if (removeName) { map.__names = (map.__names || []).filter(n => n !== removeName); }
+      else if (url) { if (advertiser) map[url] = advertiser; else delete map[url]; }
+      else return res.status(400).json({ error: 'url or name required' });
       fs.writeFileSync(URL_ADVERTISERS_PATH, JSON.stringify(map, null, 2));
       res.json({ ok: true });
     } catch(e) { res.status(500).json({ error: e.message }); }
