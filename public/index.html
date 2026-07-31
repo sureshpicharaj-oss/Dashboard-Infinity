@@ -175,7 +175,7 @@
       padding: 10px 38px 10px 16px;   /* room for the search icon on the right */
       border: 1px solid var(--border);
       border-radius: 20px;
-      font-size: .88rem;
+      font-size: .78rem;
       font-weight: 500;
       color: var(--text);
       background-color: var(--input-bg);
@@ -1121,6 +1121,7 @@
     const totals = {};
     for (const r of allRows) {
       if (!passFilters(r)) continue;
+      if ((r.impressions || 0) < ALERT_MIN_IMPS) continue;   // per-publication CTR benchmark from >=2000-imp lines only
       for (const [au, v] of Object.entries(r.impsByAdUnit || {})) {
         if (activeAdUnits.size && !activeAdUnits.has(au)) continue;
         const t = totals[au] || (totals[au] = { imps: 0, clicks: 0 });
@@ -1986,7 +1987,7 @@
     // CTR — computed on statRows (unique skin URLs in all tabs, including video). Includes
     // every impression-bearing row, even ones with zero clicks — dropping them entirely
     // (rather than counting them as a true 0% row) inflates aggregate/average/median CTR.
-    const ctrRows = statRows.filter(r => r.impressions > 0);
+    const ctrRows = statRows.filter(r => r.impressions >= ALERT_MIN_IMPS);   // benchmark from lines that actually ran (>=2000 imps)
     const ctrMethod = document.getElementById('ctrMethod').value;
     let ctr = null;
     if (ctrRows.length) {
@@ -2008,6 +2009,7 @@
     // filtered impressions (statRows impressions are already filtered values).
     let totalAvViewable = 0, totalAvMeasurable = 0;
     for (const r of statRows) {
+      if ((r.impressions || 0) < ALERT_MIN_IMPS) continue;   // viewability benchmark from >=2000-imp lines only
       if (activeAdUnits.size && !(r.impressions > 0)) continue;
       totalAvViewable   += r.activeViewViewable   ?? 0;
       totalAvMeasurable += r.activeViewMeasurable ?? 0;
@@ -2192,11 +2194,12 @@
   let rowMetrics = {}, critUrls = new Set(), redUrls = new Set(), rdEditUrl = null;   // per-render: url→{ctr,view,compl}; critUrls = unacked red (flagged count), redUrls = ALL underperforming (acked or not) for the Edit-modal re-flag toggle
   const RD_STATUS_OPTS = [['delivering','Delivering'],['ready','Ready'],['paused','Paused'],['inactive','Inactive']];
   // Structural filters shared by the table, the Overview cards, and the CTR totals (search handled separately).
+  const RD_NONE = '∅';   // sentinel value for the "No category / No advertiser" (untagged) filter option
   function passFilters(r){
     if (r.device !== activeTab) return false;
     if (activeAdUnits.size && !(r.adUnitNames||[]).some(n => activeAdUnits.has(n))) return false;
-    if (fCats.size && !fCats.has(getCategory(r.advertiser, r.netlifyUrl))) return false;
-    if (fAdvs.size && !fAdvs.has(getAdvertiser(r.netlifyUrl))) return false;
+    if (fCats.size && !fCats.has(getCategory(r.advertiser, r.netlifyUrl) || RD_NONE)) return false;
+    if (fAdvs.size && !fAdvs.has(getAdvertiser(r.netlifyUrl) || RD_NONE)) return false;
     if (fStatuses.size && !fStatuses.has(r.liveStatus)) return false;
     return true;
   }
@@ -2214,7 +2217,9 @@
     const bar = document.getElementById('rdFilter'); if(!bar) return;
     const tabRows = allRows.filter(r => r.device === activeTab);
     const cats = [...new Set([...DEFAULT_CATS, ...Object.keys(tagRules), ...Object.values(urlTags)])].filter(Boolean).filter(c => tabRows.some(r => getCategory(r.advertiser, r.netlifyUrl) === c));
+    if (tabRows.some(r => !getCategory(r.advertiser, r.netlifyUrl))) cats.push(RD_NONE);   // "No category" for untagged rows
     const advs = allAdvertisers().filter(a => tabRows.some(r => getAdvertiser(r.netlifyUrl) === a));
+    if (tabRows.some(r => !getAdvertiser(r.netlifyUrl))) advs.push(RD_NONE);   // "No advertiser" for untagged rows
     const sts  = RD_STATUS_OPTS.filter(([v]) => tabRows.some(r => r.liveStatus === v));
     const brs  = AD_UNIT_OPTIONS.filter(b => tabRows.some(r => (r.adUnitNames||[]).includes(b)));
     const anyFilter = fCats.size||fAdvs.size||fStatuses.size||activeAdUnits.size||flaggedOnly;
@@ -2224,8 +2229,8 @@
       + `<div class="rd-results">Results · ${lastResultCount}</div>`
       + `<button class="rd-all${anyFilter?'':' on'}" onclick="rdClearAll()">All</button>`
       + (lastFlaggedCount>0 ? `<button class="rd-flagged${flaggedOnly?' on':''}" onclick="rdToggleFlagged()"><span class="rd-flag-badge">${lastFlaggedCount}</span> Flagged</button>` : '')
-      + _dd('cat','Category',fCats.size, _ddPanel('cat', cats.map(c=>({label:c, checked:fCats.has(c), onchange:`rdToggleVal('cat', ${esc(JSON.stringify(c))})`}))))
-      + _dd('adv','Advertiser',fAdvs.size, _ddPanel('adv', advs.map(a=>({label:a, checked:fAdvs.has(a), onchange:`rdToggleVal('adv', ${esc(JSON.stringify(a))})`}))))
+      + _dd('cat','Category',fCats.size, _ddPanel('cat', cats.map(c=>({label:c===RD_NONE?'No category':c, checked:fCats.has(c), onchange:`rdToggleVal('cat', ${esc(JSON.stringify(c))})`}))))
+      + _dd('adv','Advertiser',fAdvs.size, _ddPanel('adv', advs.map(a=>({label:a===RD_NONE?'No advertiser':a, checked:fAdvs.has(a), onchange:`rdToggleVal('adv', ${esc(JSON.stringify(a))})`}))))
       + _dd('status','Status',fStatuses.size, _ddPanel('status', sts.map(([v,l])=>({label:l, checked:fStatuses.has(v), onchange:`rdToggleVal('status', '${v}')`}))))
       + _dd('brand','Brand site',activeAdUnits.size, _ddPanel('brand', brs.map(b=>({label:b, checked:activeAdUnits.has(b), onchange:`rdToggleBrand(${esc(JSON.stringify(b))})`}))))
       + `<select class="rd-sort" onchange="setSortMode(this.value)"><option value="recent"${sortMode==='recent'?' selected':''}>Sort: recent</option><option value="az"${sortMode==='az'?' selected':''}>A to Z</option><option value="za"${sortMode==='za'?' selected':''}>Z to A</option></select>`
@@ -2285,10 +2290,10 @@
     const name = (document.getElementById('rdEditName').value || '').trim();
     const adv = document.getElementById('rdEditAdv').value;   // assign existing only (create in Filter settings)
     const cat = document.getElementById('rdEditCat').value;
-    const row = allRows.find(r => r.netlifyUrl === url);
-    if (name && row && name !== row.advertiser) {
+    const rows = allRows.filter(r => r.netlifyUrl === url);   // EVERY row for this URL (all devices / videoIds), not just the first
+    if (name && rows.length && rows.some(r => r.advertiser !== name)) {
       fetch('/api/advertiser', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url, name }) }).catch(()=>{});
-      row.advertiser = name;
+      rows.forEach(r => r.advertiser = name);
     }
     setUrlAdvertiser(url, adv || null);   // persists + re-renders
     setUrlTag(url, cat || null);
@@ -2660,8 +2665,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url, name: newName }),
         }).catch(() => {});
-        const row = allRows.find(r => r.netlifyUrl === url);
-        if (row) row.advertiser = newName;
+        allRows.filter(r => r.netlifyUrl === url).forEach(r => r.advertiser = newName);
       }
     }
     input.addEventListener('blur', save);
