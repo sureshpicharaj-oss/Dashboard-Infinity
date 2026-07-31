@@ -172,14 +172,22 @@
     #searchBox {
       flex: 1;
       max-width: 380px;
-      padding: 9px 14px;
-      border: 1px solid #dde;
-      border-radius: 6px;
+      padding: 10px 38px 10px 16px;   /* room for the search icon on the right */
+      border: 1px solid var(--border);
+      border-radius: 20px;
       font-size: .88rem;
-      background: #fff;
+      font-weight: 500;
+      color: var(--text);
+      background-color: var(--input-bg);
+      background-image: url('/redesign/assets/icons/svg/search-black.svg');
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      background-size: 16px;
       outline: none;
     }
-    #searchBox:focus { border-color: #4f7fff; }
+    #searchBox::placeholder { color: var(--text-muted); }
+    #searchBox:focus { border-color: var(--accent); }
+    :root[data-theme="dark"] #searchBox { background-image: url('/redesign/assets/icons/svg/search-white.svg'); }
 
     #advertiserTags {
       display: flex;
@@ -716,7 +724,8 @@
        panel scrolls away normally). Header sits just below the sticky filter. */
     #rdHead { position: sticky; top: 50px; z-index: 20; }
     .rd-hrow, .rd-row { display: grid; align-items: center; padding: 14px 20px; gap: 20px; }
-    .rd-hrow { background: var(--panel-bg); border-bottom: 1px solid var(--border); font-size: 10.5px; font-weight: 500; color: var(--text-sub); border-radius: 16px 16px 0 0; }
+    .rd-hrow { background: #F5F6FA; border-bottom: 1px solid var(--border); font-size: 10.5px; font-weight: 500; color: var(--text-sub); border-radius: 16px 16px 0 0; }
+    :root[data-theme="dark"] .rd-hrow { background: #11162F; }
     .rd-hrow .rd-sortable { cursor: pointer; white-space: nowrap; user-select: none; }
     .rd-row { border-bottom: 1px solid var(--row-border); position: relative; font-size: 13.5px; }
     .rd-row:last-child { border-bottom: none; border-radius: 0 0 16px 16px; }
@@ -743,6 +752,10 @@
     .rd-vid { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
     .rd-vid-fmt { font-size: 11.5px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
     .pill.neutral { background: var(--chip-bg); color: var(--text-muted); }
+    /* Exceptional CTR (>=1.5x benchmark) gets an animated fire inside the green pill. */
+    .fire { display: inline-block; margin-right: 3px; transform-origin: center bottom; animation: fireFlick 1.1s ease-in-out infinite; }
+    @keyframes fireFlick { 0%,100% { transform: scale(1) rotate(-5deg); } 50% { transform: scale(1.22) rotate(5deg); } }
+    @media (prefers-reduced-motion: reduce) { .fire { animation: none; } }
     .rd-empty { padding: 40px; text-align: center; color: var(--text-sub); font-size: 13px; font-weight: 500; }
 
     /* ---- Filter bar ---- */
@@ -777,7 +790,8 @@
     .rd-split-close { position: absolute; top: 20px; right: 24px; background: var(--chip-bg); border: none; color: var(--text); font-size: 18px; cursor: pointer; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
     .rd-split-body { display: block; }
     /* Split header block: label + big creative name + Preview URL link + preview image */
-    .split-head-block { display: flex; justify-content: space-between; align-items: flex-start; gap: 32px; padding: 28px 64px 22px 32px; }
+    .split-head-block { display: flex; justify-content: space-between; align-items: flex-start; gap: 32px; padding: 28px 64px 22px 32px; background: #F5F6FA; }
+    :root[data-theme="dark"] .split-head-block { background: #11162F; }
     .split-head-info { min-width: 0; flex: 1 1 auto; }
     .split-head-label { font-size: 15px; font-weight: 700; color: var(--text-sub); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
     .split-head-name { font-size: 26px; font-weight: 800; color: var(--text); margin-bottom: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -794,8 +808,8 @@
     .split-grow { padding: 14px 20px; border-bottom: 1px solid var(--border); align-items: center; position: relative; font-size: 13.5px; }
     .split-grow:last-child { border-bottom: none; }
     .split-bar { position: absolute; left: 0; top: 8px; bottom: 8px; width: 4px; background: var(--bad); border-radius: 4px; }
-    .split-grow.crit { background: #FFE9ED; }
-    .split-grow.crit .split-gname, .split-grow.crit .split-gname .split-gname-plain, .split-grow.crit .split-gnum { color: #1b2440; }
+    .split-grow.crit { background: #FFE9ED; color: var(--crit-row-text); }
+    .split-grow.crit .split-gname, .split-grow.crit .split-gname-plain, .split-grow.crit .split-gnum { color: var(--crit-row-text); }
     .split-gname { font-weight: 700; color: var(--text); min-width: 0; }
     .split-gname a, .split-gname .split-gname-plain { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
     .split-gname a { color: #008EF1; text-decoration: underline; font-weight: 700; }
@@ -1411,10 +1425,10 @@
     }
     list.sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
     const header = `<div class="split-head-block"><div class="split-head-info">`
-      + `<div class="split-head-label">Creative split</div>`
+      + `<div class="split-head-label">Split view</div>`
       + `<div class="split-head-name" title="${esc(name)}">${esc(name)}</div>`
       + `<div class="split-head-url">Preview URL: <a href="${esc(url)}" target="_blank" rel="noopener">${esc(shortUrl(url))}</a></div>`
-      + `</div><div class="split-head-preview"><img src="/api/screenshot?url=${enc}&device=${device}" onerror="this.onerror=null;this.src='/screenshots/${sub}-${device}.png'" alt="preview"></div></div>`;
+      + `</div><div class="split-head-preview"><img src="/api/screenshot?url=${enc}&device=${device}${_bust(enc)}" onerror="this.onerror=null;this.src='/screenshots/${sub}-${device}.png'" alt="preview"></div></div>`;
     const bodyBlock = list.length
       ? `<div class="split-body-block"><div class="split-format">${esc(fmtLabel)}</div><div class="split-sub2">Individual creatives that make up the combined row.</div>${splitTable(list, isVideo, bench, lineLive, ctrBench, parentAcked)}</div>`
       : `<div class="split-body-block"><div class="split-format">${esc(fmtLabel)}</div><p class="split-sub2">No per-creative split data available for this row yet. Splits are produced by the daily refresh, so a newly-trafficked row may not have them until the next run.</p></div>`;
@@ -2186,14 +2200,14 @@
     if (fStatuses.size && !fStatuses.has(r.liveStatus)) return false;
     return true;
   }
-  function setSortMode(m){ sortMode = m; if(m==='az'){ sortCol='advertiser'; sortDir=1; } else if(m==='za'){ sortCol='advertiser'; sortDir=-1; } else { sortCol='sortKey'; sortDir=-1; } renderTable(); renderFilterBar(); }
+  function setSortMode(m){ sortMode = m; if(m==='az'){ sortCol='advertiser'; sortDir=1; } else if(m==='za'){ sortCol='advertiser'; sortDir=-1; } else { sortCol='sortKey'; sortDir=-1; } renderTable(); renderFilterBar(); updateStats(); }
   function rdToggleDD(name){ _openDD = (_openDD===name ? null : name); renderFilterBar(); }
-  function rdToggleVal(group, val){ const S = group==='cat'?fCats : group==='adv'?fAdvs : fStatuses; if(S.has(val)) S.delete(val); else S.add(val); renderTable(); renderFilterBar(); }
-  function rdToggleBrand(val){ if(activeAdUnits.has(val)) activeAdUnits.delete(val); else activeAdUnits.add(val); renderTable(); renderFilterBar(); }
-  function rdClearGroup(group){ if(group==='cat')fCats.clear(); else if(group==='adv')fAdvs.clear(); else if(group==='status')fStatuses.clear(); else if(group==='brand')activeAdUnits.clear(); renderTable(); renderFilterBar(); }
-  function rdToggleFlagged(){ flaggedOnly = !flaggedOnly; renderTable(); renderFilterBar(); }
-  function rdClearAll(){ fCats.clear(); fAdvs.clear(); fStatuses.clear(); activeAdUnits.clear(); flaggedOnly=false; sortMode='recent'; sortCol='sortKey'; sortDir=-1; _openDD=null; const sb=document.getElementById('searchBox'); if(sb) sb.value=''; renderTable(); renderFilterBar(); }
-  function rdSearchInput(){ renderTable(); const rc=document.querySelector('.rd-results'); if(rc) rc.textContent='Results · '+lastResultCount; }
+  function rdToggleVal(group, val){ const S = group==='cat'?fCats : group==='adv'?fAdvs : fStatuses; if(S.has(val)) S.delete(val); else S.add(val); renderTable(); renderFilterBar(); updateStats(); }
+  function rdToggleBrand(val){ if(activeAdUnits.has(val)) activeAdUnits.delete(val); else activeAdUnits.add(val); renderTable(); renderFilterBar(); updateStats(); }
+  function rdClearGroup(group){ if(group==='cat')fCats.clear(); else if(group==='adv')fAdvs.clear(); else if(group==='status')fStatuses.clear(); else if(group==='brand')activeAdUnits.clear(); renderTable(); renderFilterBar(); updateStats(); }
+  function rdToggleFlagged(){ flaggedOnly = !flaggedOnly; renderTable(); renderFilterBar(); updateStats(); }
+  function rdClearAll(){ fCats.clear(); fAdvs.clear(); fStatuses.clear(); activeAdUnits.clear(); flaggedOnly=false; sortMode='recent'; sortCol='sortKey'; sortDir=-1; _openDD=null; const sb=document.getElementById('searchBox'); if(sb) sb.value=''; renderTable(); renderFilterBar(); updateStats(); }
+  function rdSearchInput(){ renderTable(); updateStats(); const rc=document.querySelector('.rd-results'); if(rc) rc.textContent='Results · '+lastResultCount; }
   function _ddPanel(group, opts){ return `<div class="rd-dd-panel"><button class="rd-dd-clear" onclick="rdClearGroup('${group}')">Deselect all</button>${opts.map(o=>`<label class="rd-dd-opt"><input type="checkbox" ${o.checked?'checked':''} onchange="${o.onchange}">${esc(o.label)}</label>`).join('')}</div></div>`; }
   function _dd(name, label, count, panel){ const active = count>0; return `<div class="rd-dd${_openDD===name?' open':''}"><button class="rd-dd-btn${active?' active':''}" onclick="event.stopPropagation();rdToggleDD('${name}')">${label}${count?` (${count})`:''}</button>${panel}`; }
   function renderFilterBar(){
@@ -2222,18 +2236,20 @@
 
   // ── v3 table helpers (designer's grid layout, wired to our real data) ──
   const RD_STATUS = { delivering:['#2f9b46','Delivering'], ready:['#E99402','Ready'], paused:['#e14a5e','Paused'], inactive:['#8B93B0','Inactive'] };
-  function rdGridStyle(isVideo){ return 'display:grid;grid-template-columns:' + (editMode?'48px ':'') + 'minmax(120px,190px) 190px 60px' + (isVideo?' 130px':'') + ' 110px 100px 100px 110px;gap:20px'; }
+  function rdGridStyle(isVideo){ return 'display:grid;grid-template-columns:' + (editMode?'48px ':'') + 'minmax(120px,190px) 190px 82px' + (isVideo?' 130px':'') + ' 110px 100px 100px 110px;gap:20px'; }
   function sortArrow(c){ return sortCol===c ? (sortDir>0?' ▲':' ▼') : ''; }
   function rdStatusChip(liveStatus){ const m = RD_STATUS[liveStatus]; if(!m) return ''; return `<div class="rd-status" style="--sc:${m[0]}"><span class="rd-sdot"${liveStatus==='delivering'?' data-pulse="1"':''}></span>${m[1]}</div>`; }
   // Every CTR/Viewability value gets a pill: good/warn/bad vs our real benchmark when gated (≥2000 imps + live),
   // neutral grey when we don't have the sample to judge. ⚠ prefix on bad (matches the design).
-  function rdPerfPill(value, benchmark, gated, ofLabel){ if(value==null) return '<span class="pill neutral">—</span>'; const disp = value + '%'; if(!gated) return `<span class="pill neutral">${disp}</span>`; const lvl = alertLevel(value, benchmark).level; const band = lvl==='red'?'bad':lvl==='orange'?'warn':'good'; const ic = band==='bad'?'⚠ ':''; return `<span class="pill ${band}"${alertCellTitle(value, benchmark, gated, ofLabel)}>${ic}${disp}</span>`; }
+  function rdPerfPill(value, benchmark, gated, ofLabel){ if(value==null) return '<span class="pill neutral">—</span>'; const disp = value + '%'; if(!gated) return `<span class="pill neutral">${disp}</span>`; const lvl = alertLevel(value, benchmark).level; const band = lvl==='red'?'bad':lvl==='orange'?'warn':'good'; const ic = band==='bad'?'⚠ ':''; const fire = (band==='good' && benchmark > 0 && value >= benchmark * 1.5) ? '<span class="fire" title="Exceptional — 1.5×+ the benchmark">🔥</span>' : ''; return `<span class="pill ${band}"${alertCellTitle(value, benchmark, gated, ofLabel)}>${ic}${fire}${disp}</span>`; }
   // Videos column: one row per video (stacked). Completion pill grey normally, RED only under the flat 20% rule.
   // One pill per duration bucket — completion AVERAGED across the group's videos for Long- and
   // Short-form (weighted by video starts), not one pill per individual video. Red only under the flat floor.
   function rdVideoCell(videos, gated){ const buckets = videoBucketData(videos || []); if(!buckets.length) return '<span class="pill neutral">—</span>'; return buckets.map(({bucket, avg}) => { const red = gated && avg < ALERT_COMPL_MIN; const label = bucket === '15s' ? 'Short-form (~15s)' : bucket === '30s' ? 'Long-form (~30s)' : 'Video'; return `<div class="rd-vid"><span class="rd-vid-fmt">${label}</span><span class="pill ${red?'bad':'neutral'}">${avg}%</span></div>`; }).join(''); }
-  function rdPreview(url, encodedUrl, sub, device){ return `<a class="rd-preview" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(url)}"><img class="thumb-img lazy" data-src="/api/screenshot?url=${encodedUrl}&device=${device}" data-fallback="/screenshots/${sub}-${device}.png" data-advertiser-url="${encodedUrl}" alt="preview"></a>`; }
-  function rdSplit(encodedUrl, device){ return `<div class="rd-split"><button class="rd-split-btn" data-url="${encodedUrl}" data-device="${device}" onclick="event.stopPropagation();openSplitFromBtn(this)" title="Creative split"><img src="/redesign/assets/icons/svg/split.svg" alt="split"></button></div>`; }
+  let _imgBust = {};   // encodedUrl → timestamp; bumped after an image upload so the new preview isn't served from cache
+  function _bust(enc){ return _imgBust[enc] ? '&_v=' + _imgBust[enc] : ''; }
+  function rdPreview(url, encodedUrl, sub, device){ return `<a class="rd-preview" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(url)}"><img class="thumb-img lazy" data-src="/api/screenshot?url=${encodedUrl}&device=${device}${_bust(encodedUrl)}" data-fallback="/screenshots/${sub}-${device}.png" data-advertiser-url="${encodedUrl}" alt="preview"></a>`; }
+  function rdSplit(encodedUrl, device){ return `<div class="rd-split"><button class="rd-split-btn" data-url="${encodedUrl}" data-device="${device}" onclick="event.stopPropagation();openSplitFromBtn(this)" title="Split view"><img src="/redesign/assets/icons/svg/split.svg" alt="split"></button></div>`; }
   function rdEditCell(encodedUrl){ return editMode ? `<div><button class="rd-edit-btn" onclick="openRowEdit('${encodedUrl}')" title="Edit"><img src="/redesign/assets/icons/svg/edit-black.svg" alt="edit"></button></div>` : ''; }
   // ── Edit-creative modal (Edit mode; no roles) ──
   function openRowEdit(enc){ rdEditUrl = decodeURIComponent(enc); renderEditModal(); document.getElementById('rdEditOverlay').style.display = 'flex'; document.documentElement.classList.add('modal-open'); }
@@ -2254,7 +2270,7 @@
       `<div class="rd-modal-h"><h3>Edit creative</h3><button class="rd-modal-x" onclick="closeRowEdit()">×</button></div>`
       + `<div class="rd-fieldset">`
         + `<div class="rd-field"><div class="rd-field-h">Preview image</div><div style="display:flex;align-items:center;gap:14px">`
-          + `<img class="rd-prev-edit" src="/api/screenshot?url=${enc}&device=${activeTab}" onerror="this.onerror=null;this.style.opacity=.4" alt="preview">`
+          + `<img class="rd-prev-edit" src="/api/screenshot?url=${enc}&device=${activeTab}${_bust(enc)}" onerror="this.onerror=null;this.style.opacity=.4" alt="preview">`
           + `<button class="rd-upload" onclick="uploadRowEditImage('${enc}','${activeTab}')">Upload image</button>`
         + `</div></div>`
         + `<div class="rd-field"><div class="rd-field-h">Creative name</div><input id="rdEditName" class="rd-in" value="${esc(name)}"></div>`
@@ -2299,6 +2315,7 @@
       try {
         const resp = await fetch(`/api/screenshot/upload?url=${enc}&device=${dev}`, { method:'POST', headers:{'Content-Type': f.type || 'image/png'}, body: f });
         if(!resp.ok) throw new Error(await resp.text());
+        _imgBust[enc] = Date.now();   // force the new upload to load instead of the cached image
         renderEditModal(); renderTable();
       } catch(e) { alert('Upload failed: ' + e.message); }
     };
@@ -2376,7 +2393,7 @@
     const _head = document.getElementById('rdHead');
     if (_head) _head.innerHTML = `<div class="rd-hrow" style="${rdGridStyle(isVideoTab)}">`
       + (editMode ? '<div>Edit</div>' : '')
-      + '<div>Creative</div><div>Preview URL</div><div style="text-align:center">Creative split</div>'
+      + '<div>Creative</div><div>Preview URL</div><div style="text-align:center;white-space:nowrap">Split view</div>'
       + (isVideoTab ? '<div>Videos</div>' : '')
       + `<div class="rd-sortable" onclick="sortBy('impressions')">Impressions${sortArrow('impressions')}</div>`
       + `<div class="rd-sortable" onclick="sortBy('clicks')">Clicks${sortArrow('clicks')}</div>`
@@ -2799,8 +2816,8 @@
   // for a manual flip in between.
   (function autoCollapseSidebar(){
     const sb = document.getElementById('sidebar'); if (!sb) return;
-    sb.classList.add('collapsed');
-    let t;
+    // Start expanded so people see the full sidebar, then auto-collapse after 3s (unless hovered).
+    let t = setTimeout(() => sb.classList.add('collapsed'), 3000);
     sb.addEventListener('mouseenter', () => { clearTimeout(t); sb.classList.remove('collapsed'); });
     sb.addEventListener('mouseleave', () => { clearTimeout(t); t = setTimeout(() => sb.classList.add('collapsed'), 450); });
   })();
