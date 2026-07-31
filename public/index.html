@@ -679,6 +679,26 @@
       border-radius: 50%; border: none; cursor: pointer; background: var(--accent); color: #fff;
       display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(0,0,0,.28); }
     .theme-toggle img { width: 22px; height: 22px; }
+    /* Colour-key button — sits just above the dark-mode toggle, bottom-right. Hover reveals the key. */
+    .dash-key { position: fixed; right: 22px; bottom: 78px; z-index: 1200; }
+    .dash-key-btn { width: 48px; height: 48px; border-radius: 50%; border: none; cursor: pointer; background: var(--accent);
+      display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(0,0,0,.28); }
+    .dash-key-btn img { width: 24px; height: 24px; }   /* white-stroked svg reads on the accent fill */
+    .dash-key-pop { display: none; position: absolute; bottom: calc(100% + 10px); right: 0; width: 330px; background: var(--panel-bg);
+      border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 16px 40px rgba(0,0,0,.28); flex-direction: column; overflow: hidden; }
+    .dash-key.open .dash-key-pop { display: flex; }
+    /* "How flagging works" key card (matches the designer's Key card; theme-aware) */
+    .keyc-head { display: flex; justify-content: space-between; align-items: center; padding: 15px 18px 12px; border-bottom: 1px solid var(--border); }
+    .keyc-head b { font-size: 15px; font-weight: 800; color: var(--text); }
+    .keyc-x { background: none; border: none; color: var(--text-sub); font-size: 20px; line-height: 1; cursor: pointer; padding: 0; }
+    .keyc-item { display: flex; gap: 12px; align-items: flex-start; padding: 12px 18px; border-bottom: 1px solid var(--border); }
+    .keyc-item .pill { flex: none; }
+    .keyc-item p { margin: 0; font-size: 12px; line-height: 1.45; color: var(--text-sub); font-weight: 500; }
+    .keyc-bar { flex: none; width: 5px; align-self: stretch; min-height: 26px; border-radius: 3px; background: var(--bad); }
+    .keyc-foot { padding: 12px 18px 16px; font-size: 11px; line-height: 1.5; color: var(--text-sub); font-weight: 500; }
+    /* Lock the page behind any open modal so the dashboard doesn't scroll under the popup.
+       The viewport scroller is <html>, so the lock lives there. */
+    html.modal-open { overflow: hidden; }
 
     /* Mobile gate */
     .mobile-gate { position: fixed; inset: 0; z-index: 3000; flex-direction: column; gap: 14px;
@@ -944,6 +964,17 @@
   </div>
 </div>
   </main>
+</div>
+<div class="dash-key">
+  <button class="dash-key-btn" aria-label="How flagging works" onclick="toggleDashKey(event)"><img src="/redesign/assets/icons/svg/keyinfo-icon.svg" alt="Key"></button>
+  <div class="dash-key-pop">
+    <div class="keyc-head"><b>How flagging works</b><button class="keyc-x" onclick="closeDashKey(event)" aria-label="Close">×</button></div>
+    <div class="keyc-item"><span class="pill good">Good</span><p>CTR &amp; viewability are at or above the benchmark for where the line ran.</p></div>
+    <div class="keyc-item"><span class="pill warn">Watch</span><p>80–99% of the benchmark — a little soft; worth a look at optimisation.</p></div>
+    <div class="keyc-item"><span class="pill bad">Needs attention</span><p>Below 80% of the benchmark, or a video completing under 20% (broken / mis-tracked).</p></div>
+    <div class="keyc-item"><span class="keyc-bar"></span><p>A flagged line gets a red left bar + #FFE9ED tint. Marking it “looked into” calms the tint, but the bar stays until the metric recovers.</p></div>
+    <div class="keyc-foot">CTR is benchmarked against each publication’s own inventory (leave-one-out), not the estate average; viewability against the section average. Only lines with ≥2,000 impressions on a live booking (delivering / paused / ready) can be flagged.</div>
+  </div>
 </div>
 <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode"><img src="/redesign/assets/icons/svg/dark.svg" alt="theme"></button>
 
@@ -1341,6 +1372,7 @@
     const rowsForKey = allRows.filter(r => r.netlifyUrl === url && r.device === device);
     body.innerHTML = '<div class="split-body-block"><p class="split-sub2">Loading…</p></div>';
     overlay.style.display = 'flex';
+    document.documentElement.classList.add('modal-open');
     const data = await loadSplits();
     const groupKeys = rowsForKey.length
       ? rowsForKey.map(r => `${r.netlifyUrl}##${r.videoId || ''}##${r.device}`)
@@ -1378,9 +1410,8 @@
       for (const s of (data[gk] || [])) list.push(isVideo ? Object.assign({}, s, { _videoId: vid, _complCreativeId: vs.complCreativeId, _complLineItemId: vs.complLineItemId }) : s);
     }
     list.sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
-    const key = `<span class="split-key"><img src="/redesign/assets/icons/svg/keyinfo-icon.svg" alt="Colour key" class="split-key-ic"><span class="split-key-pop"><b>Colour key</b><span><i class="k-dot k-good"></i> Good — at or above benchmark</span><span><i class="k-dot k-warn"></i> Watch — a little below</span><span><i class="k-dot k-bad"></i> Needs attention — well below</span><span><i class="k-bar"></i> Red bar / tint = flagged line</span></span></span>`;
     const header = `<div class="split-head-block"><div class="split-head-info">`
-      + `<div class="split-head-label">Creative split ${key}</div>`
+      + `<div class="split-head-label">Creative split</div>`
       + `<div class="split-head-name" title="${esc(name)}">${esc(name)}</div>`
       + `<div class="split-head-url">Preview URL: <a href="${esc(url)}" target="_blank" rel="noopener">${esc(shortUrl(url))}</a></div>`
       + `</div><div class="split-head-preview"><img src="/api/screenshot?url=${enc}&device=${device}" onerror="this.onerror=null;this.src='/screenshots/${sub}-${device}.png'" alt="preview"></div></div>`;
@@ -1455,6 +1486,7 @@
 
   function closeSplitModal() {
     document.getElementById('splitOverlay').style.display = 'none';
+    document.documentElement.classList.remove('modal-open');
   }
 
   document.addEventListener('keydown', e => {
@@ -2204,8 +2236,8 @@
   function rdSplit(encodedUrl, device){ return `<div class="rd-split"><button class="rd-split-btn" data-url="${encodedUrl}" data-device="${device}" onclick="event.stopPropagation();openSplitFromBtn(this)" title="Creative split"><img src="/redesign/assets/icons/svg/split.svg" alt="split"></button></div>`; }
   function rdEditCell(encodedUrl){ return editMode ? `<div><button class="rd-edit-btn" onclick="openRowEdit('${encodedUrl}')" title="Edit"><img src="/redesign/assets/icons/svg/edit-black.svg" alt="edit"></button></div>` : ''; }
   // ── Edit-creative modal (Edit mode; no roles) ──
-  function openRowEdit(enc){ rdEditUrl = decodeURIComponent(enc); renderEditModal(); document.getElementById('rdEditOverlay').style.display = 'flex'; }
-  function closeRowEdit(){ document.getElementById('rdEditOverlay').style.display = 'none'; rdEditUrl = null; }
+  function openRowEdit(enc){ rdEditUrl = decodeURIComponent(enc); renderEditModal(); document.getElementById('rdEditOverlay').style.display = 'flex'; document.documentElement.classList.add('modal-open'); }
+  function closeRowEdit(){ document.getElementById('rdEditOverlay').style.display = 'none'; rdEditUrl = null; document.documentElement.classList.remove('modal-open'); }
   function renderEditModal(){
     const url = rdEditUrl; if(!url) return;
     const row = allRows.find(r => r.netlifyUrl === url);
@@ -2274,8 +2306,8 @@
   }
 
   // ── Filter settings modal (sidebar) — category rules + assigned advertisers ──
-  function openFilterSettings(){ renderFilterSettings(); document.getElementById('rdFilterOverlay').style.display = 'flex'; }
-  function closeFilterSettings(){ document.getElementById('rdFilterOverlay').style.display = 'none'; }
+  function openFilterSettings(){ renderFilterSettings(); document.getElementById('rdFilterOverlay').style.display = 'flex'; document.documentElement.classList.add('modal-open'); }
+  function closeFilterSettings(){ document.getElementById('rdFilterOverlay').style.display = 'none'; document.documentElement.classList.remove('modal-open'); }
   function renderFilterSettings(){
     const cats = [...new Set([...DEFAULT_CATS, ...Object.keys(tagRules), ...Object.values(urlTags)])].filter(Boolean).sort((a, b) => a.localeCompare(b));
     const advs = allAdvertisers();
@@ -2687,6 +2719,10 @@
   }
   (function initTheme(){ let t='light'; try { t = localStorage.getItem('infDashTheme') || 'light'; } catch(e){} applyTheme(t); })();
   function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
+  function toggleDashKey(e){ if(e) e.stopPropagation(); document.querySelector('.dash-key').classList.toggle('open'); }
+  function closeDashKey(e){ if(e) e.stopPropagation(); document.querySelector('.dash-key').classList.remove('open'); }
+  // Close the flagging-key card on an outside click.
+  document.addEventListener('click', e => { const dk = document.querySelector('.dash-key'); if (dk && dk.classList.contains('open') && !dk.contains(e.target)) dk.classList.remove('open'); });
   function toggleEditMode() {
     editMode = !editMode;
     const b = document.getElementById('editModeBtn');
