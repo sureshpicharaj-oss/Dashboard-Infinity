@@ -752,12 +752,38 @@
 
     /* ---- Modals ---- */
     .rd-overlay { position: fixed; inset: 0; z-index: 1100; background: rgba(11,17,48,.6); display: flex; align-items: center; justify-content: center; }
-    /* Creative-split modal — kept a light card (the split table styling is light) */
-    .rd-split-modal { background: #fff; border-radius: 16px; width: 80vw; height: 80vh; max-width: 1100px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 70px rgba(20,30,60,.4); }
-    .rd-split-head { padding: 18px 24px; border-bottom: 1px solid #e3e6f0; display: flex; align-items: center; justify-content: space-between; }
-    .rd-split-head span { font-size: 18px; font-weight: 800; color: #0b1130; }
-    .rd-split-close { background: #f3f4f9; border: none; color: #0b1130; font-size: 18px; cursor: pointer; width: 30px; height: 30px; border-radius: 50%; }
-    .rd-split-body { padding: 20px 24px; overflow: auto; flex: 1; background: #fff; }
+    /* Creative-split modal — matches the designer's prototype (theme-aware, big header + grid table) */
+    .rd-split-modal { position: relative; background: var(--panel-bg); border: 1px solid var(--border); border-radius: 18px; width: 1180px; max-width: 96vw; max-height: calc(100vh - 64px); display: flex; flex-direction: column; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+    .rd-split-close { position: absolute; top: 20px; right: 24px; background: var(--chip-bg); border: none; color: var(--text); font-size: 18px; cursor: pointer; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+    .rd-split-body { display: block; }
+    /* Split header block: label + big creative name + Preview URL link + preview image */
+    .split-head-block { display: flex; justify-content: space-between; align-items: flex-start; gap: 32px; padding: 28px 64px 22px 32px; }
+    .split-head-info { min-width: 0; flex: 1 1 auto; }
+    .split-head-label { font-size: 15px; font-weight: 700; color: var(--text-sub); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+    .split-head-name { font-size: 26px; font-weight: 800; color: var(--text); margin-bottom: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .split-head-url { font-size: 13px; font-weight: 700; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .split-head-url a { color: #008EF1; text-decoration: underline; font-weight: 700; }
+    .split-head-preview { flex: none; width: 240px; height: 118px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: var(--preview-a); }
+    .split-head-preview img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+    /* Split body + grid table */
+    .split-body-block { padding: 4px 32px 32px; }
+    .split-format { font-size: 19px; font-weight: 800; color: var(--text); margin-bottom: 4px; text-transform: capitalize; }
+    .split-sub2 { font-size: 13px; font-weight: 500; color: var(--text-sub); margin: 0 0 20px; }
+    .split-tablewrap { border: 1px solid var(--border); border-radius: 16px; max-height: 440px; overflow: auto; }
+    .split-ghead { position: sticky; top: 0; z-index: 4; background: var(--panel-bg); border-bottom: 1px solid var(--border); padding: 12px 20px; font-size: 10.5px; font-weight: 600; color: var(--text-sub); border-radius: 16px 16px 0 0; align-items: center; }
+    .split-grow { padding: 14px 20px; border-bottom: 1px solid var(--border); align-items: center; position: relative; font-size: 13.5px; }
+    .split-grow:last-child { border-bottom: none; }
+    .split-bar { position: absolute; left: 0; top: 8px; bottom: 8px; width: 4px; background: var(--bad); border-radius: 4px; }
+    .split-grow.crit { background: #FFE9ED; }
+    .split-grow.crit .split-gname, .split-grow.crit .split-gname .split-gname-plain, .split-grow.crit .split-gnum { color: #1b2440; }
+    .split-gname { font-weight: 700; color: var(--text); min-width: 0; }
+    .split-gname a, .split-gname .split-gname-plain { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+    .split-gname a { color: #008EF1; text-decoration: underline; font-weight: 700; }
+    .split-gnum { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+    .split-gvid a { color: #008EF1; text-decoration: underline; font-weight: 700; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; max-width: 100%; }
+    .split-gtotal { padding: 14px 20px; background: var(--chip-bg); border-radius: 0 0 15px 15px; align-items: center; }
+    .split-gtotal > div { font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+    .split-gtotal .split-gtot-label { color: #1B8BEA; }
     /* Edit-creative modal (uses ef tokens; theme-aware) */
     .rd-modal-card { background: var(--ef-card); border: 1px solid var(--ef-card-border); border-radius: 20px; padding: 30px 24px; width: 384px; max-width: 92vw; max-height: 88vh; overflow-y: auto; display: flex; flex-direction: column; gap: 22px; color: var(--ef-text); box-sizing: border-box; }
     .rd-modal-h { display: flex; justify-content: space-between; align-items: center; }
@@ -894,22 +920,7 @@
 <!-- Creative splits drill-down modal -->
 <div id="splitOverlay" class="rd-overlay" style="display:none" onclick="if(event.target===this)closeSplitModal()">
   <div class="rd-split-modal">
-    <div class="rd-split-head">
-      <div class="rd-split-head-l">
-        <span id="splitTitle">Creative split</span>
-        <span class="split-key">
-          <img src="/redesign/assets/icons/svg/keyinfo-icon.svg" alt="Colour key" class="split-key-ic">
-          <span class="split-key-pop">
-            <b>Colour key</b>
-            <span><i class="k-dot k-good"></i> Good — at or above benchmark</span>
-            <span><i class="k-dot k-warn"></i> Watch — a little below</span>
-            <span><i class="k-dot k-bad"></i> Needs attention — well below</span>
-            <span><i class="k-bar"></i> Red left bar = flagged / underperforming line</span>
-          </span>
-        </span>
-      </div>
-      <button onclick="closeSplitModal()" title="Close" class="rd-split-close">×</button>
-    </div>
+    <button onclick="closeSplitModal()" title="Close" class="rd-split-close">×</button>
     <div id="splitBody" class="rd-split-body"></div>
   </div>
 </div>
@@ -1325,12 +1336,10 @@
   async function openSplitModal(url, device) {
     const overlay = document.getElementById('splitOverlay');
     const body = document.getElementById('splitBody');
-    const title = document.getElementById('splitTitle');
     // Recover the contributing rows from allRows — video tabs group several VIDEO_IDs
     // under one URL, so a single click can span multiple group keys.
     const rowsForKey = allRows.filter(r => r.netlifyUrl === url && r.device === device);
-    title.textContent = 'Creative splits — ' + (rowsForKey[0]?.advertiser || shortUrl(url));
-    body.innerHTML = '<p class="split-sub">Loading…</p>';
+    body.innerHTML = '<div class="split-body-block"><p class="split-sub2">Loading…</p></div>';
     overlay.style.display = 'flex';
     const data = await loadSplits();
     const groupKeys = rowsForKey.length
@@ -1339,22 +1348,19 @@
     renderSplits(body, url, device, groupKeys, data);
   }
 
+  // Renders the creative-split modal to match the designer's prototype: a big header (label + creative
+  // name + Preview URL link + preview image) over a single grid table (Combined row at the bottom).
   function renderSplits(body, url, device, groupKeys, data) {
     const isVideo = device === 'video' || device === 'video-mobile';
     const enc = encodeURIComponent(url);
     const sub = (url || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
-    // Same screenshot the row shows (keyed by URL + device) — one preview for the whole row.
-    let html = `<div class="split-preview"><img src="/api/screenshot?url=${enc}&device=${device}" onerror="this.onerror=null;this.src='/screenshots/${sub}-${device}.png'" alt="preview" /></div>`;
-    html += `<p class="split-sub">${esc(shortUrl(url))} · ${esc(device)} — individual creatives that make up the combined row.</p>`;
-    // Same alert benchmarks + gates as the main table: the average card for the current tab, and the
-    // line must still be live (any matching row delivering/paused/ready) for a creative to be flagged.
+    const row0 = allRows.find(r => r.netlifyUrl === url && r.device === device);
+    const name = (row0 && row0.advertiser) || shortUrl(url);
+    const fmtLabel = SECTION_LABEL[device] || device;
+    // Same alert benchmarks + gates as the main table (per-publication expected CTR, live line).
     const bench = currentBenchmarks();
     const lineLive = allRows.some(r => r.netlifyUrl === url && r.device === device && ALERT_LIVE.includes(r.liveStatus));
-    // Mirror the main table: once the parent row is "looked into", its red split lines keep the red
-    // left bar but drop the loud #FFE9ED tint.
     const parentAcked = !!alertAcks[alertRowKey(url)];
-    // This skin's expected CTR (vs the inventory it ran on), used for the per-creative CTR flag instead of
-    // the estate average — same rule as the main table. Falls back to the estate CTR if it has no peers.
     const _skinIba = {};
     for (const r of allRows) {
       if (r.netlifyUrl !== url || r.device !== device) continue;
@@ -1364,31 +1370,24 @@
       }
     }
     const ctrBench = expectedCtr({ impsByAdUnit: _skinIba }, adUnitCtrTotals()) ?? (bench && bench.ctr);
-    let any = false;
-    if (isVideo) {
-      // Flatten every VIDEO_ID's creatives into one table with a Video ID column (tag each creative
-      // with its videoId from the group key), instead of a separate titled sub-table per VIDEO_ID.
-      const all = [];
-      for (const gk of groupKeys) {
-        const vid = gk.split('##')[1] || '';
-        // The Video ID links to the creative the completion rate is measured on (the video's tracking
-        // creative), looked up from the video-stats map by videoId(+device) — not the split's own creative.
-        const vs = videoStats[vid + '_' + device] ?? videoStats[vid] ?? {};
-        for (const s of (data[gk] || [])) all.push(Object.assign({}, s, { _videoId: vid, _complCreativeId: vs.complCreativeId, _complLineItemId: vs.complLineItemId }));
-      }
-      all.sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
-      if (all.length) { any = true; html += splitTable(all, true, bench, lineLive, ctrBench, parentAcked); }
-    } else {
-      for (const gk of groupKeys) {
-        const splits = (data[gk] || []).slice().sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
-        if (!splits.length) continue;
-        any = true;
-        html += splitTable(splits, false, bench, lineLive, ctrBench, parentAcked);
-      }
+    // Gather every contributing creative into one list (video groups span multiple VIDEO_IDs).
+    const list = [];
+    for (const gk of groupKeys) {
+      const vid = gk.split('##')[1] || '';
+      const vs = isVideo ? (videoStats[vid + '_' + device] ?? videoStats[vid] ?? {}) : {};
+      for (const s of (data[gk] || [])) list.push(isVideo ? Object.assign({}, s, { _videoId: vid, _complCreativeId: vs.complCreativeId, _complLineItemId: vs.complLineItemId }) : s);
     }
-    body.innerHTML = any
-      ? html
-      : `<p class="split-sub">No per-creative split data available for this row yet. Splits are produced by the daily refresh, so a newly-trafficked row may not have them until the next run.</p>`;
+    list.sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
+    const key = `<span class="split-key"><img src="/redesign/assets/icons/svg/keyinfo-icon.svg" alt="Colour key" class="split-key-ic"><span class="split-key-pop"><b>Colour key</b><span><i class="k-dot k-good"></i> Good — at or above benchmark</span><span><i class="k-dot k-warn"></i> Watch — a little below</span><span><i class="k-dot k-bad"></i> Needs attention — well below</span><span><i class="k-bar"></i> Red bar / tint = flagged line</span></span></span>`;
+    const header = `<div class="split-head-block"><div class="split-head-info">`
+      + `<div class="split-head-label">Creative split ${key}</div>`
+      + `<div class="split-head-name" title="${esc(name)}">${esc(name)}</div>`
+      + `<div class="split-head-url">Preview URL: <a href="${esc(url)}" target="_blank" rel="noopener">${esc(shortUrl(url))}</a></div>`
+      + `</div><div class="split-head-preview"><img src="/api/screenshot?url=${enc}&device=${device}" onerror="this.onerror=null;this.src='/screenshots/${sub}-${device}.png'" alt="preview"></div></div>`;
+    const bodyBlock = list.length
+      ? `<div class="split-body-block"><div class="split-format">${esc(fmtLabel)}</div><div class="split-sub2">Individual creatives that make up the combined row.</div>${splitTable(list, isVideo, bench, lineLive, ctrBench, parentAcked)}</div>`
+      : `<div class="split-body-block"><div class="split-format">${esc(fmtLabel)}</div><p class="split-sub2">No per-creative split data available for this row yet. Splits are produced by the daily refresh, so a newly-trafficked row may not have them until the next run.</p></div>`;
+    body.innerHTML = header + bodyBlock;
   }
 
   // Toggle a creative's segment-detail dropdown row (the <tr> immediately after the clicked row).
@@ -1401,9 +1400,16 @@
   }
 
   function splitTable(splits, isVideo, bench, lineLive, ctrBench, parentAcked) {
-    const dash = '<span class="split-dash">—</span>';
+    const cols = isVideo
+      ? 'grid-template-columns:minmax(180px,2fr) 1fr 1fr 1fr 1fr 1fr minmax(120px,1.4fr);gap:16px'
+      : 'grid-template-columns:minmax(200px,2fr) 1fr 1fr 1fr 1fr;gap:16px';
+    const dash = '—';
     const num = n => (n != null && n !== '') ? Number(n).toLocaleString() : dash;
     const pct = n => (n != null) ? n + '%' : dash;
+    const heads = isVideo
+      ? ['Creative', 'Impressions', 'Clicks', 'CTR', 'Viewability', 'Completion', 'Video ID']
+      : ['Creative', 'Impressions', 'Clicks', 'CTR', 'Viewability'];
+    const head = `<div class="split-ghead" style="display:grid;${cols}">${heads.map(h => `<div>${h}</div>`).join('')}</div>`;
     let tImp = 0, tClk = 0;
     const rows = splits.map(s => {
       tImp += s.impressions || 0; tClk += s.clicks || 0;
@@ -1415,48 +1421,36 @@
       const _li = (s.lineItemIds && s.lineItemIds[0]) || null;
       // Creative name → its GAM creative page (line item + creative id). Plain text otherwise.
       const nameCell = (_li && s.creativeId)
-        ? `<a class="split-name-link" href="${gamCreativeUrl(_li, s.creativeId)}" target="_blank" rel="noopener">${esc(nm)}</a>`
-        : esc(nm);
-      // Line item id(s) — a muted, clickable sub-line under the creative name (there if needed, never in the way).
+        ? `<a href="${gamCreativeUrl(_li, s.creativeId)}" target="_blank" rel="noopener">${esc(nm)}</a>`
+        : `<span class="split-gname-plain">${esc(nm)}</span>`;
+      // Line item id(s) — a muted, clickable sub-line under the creative name.
       const liSub = (s.lineItemIds && s.lineItemIds.length)
         ? `<div class="split-li">${[...new Set(s.lineItemIds)].map(id => `<a href="${gamLineItemUrl(id)}" target="_blank" rel="noopener" title="Open line item ${esc(id)} in GAM">LI ${esc(id)}</a>`).join(' · ')}</div>`
         : '';
-      // Video ID → the GAM creative the COMPLETION RATE is measured on (tracking creative + its LI) when known;
-      // otherwise fall back to this creative's own line item so the Video ID is ALWAYS clickable.
+      // Video ID → the completion-source creative when known, else its own line item so it's ALWAYS clickable.
       const vidCell = (s._complLineItemId && s._complCreativeId)
-        ? `<a class="split-vid-link" href="${gamCreativeUrl(s._complLineItemId, s._complCreativeId)}" target="_blank" rel="noopener">${esc(s._videoId || '—')}</a>`
+        ? `<a href="${gamCreativeUrl(s._complLineItemId, s._complCreativeId)}" target="_blank" rel="noopener">${esc(s._videoId || '—')}</a>`
         : (_li && s._videoId)
-        ? `<a class="split-vid-link" href="${gamLineItemUrl(_li)}" target="_blank" rel="noopener" title="Completion-source creative unknown — opens this creative's line item">${esc(s._videoId)}</a>`
+        ? `<a href="${gamLineItemUrl(_li)}" target="_blank" rel="noopener" title="Completion-source creative unknown — opens this creative's line item">${esc(s._videoId)}</a>`
         : esc(s._videoId || '—');
-      return `<tr class="split-row${_anyRed ? (parentAcked ? ' split-acked-red' : ' split-crit') : ''}">
-        <td class="split-name" title="${esc(nm)}"><span class="split-cname">${nameCell}</span>${liSub}</td>
-        <td class="num split-imp">${num(s.impressions)}</td>
-        <td class="num split-clk">${num(s.clicks)}</td>
-        <td class="num split-ctr">${rdPerfPill(ctrNum, ctrBench, _gated, 'expected for its inventory')}</td>
-        <td class="num split-view">${rdPerfPill(s.viewability, bench && bench.view, _gated, 'average')}</td>
-        ${isVideo ? `<td class="num split-comp">${pct(s.completionRate)}</td>` : ''}
-        ${isVideo ? `<td class="split-vid">${vidCell}</td>` : ''}
-      </tr>`;
+      const cls = _anyRed ? (parentAcked ? 'split-grow acked' : 'split-grow crit') : 'split-grow';
+      return `<div class="${cls}" style="display:grid;${cols}">`
+        + (_anyRed ? '<span class="split-bar"></span>' : '')
+        + `<div class="split-gname" title="${esc(nm)}">${nameCell}${liSub}</div>`
+        + `<div class="split-gnum">${num(s.impressions)}</div>`
+        + `<div class="split-gnum">${num(s.clicks)}</div>`
+        + `<div>${rdPerfPill(ctrNum, ctrBench, _gated, 'expected for its inventory')}</div>`
+        + `<div>${rdPerfPill(s.viewability, bench && bench.view, _gated, 'average')}</div>`
+        + (isVideo ? `<div class="split-gnum">${pct(s.completionRate)}</div>` : '')
+        + (isVideo ? `<div class="split-gvid">${vidCell}</div>` : '')
+        + `</div>`;
     }).join('');
     const totCtr = (tImp && tClk) ? ((tClk / tImp) * 100).toFixed(2) + '%' : dash;
-    const totalRow = `<tr class="split-total-row">
-      <td>Combined (${splits.length})</td>
-      <td class="num">${tImp.toLocaleString()}</td>
-      <td class="num">${tClk.toLocaleString()}</td>
-      <td class="num">${totCtr}</td>
-      <td class="num">${dash}</td>
-      ${isVideo ? `<td class="num">${dash}</td>` : ''}
-      ${isVideo ? `<td class="split-vid">${dash}</td>` : ''}
-    </tr>`;
-    return `<table class="split-table"><thead><tr>
-      <th>Creative</th>
-      <th style="text-align:right">Impressions</th>
-      <th style="text-align:right">Clicks</th>
-      <th style="text-align:right">CTR</th>
-      <th style="text-align:right">Viewability</th>
-      ${isVideo ? '<th style="text-align:right">Completion</th>' : ''}
-      ${isVideo ? '<th>Video ID</th>' : ''}
-    </tr></thead><tbody>${rows}${totalRow}</tbody></table>`;
+    const totCells = [`<div class="split-gtot-label">Combined (${splits.length})</div>`,
+      `<div>${tImp.toLocaleString()}</div>`, `<div>${tClk.toLocaleString()}</div>`, `<div>${totCtr}</div>`, `<div>${dash}</div>`]
+      .concat(isVideo ? [`<div>${dash}</div>`, `<div>${dash}</div>`] : []);
+    const total = `<div class="split-gtotal" style="display:grid;${cols}">${totCells.join('')}</div>`;
+    return `<div class="split-tablewrap">${head}${rows}${total}</div>`;
   }
 
   function closeSplitModal() {
