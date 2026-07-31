@@ -337,10 +337,23 @@
     @keyframes alertGlowOrange { 0%,100% { box-shadow:0 0 0 0 rgba(196,125,26,0); } 50% { box-shadow:0 0 0 3px rgba(196,125,26,.28); } }
     /* Full-line highlight — bright red so a "needs attention" line is unmissable. Dark stat text keeps
        the row readable over the red. */
-    tr.alert-line-red > td { background:#f4948b; }
-    tr.alert-line-red > td:first-child { box-shadow: inset 6px 0 0 #a02418; }
-    tr.alert-line-red > td.ctr-cell.has-data, tr.alert-line-red > td.num-cell.has-data { color:#3a1512; }
-    tr.alert-line-red.split-row > td { color:#3a1512; } /* same red line inside the splits modal */
+    /* Split-modal red lines mirror the main table: unacked = #FFE9ED tint + red left bar (dark navy
+       text for legibility); once the parent row is "looked into", the tint drops but the bar stays. */
+    .split-table tbody .split-row.split-crit > td { background:#FFE9ED; color:#1b2440; }
+    .split-row.split-crit > td:first-child,
+    .split-row.split-acked-red > td:first-child { box-shadow: inset 6px 0 0 var(--bad); }
+    /* Colour key (ⓘ) in the split header — keyinfo-icon.svg is white-stroked, so tint it dark. */
+    .rd-split-head-l { display:flex; align-items:center; gap:10px; }
+    .split-key { position:relative; display:inline-flex; align-items:center; }
+    .split-key-ic { width:16px; height:16px; filter:brightness(0); opacity:.45; cursor:help; }
+    .split-key:hover .split-key-ic { opacity:.8; }
+    .split-key-pop { display:none; position:absolute; top:calc(100% + 8px); left:0; z-index:5; background:#fff; border:1px solid #e3e6f0; border-radius:10px; box-shadow:0 12px 30px rgba(20,30,60,.18); padding:12px 14px; width:290px; flex-direction:column; gap:7px; font-size:12px; color:#334; }
+    .split-key:hover .split-key-pop { display:flex; }
+    .split-key-pop b { font-size:12px; color:#0b1130; margin-bottom:2px; }
+    .split-key-pop > span { display:flex; align-items:center; gap:8px; font-weight:500; }
+    .k-dot { width:10px; height:10px; border-radius:50%; flex:none; }
+    .k-good { background:#2f9b46; } .k-warn { background:#E99402; } .k-bad { background:#e14a5e; }
+    .k-bar { width:4px; height:14px; border-radius:2px; background:#e14a5e; flex:none; }
     @media (prefers-reduced-motion: reduce) {
       .stat-flag.red, .stat-flag.orange, .comp-pill.cell-alert-red, .comp-pill.cell-alert-orange { animation: none; }
     }
@@ -589,13 +602,13 @@
     /* Sidebar */
     .sidebar { flex: none; width: 264px; position: sticky; top: 0; align-self: flex-start; height: 100vh;
       background: #0b1024 url('/redesign/assets/sidebar-bg.png') center/cover no-repeat;
-      border-radius: 0 22px 22px 0; padding: 22px 16px; box-sizing: border-box;
+      border-radius: 0; padding: 22px 16px; box-sizing: border-box;
       display: flex; flex-direction: column; gap: 18px; overflow: hidden; transition: width .18s ease; }
     .sidebar.collapsed { width: 92px; padding: 22px 14px; }
     .sb-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .sb-logo { height: 30px; width: auto; }
     .sidebar.collapsed .sb-logo { display: none; }
-    .sb-toggle { flex: none; width: 40px; height: 40px; border-radius: 12px; border: none;
+    .sb-toggle { flex: none; width: 40px; height: 40px; border-radius: 50%; border: none;
       background: rgba(255,255,255,.12); display: flex; align-items: center; justify-content: center; }
     .sb-toggle img { width: 18px; height: 18px; filter: brightness(0) invert(1); }
     .sidebar.collapsed .sb-toggle img { transform: scaleX(-1); }
@@ -619,8 +632,10 @@
       border-radius: 9px; background: var(--bad); color: #fff; font-size: 11px; font-weight: 800;
       display: none; align-items: center; justify-content: center; }
     .tab-btn .nav-badge.on { display: flex; }
-    .sidebar.collapsed .tab-btn { width: 52px; height: 52px; border-radius: 50%; padding: 0; justify-content: center; margin: 0 auto; }
-    .sidebar.collapsed .tab-btn .nav-badge { top: 4px; right: -2px; }
+    .sidebar.collapsed .sb-top { justify-content: center; }
+    .sidebar.collapsed .tab-btn { width: 52px; height: 52px; border-radius: 50%; padding: 0; justify-content: center; margin: 0 auto; overflow: visible; }
+    /* Keep the count badge fully inside the collapsed circle so it isn't clipped. */
+    .sidebar.collapsed .tab-btn .nav-badge { top: 2px; right: 4px; }
     .sidebar.collapsed .tab-btn .lbl { display: none; }
     /* Sidebar tools */
     .sb-tool { border: none; cursor: pointer; width: 100%; border-radius: 999px; height: 46px; padding: 0 16px;
@@ -676,12 +691,16 @@
     /* ---- Data table (grid) ---- */
     .toolbar, #advFilterBar { display: none; }   /* old filter bar hidden until Phase 4b */
     .rd-table { border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
-    .rd-scroll { overflow-x: auto; }
+    /* The table body scrolls inside its own bounded region (both axes) so a wide grid never spills a
+       page-level horizontal scrollbar, and the header can stick to the top of THIS region. */
+    .rd-scroll { overflow: auto; max-height: calc(100vh - 64px); }
+    /* Sticky table header row — pinned to the top of the scroll region; the filter bar stays above it. */
+    #rdHead { position: sticky; top: 0; z-index: 20; }
     .rd-hrow, .rd-row { display: grid; align-items: center; padding: 14px 20px; gap: 20px; }
-    .rd-hrow { background: var(--panel-bg); border-bottom: 1px solid var(--border); font-size: 10.5px; font-weight: 500; color: var(--text-sub); }
+    .rd-hrow { background: var(--panel-bg); border-bottom: 1px solid var(--border); font-size: 10.5px; font-weight: 500; color: var(--text-sub); border-radius: 16px 16px 0 0; }
     .rd-hrow .rd-sortable { cursor: pointer; white-space: nowrap; user-select: none; }
     .rd-row { border-bottom: 1px solid var(--row-border); position: relative; font-size: 13.5px; }
-    .rd-row:last-child { border-bottom: none; }
+    .rd-row:last-child { border-bottom: none; border-radius: 0 0 16px 16px; }
     .rd-row.crit { background: var(--crit-row-tint); color: var(--crit-row-text); box-shadow: inset 4px 0 0 var(--crit-bar); }
     .rd-row.crit .rd-cname, .rd-row.crit .rd-num { color: var(--crit-row-text); }
     /* Acked but still underperforming: keep the red left bar (persistent marker) but drop the loud
@@ -708,14 +727,18 @@
     .rd-empty { padding: 40px; text-align: center; color: var(--text-sub); font-size: 13px; font-weight: 500; }
 
     /* ---- Filter bar ---- */
-    .rd-filter { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+    .rd-filter { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 0; padding-bottom: 14px; position: sticky; top: 0; z-index: 30; background: var(--panel-bg); }
     .rd-filter-left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .rd-results { font-size: 18px; font-weight: 800; color: var(--text); min-width: 110px; }
     .rd-all, .rd-dd-btn, .rd-sort { border: 1px solid var(--border); background: var(--input-bg); color: var(--text-muted); padding: 9px 16px; border-radius: 20px; font-size: 12.5px; font-weight: 600; font-family: var(--font); cursor: pointer; }
     .rd-all.on { background: var(--accent); border-color: var(--accent); color: #fff; }
     .rd-dd-btn.active { color: var(--accent); border-color: var(--accent); }
     .rd-caret { font-size: 9px; }
-    .rd-flagged { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--bad); background: var(--input-bg); color: var(--bad); padding: 9px 16px; border-radius: 20px; font-size: 12.5px; font-weight: 700; font-family: var(--font); cursor: pointer; }
+    /* Native Sort select gets a matching chevron so every filter dropdown reads the same. */
+    .rd-sort { appearance: none; -webkit-appearance: none; padding-right: 34px;
+      background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="7" viewBox="0 0 10 7"><path d="M1 1l4 4 4-4" stroke="%237b869c" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+      background-repeat: no-repeat; background-position: right 14px center; }
+    .rd-flagged { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--bad); background: #FFE9ED; color: var(--bad); padding: 9px 16px; border-radius: 20px; font-size: 12.5px; font-weight: 700; font-family: var(--font); cursor: pointer; }
     .rd-flagged.on { background: var(--bad); color: #fff; }
     .rd-flag-badge { background: var(--bad); color: #fff; min-width: 18px; height: 18px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; padding: 0 5px; }
     .rd-flagged.on .rd-flag-badge { background: #fff; color: var(--bad); }
@@ -791,15 +814,15 @@
         <button class="tab-btn" data-tab="mobile" onclick="setTab('mobile')"><span class="lbl">Mobile Scroll</span><span class="nav-badge" id="badge-mobile">0</span></button>
         <button class="tab-btn" data-tab="video-mobile" onclick="setTab('video-mobile')"><span class="lbl">Mobile Video Scroll</span><span class="nav-badge" id="badge-video-mobile">0</span></button>
       </nav>
+      <div class="sb-tiles">
+        <div class="sb-tile"><div class="t-lbl">Total Infinity served</div><div class="t-val" id="statAllImps">—</div><div class="t-sub">All sections combined</div></div>
+        <div class="sb-tile"><div class="t-lbl">Clicks collected</div><div class="t-val" id="statAllClicks">—</div><div class="t-sub">All sections combined</div></div>
+      </div>
     </div>
-    <div class="sb-label">Tools</div>
+    <div class="sb-label">Admin</div>
     <div class="sb-nav">
       <button class="sb-tool" onclick="openFilterSettings()"><img src="/redesign/assets/icons/edit-filter.svg" alt=""><span class="lbl">Filter settings</span></button>
       <button class="sb-tool" id="editModeBtn" onclick="toggleEditMode()"><img src="/redesign/assets/icons/svg/edit-white.svg" alt=""><span class="lbl">Edit mode | Off</span></button>
-    </div>
-    <div class="sb-tiles">
-      <div class="sb-tile"><div class="t-lbl">Total Infinity served</div><div class="t-val" id="statAllImps">—</div><div class="t-sub">All sections combined</div></div>
-      <div class="sb-tile"><div class="t-lbl">Clicks collected</div><div class="t-val" id="statAllClicks">—</div><div class="t-sub">All sections combined</div></div>
     </div>
   </aside>
 
@@ -873,7 +896,19 @@
 <div id="splitOverlay" class="rd-overlay" style="display:none" onclick="if(event.target===this)closeSplitModal()">
   <div class="rd-split-modal">
     <div class="rd-split-head">
-      <span id="splitTitle">Creative split</span>
+      <div class="rd-split-head-l">
+        <span id="splitTitle">Creative split</span>
+        <span class="split-key">
+          <img src="/redesign/assets/icons/svg/keyinfo-icon.svg" alt="Colour key" class="split-key-ic">
+          <span class="split-key-pop">
+            <b>Colour key</b>
+            <span><i class="k-dot k-good"></i> Good — at or above benchmark</span>
+            <span><i class="k-dot k-warn"></i> Watch — a little below</span>
+            <span><i class="k-dot k-bad"></i> Needs attention — well below</span>
+            <span><i class="k-bar"></i> Red left bar = flagged / underperforming line</span>
+          </span>
+        </span>
+      </div>
       <button onclick="closeSplitModal()" title="Close" class="rd-split-close">×</button>
     </div>
     <div id="splitBody" class="rd-split-body"></div>
@@ -1316,6 +1351,9 @@
     // line must still be live (any matching row delivering/paused/ready) for a creative to be flagged.
     const bench = currentBenchmarks();
     const lineLive = allRows.some(r => r.netlifyUrl === url && r.device === device && ALERT_LIVE.includes(r.liveStatus));
+    // Mirror the main table: once the parent row is "looked into", its red split lines keep the red
+    // left bar but drop the loud #FFE9ED tint.
+    const parentAcked = !!alertAcks[alertRowKey(url)];
     // This skin's expected CTR (vs the inventory it ran on), used for the per-creative CTR flag instead of
     // the estate average — same rule as the main table. Falls back to the estate CTR if it has no peers.
     const _skinIba = {};
@@ -1340,13 +1378,13 @@
         for (const s of (data[gk] || [])) all.push(Object.assign({}, s, { _videoId: vid, _complCreativeId: vs.complCreativeId, _complLineItemId: vs.complLineItemId }));
       }
       all.sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
-      if (all.length) { any = true; html += splitTable(all, true, bench, lineLive, ctrBench); }
+      if (all.length) { any = true; html += splitTable(all, true, bench, lineLive, ctrBench, parentAcked); }
     } else {
       for (const gk of groupKeys) {
         const splits = (data[gk] || []).slice().sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
         if (!splits.length) continue;
         any = true;
-        html += splitTable(splits, false, bench, lineLive, ctrBench);
+        html += splitTable(splits, false, bench, lineLive, ctrBench, parentAcked);
       }
     }
     body.innerHTML = any
@@ -1363,7 +1401,7 @@
     tr.classList.toggle('open', !open);
   }
 
-  function splitTable(splits, isVideo, bench, lineLive, ctrBench) {
+  function splitTable(splits, isVideo, bench, lineLive, ctrBench, parentAcked) {
     const dash = '<span class="split-dash">—</span>';
     const num = n => (n != null && n !== '') ? Number(n).toLocaleString() : dash;
     const pct = n => (n != null) ? n + '%' : dash;
@@ -1391,7 +1429,7 @@
         : (_li && s._videoId)
         ? `<a class="split-vid-link" href="${gamLineItemUrl(_li)}" target="_blank" rel="noopener" title="Completion-source creative unknown — opens this creative's line item">${esc(s._videoId)}</a>`
         : esc(s._videoId || '—');
-      return `<tr class="split-row${_anyRed ? ' alert-line-red' : ''}">
+      return `<tr class="split-row${_anyRed ? (parentAcked ? ' split-acked-red' : ' split-crit') : ''}">
         <td class="split-name" title="${esc(nm)}"><span class="split-cname">${nameCell}</span>${liSub}</td>
         <td class="num split-imp">${num(s.impressions)}</td>
         <td class="num split-clk">${num(s.clicks)}</td>
@@ -1808,6 +1846,11 @@
       clearInterval(progressTimer);
       loadFill.style.width = '100%';
       allRows = data.results || [];
+      // Ensure the "looked into" acks (+ tag/advertiser data) are loaded before the FIRST flag
+      // render — otherwise nothing is acked yet and every underperformer paints red on load,
+      // then silently corrects on the next render/tab switch. loadTagRules() was kicked off at
+      // init concurrently with this fetch, so this normally resolves with no added delay.
+      try { await window.__boot; } catch(e) {}
 
       const ts = new Date(data.lastFetched);
       const ageMs = Date.now() - ts.getTime();
@@ -2741,7 +2784,7 @@
   };
 
   initAdUnitDropdown();
-  loadTagRules();
+  window.__boot = loadTagRules();   // acks/tags/advertisers — awaited by loadData before its first flag render
   loadData();
   renderShell();
   renderFilterBar();
