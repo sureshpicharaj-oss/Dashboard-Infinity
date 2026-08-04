@@ -1083,7 +1083,7 @@
   const ALERT_MIN_IMPS = 2000;                         // reasonable-sample gate
   const ALERT_LIVE = ['delivering', 'paused', 'ready']; // skip completed/ended/inactive line items
   const ALERT_WORSE = 0.98;                            // re-alert once an acked metric drops >2% below its acked value
-  const ALERT_COMPL_MIN = 20;                          // completion isn't optimisable — flag ONLY when a video
+  const ALERT_COMPL_MIN = 15;                          // completion isn't optimisable — flag ONLY when a video
                                                        // completes under this flat % (broken / mis-tracked), never orange
   const alertRowKey = (netlifyUrl) => `${netlifyUrl}##${activeTab}`; // one row per URL per tab
   // ratio = value / benchmark(the average card). Returns the cell severity vs the average.
