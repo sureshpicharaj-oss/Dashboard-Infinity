@@ -1474,7 +1474,8 @@
       const ctrNum = (s.impressions && s.clicks) ? parseFloat(((s.clicks / s.impressions) * 100).toFixed(2)) : null;
       // Same RAG pills as the main table, gated on the creative's own ≥2000 imps + a live line.
       const _gated = !!lineLive && (s.impressions || 0) >= ALERT_MIN_IMPS;
-      const _anyRed = _gated && (alertLevel(ctrNum, ctrBench).level === 'red' || alertLevel(s.viewability, bench && bench.view).level === 'red');
+      // Flagging is severe-only (<60% of benchmark); the pill itself still turns red at <80% (rdPerfPill uses .level, unchanged).
+      const _anyRed = _gated && (alertLevel(ctrNum, ctrBench).severe || alertLevel(s.viewability, bench && bench.view).severe);
       const nm = s.name || ('#' + s.creativeId);
       const _li = (s.lineItemIds && s.lineItemIds[0]) || null;
       // Creative name → its GAM creative page (line item + creative id). Plain text otherwise.
@@ -2479,7 +2480,7 @@
         const ctr = g.impressions && g.clicks ? parseFloat(((g.clicks / g.impressions) * 100).toFixed(2)) : null;
         const _gated = (g.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(g.liveStatus);
         const _ctrBench = expectedCtr(g, AUCTR) ?? BENCH.ctr;   // per-publication expected CTR (our real logic)
-        const _anyRed = _gated && (alertLevel(ctr, _ctrBench).level === 'red' || alertLevel(g.activeView, BENCH.view).level === 'red' || videoComplBand(g.videos || []) === 'red');
+        const _anyRed = _gated && (alertLevel(ctr, _ctrBench).severe || alertLevel(g.activeView, BENCH.view).severe || videoComplBand(g.videos || []) === 'red');
         const _ack = alertAcks[alertRowKey(g.netlifyUrl)];
         const _worse = !!_ack && ((ctr != null && _ack.ctr != null && ctr < _ack.ctr * ALERT_WORSE) || (g.activeView != null && _ack.activeView != null && g.activeView < _ack.activeView * ALERT_WORSE) || (g.completionRate != null && _ack.completionRate != null && g.completionRate < _ack.completionRate * ALERT_WORSE));
         const crit = _anyRed && !(_ack && !_worse);   // #FFE9ED critical row until acked in the Edit modal
@@ -2505,7 +2506,7 @@
       const _fCtr = _rfs.impressions && _rfs.clicks ? parseFloat(((_rfs.clicks / _rfs.impressions) * 100).toFixed(2)) : null;
       const _gated = (_rfs.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(r.liveStatus);
       const _ctrBench = expectedCtr(r, AUCTR) ?? BENCH.ctr;   // per-publication expected CTR (our real logic)
-      const _anyRed = _gated && (alertLevel(_fCtr, _ctrBench).level === 'red' || alertLevel(r.activeView, BENCH.view).level === 'red');
+      const _anyRed = _gated && (alertLevel(_fCtr, _ctrBench).severe || alertLevel(r.activeView, BENCH.view).severe);
       const _ack = alertAcks[alertRowKey(r.netlifyUrl)];
       const _worse = !!_ack && ((_fCtr != null && _ack.ctr != null && _fCtr < _ack.ctr * ALERT_WORSE) || (r.activeView != null && _ack.activeView != null && r.activeView < _ack.activeView * ALERT_WORSE));
       const crit = _anyRed && !(_ack && !_worse);   // #FFE9ED critical row until acked in the Edit modal
@@ -2805,7 +2806,7 @@
           const compl = g.cDen > 0 ? (g.cNum / g.cDen) : null;
           const gated = (g.imps || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(g.liveStatus);
           const cb = expectedCtr(g, AUCTR) ?? BENCH.ctr;
-          const anyRed = gated && (alertLevel(ctr, cb).level === 'red' || alertLevel(av, BENCH.view).level === 'red' || videoComplBand(g.videos) === 'red');
+          const anyRed = gated && (alertLevel(ctr, cb).severe || alertLevel(av, BENCH.view).severe || videoComplBand(g.videos) === 'red');
           if (critFor(g.url, ctr, av, compl, anyRed)) n++;
         }
       } else {
@@ -2814,7 +2815,7 @@
           const ctr = f.impressions && f.clicks ? parseFloat(((f.clicks / f.impressions) * 100).toFixed(2)) : null;
           const gated = (f.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(r.liveStatus);
           const cb = expectedCtr(r, AUCTR) ?? BENCH.ctr;
-          const anyRed = gated && (alertLevel(ctr, cb).level === 'red' || alertLevel(r.activeView, BENCH.view).level === 'red');
+          const anyRed = gated && (alertLevel(ctr, cb).severe || alertLevel(r.activeView, BENCH.view).severe);
           if (critFor(r.netlifyUrl, ctr, r.activeView, null, anyRed)) n++;
         }
       }
