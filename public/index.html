@@ -2328,12 +2328,37 @@
     }
     renderTable(); renderShell(); renderEditModal();
   }
+  // Downscale + re-encode an uploaded image client-side before it ever reaches the network. Netlify
+  // Functions reject request bodies over ~6MB (a platform limit, not configurable) — a full-res/retina
+  // screenshot off a large monitor blows past that easily, while our preview UI never renders an image
+  // wider than a few hundred px, so shrinking to maxDim loses nothing visible.
+  function resizeImageForUpload(file, maxDim = 1600, quality = 0.85) {
+    return new Promise((resolve, reject) => {
+      const objUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(objUrl);
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const scale = maxDim / Math.max(width, height);
+          width = Math.round(width * scale); height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Could not process the image')), 'image/jpeg', quality);
+      };
+      img.onerror = () => { URL.revokeObjectURL(objUrl); reject(new Error('Could not read the image file')); };
+      img.src = objUrl;
+    });
+  }
   function uploadRowEditImage(enc, dev){
     const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*';
     input.onchange = async () => {
       const f = input.files[0]; if(!f) return;
       try {
-        const resp = await fetch(`/api/screenshot/upload?url=${enc}&device=${dev}`, { method:'POST', headers:{'Content-Type': f.type || 'image/png'}, body: f });
+        const blob = await resizeImageForUpload(f);
+        const resp = await fetch(`/api/screenshot/upload?url=${enc}&device=${dev}`, { method:'POST', headers:{'Content-Type': 'image/jpeg'}, body: blob });
         if(!resp.ok) throw new Error(await resp.text());
         _imgBust[enc] = Date.now();   // force the new upload to load instead of the cached image
         renderEditModal(); renderTable();
@@ -2632,10 +2657,11 @@
       const device = btn.dataset.device;
       btn.textContent = '…';
       try {
+        const blob = await resizeImageForUpload(file);
         const resp = await fetch(`/api/screenshot/upload?url=${url}&device=${device}`, {
           method: 'POST',
-          headers: { 'Content-Type': file.type || 'image/png' },
-          body: file
+          headers: { 'Content-Type': 'image/jpeg' },
+          body: blob
         });
         if (!resp.ok) throw new Error(await resp.text());
         // Force the adjacent img to reload the new file
