@@ -282,6 +282,8 @@
     .split-li { white-space:normal;font-size:10px;font-weight:500;color:#8a93a6;margin-top:3px;line-height:1.35; }
     .split-li a { color:#6a7387;text-decoration:none; }
     .split-li a:hover { color:#2563b8;text-decoration:underline; }
+    .split-adunit { white-space:normal;font-size:10px;font-weight:500;color:var(--text-sub);margin-top:3px;line-height:1.35; }
+    .split-adunit-warn { white-space:normal;font-size:10.5px;font-weight:700;color:var(--warn);margin-top:3px;line-height:1.4; }
     .split-kv { display:inline-block;font-size:10px;padding:1px 7px;margin:1px 4px 1px 0;border-radius:10px;background:#eef1f8;border:1px solid #dfe4ee;color:#42506b; }
     .split-dash { color:#c0c6d2; }
     .split-total-row td { font-weight:800;color:#1a1a2e;border-top:2px solid #d5dced;border-bottom:none;background:#f0f4ff; }
@@ -812,7 +814,7 @@
     .split-grow:last-child { border-bottom: none; }
     .split-bar { position: absolute; left: 0; top: 8px; bottom: 8px; width: 4px; background: var(--bad); border-radius: 4px; }
     .split-grow.crit { background: #FFE9ED; color: var(--crit-row-text); }
-    .split-grow.crit .split-gname, .split-grow.crit .split-gname-plain, .split-grow.crit .split-gnum { color: var(--crit-row-text); }
+    .split-grow.crit .split-gname, .split-grow.crit .split-gname-plain, .split-grow.crit .split-gnum, .split-grow.crit .split-adunit { color: var(--crit-row-text); opacity: .8; }
     .split-gname { font-weight: 700; color: var(--text); min-width: 0; }
     .split-gname a, .split-gname .split-gname-plain { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
     .split-gname a { color: #008EF1; text-decoration: underline; font-weight: 700; }
@@ -1489,6 +1491,22 @@
       const liSub = (s.lineItemIds && s.lineItemIds.length)
         ? `<div class="split-li">${[...new Set(s.lineItemIds)].map(id => `<a href="${gamLineItemUrl(id)}" target="_blank" rel="noopener" title="Open line item ${esc(id)} in GAM">LI ${esc(id)}</a>`).join(' · ')}</div>`
         : '';
+      // Per-ad-unit delivery breakdown for THIS creative — where it's actually running, not the
+      // row's blend. Surfaces cases like a site-specific creative variant sharing a line item with a
+      // broad one: if it's heavily concentrated on one ad unit, that's a signal it should have its
+      // own creative-level targeting within the line item rather than riding the line's full reach.
+      const auEntries = Object.entries(s.impsByAdUnit || {}).sort((a, b) => b[1].impressions - a[1].impressions);
+      const auTotal = auEntries.reduce((sum, [, v]) => sum + (v.impressions || 0), 0);
+      let adUnitSub = '';
+      if (auTotal > 0) {
+        const top = auEntries[0];
+        const topShare = top[1].impressions / auTotal;
+        const shown = auEntries.slice(0, 3).map(([name, v]) => `${esc(name)} ${Math.round(v.impressions / auTotal * 100)}%`).join(' · ');
+        const more = auEntries.length > 3 ? ` +${auEntries.length - 3} more` : '';
+        const concentrated = topShare >= 0.7 && (s.impressions || 0) >= ALERT_MIN_IMPS && (s.adUnitCoverage == null || s.adUnitCoverage >= 0.5);
+        adUnitSub = `<div class="split-adunit" title="Where this creative's impressions actually delivered">${shown}${more}</div>`
+          + (concentrated ? `<div class="split-adunit-warn">⚠ ${Math.round(topShare * 100)}% on ${esc(top[0])} — consider creative-level targeting to this ad unit within the line item</div>` : '');
+      }
       // Video ID → the completion-source creative when known, else its own line item so it's ALWAYS clickable.
       const vidCell = (s._complLineItemId && s._complCreativeId)
         ? `<a href="${gamCreativeUrl(s._complLineItemId, s._complCreativeId)}" target="_blank" rel="noopener">${esc(s._videoId || '—')}</a>`
@@ -1498,7 +1516,7 @@
       const cls = _anyRed ? (parentAcked ? 'split-grow acked' : 'split-grow crit') : 'split-grow';
       return `<div class="${cls}" style="display:grid;${cols}">`
         + (_anyRed ? '<span class="split-bar"></span>' : '')
-        + `<div class="split-gname" title="${esc(nm)}">${nameCell}${liSub}</div>`
+        + `<div class="split-gname" title="${esc(nm)}">${nameCell}${liSub}${adUnitSub}</div>`
         + `<div class="split-gnum">${num(s.impressions)}</div>`
         + `<div class="split-gnum">${num(s.clicks)}</div>`
         + `<div>${rdPerfPill(ctrNum, ctrBench, _gated, 'expected for its inventory')}</div>`
