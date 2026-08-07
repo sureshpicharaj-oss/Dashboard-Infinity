@@ -1380,6 +1380,9 @@
       .then(d => { splitsData = d || {}; return splitsData; });
     return splitsLoading;
   }
+  // Also loaded eagerly (not just on-demand when a split modal opens) — row-level flagging needs it to
+  // check whether any individual creative inside the row is severely underperforming (splitHasSevere).
+  function loadSplitsEager(){ loadSplits().then(() => { renderTable(); renderShell(); }); }
 
   function openSplitFromBtn(btn) {
     openSplitModal(decodeURIComponent(btn.dataset.url || ''), btn.dataset.device || '');
@@ -1837,7 +1840,7 @@
               const ageLabel = ageHrs < 1 ? 'just now' : ageHrs < 2 ? '~1 hour ago' : `~${Math.round(ageHrs)} hours ago`;
               const elf = document.getElementById('lastFetched');
               if (elf) { elf.textContent = 'Data as of: ' + ts.toLocaleString('en-GB') + ' (' + ageLabel + ')'; elf.dataset.ts = d.lastFetched; }
-              updateStats(); renderTags(); renderAdvertiserFilter(); renderTable(); renderFilterBar(); renderShell(); loadActiveView(); loadVideoStats();
+              updateStats(); renderTags(); renderAdvertiserFilter(); renderTable(); renderFilterBar(); renderShell(); loadActiveView(); loadVideoStats(); loadSplitsEager();
             }
           } catch(e) {}
         }, 30000);
@@ -1942,6 +1945,7 @@
       renderShell();
       loadActiveView();
       loadVideoStats();
+      loadSplitsEager();
     } catch (e) {
       const banner = document.getElementById('errorBanner');
       banner.style.display = 'block';
@@ -2096,6 +2100,26 @@
   // Completion is not trafficker-optimisable, so it's NOT part of the normal RAG flag (no orange, no
   // benchmark-relative red). It only flags 'red' when a video is completing under a flat floor
   // (ALERT_COMPL_MIN = broken / mis-tracked). Drives the row-red the same way the other red stats do.
+  // Row-level metrics are a BLEND of every contributing creative — a couple of strong creatives can
+  // fully mask one that's severely underperforming (e.g. a near-dead pixel skin dragged along by two
+  // healthy skins on the same line). Without this, that creative shows red/flagged INSIDE the split
+  // but the row outside never flags — only useful if someone happens to open it. Roll the split's own
+  // per-creative severity up into the row flag using the SAME benchmarks the row (and the split modal)
+  // already computed, so a genuinely severe creative surfaces without opening anything.
+  function splitHasSevere(netlifyUrl, device, ctrBench, viewBench) {
+    if (!splitsData) return false;
+    const prefix = netlifyUrl + '##', suffix = '##' + device;
+    for (const gk in splitsData) {
+      if (!gk.startsWith(prefix) || !gk.endsWith(suffix)) continue;
+      for (const s of splitsData[gk]) {
+        if ((s.impressions || 0) < ALERT_MIN_IMPS) continue;
+        const ctrNum = (s.impressions && s.clicks) ? (s.clicks / s.impressions) * 100 : null;
+        if (ctrNum != null && ctrBench > 0 && alertLevel(ctrNum, ctrBench).severe) return true;
+        if (s.viewability != null && viewBench > 0 && alertLevel(s.viewability, viewBench).severe) return true;
+      }
+    }
+    return false;
+  }
   function videoComplBand(videos) {
     return videoBucketData(videos).some(({ avg }) => avg != null && avg < ALERT_COMPL_MIN) ? 'red' : null;
   }
@@ -2505,7 +2529,7 @@
         const ctr = g.impressions && g.clicks ? parseFloat(((g.clicks / g.impressions) * 100).toFixed(2)) : null;
         const _gated = (g.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(g.liveStatus);
         const _ctrBench = expectedCtr(g, AUCTR) ?? BENCH.ctr;   // per-publication expected CTR (our real logic)
-        const _anyRed = _gated && (alertLevel(ctr, _ctrBench).severe || alertLevel(g.activeView, BENCH.view).severe || videoComplBand(g.videos || []) === 'red');
+        const _anyRed = _gated && (alertLevel(ctr, _ctrBench).severe || alertLevel(g.activeView, BENCH.view).severe || videoComplBand(g.videos || []) === 'red' || splitHasSevere(g.netlifyUrl, activeTab, _ctrBench, BENCH.view));
         const _ack = alertAcks[alertRowKey(g.netlifyUrl)];
         const _worse = !!_ack && ((ctr != null && _ack.ctr != null && ctr < _ack.ctr * ALERT_WORSE) || (g.activeView != null && _ack.activeView != null && g.activeView < _ack.activeView * ALERT_WORSE) || (g.completionRate != null && _ack.completionRate != null && g.completionRate < _ack.completionRate * ALERT_WORSE));
         const crit = _anyRed && !(_ack && !_worse);   // #FFE9ED critical row until acked in the Edit modal
@@ -2531,7 +2555,7 @@
       const _fCtr = _rfs.impressions && _rfs.clicks ? parseFloat(((_rfs.clicks / _rfs.impressions) * 100).toFixed(2)) : null;
       const _gated = (_rfs.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(r.liveStatus);
       const _ctrBench = expectedCtr(r, AUCTR) ?? BENCH.ctr;   // per-publication expected CTR (our real logic)
-      const _anyRed = _gated && (alertLevel(_fCtr, _ctrBench).severe || alertLevel(r.activeView, BENCH.view).severe);
+      const _anyRed = _gated && (alertLevel(_fCtr, _ctrBench).severe || alertLevel(r.activeView, BENCH.view).severe || splitHasSevere(r.netlifyUrl, activeTab, _ctrBench, BENCH.view));
       const _ack = alertAcks[alertRowKey(r.netlifyUrl)];
       const _worse = !!_ack && ((_fCtr != null && _ack.ctr != null && _fCtr < _ack.ctr * ALERT_WORSE) || (r.activeView != null && _ack.activeView != null && r.activeView < _ack.activeView * ALERT_WORSE));
       const crit = _anyRed && !(_ack && !_worse);   // #FFE9ED critical row until acked in the Edit modal
@@ -2832,7 +2856,7 @@
           const compl = g.cDen > 0 ? (g.cNum / g.cDen) : null;
           const gated = (g.imps || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(g.liveStatus);
           const cb = expectedCtr(g, AUCTR) ?? BENCH.ctr;
-          const anyRed = gated && (alertLevel(ctr, cb).severe || alertLevel(av, BENCH.view).severe || videoComplBand(g.videos) === 'red');
+          const anyRed = gated && (alertLevel(ctr, cb).severe || alertLevel(av, BENCH.view).severe || videoComplBand(g.videos) === 'red' || splitHasSevere(g.url, tab, cb, BENCH.view));
           if (critFor(g.url, ctr, av, compl, anyRed)) n++;
         }
       } else {
@@ -2841,7 +2865,7 @@
           const ctr = f.impressions && f.clicks ? parseFloat(((f.clicks / f.impressions) * 100).toFixed(2)) : null;
           const gated = (f.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(r.liveStatus);
           const cb = expectedCtr(r, AUCTR) ?? BENCH.ctr;
-          const anyRed = gated && (alertLevel(ctr, cb).severe || alertLevel(r.activeView, BENCH.view).severe);
+          const anyRed = gated && (alertLevel(ctr, cb).severe || alertLevel(r.activeView, BENCH.view).severe || splitHasSevere(r.netlifyUrl, tab, cb, BENCH.view));
           if (critFor(r.netlifyUrl, ctr, r.activeView, null, anyRed)) n++;
         }
       }
