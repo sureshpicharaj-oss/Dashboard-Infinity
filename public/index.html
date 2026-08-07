@@ -282,8 +282,6 @@
     .split-li { white-space:normal;font-size:10px;font-weight:500;color:#8a93a6;margin-top:3px;line-height:1.35; }
     .split-li a { color:#6a7387;text-decoration:none; }
     .split-li a:hover { color:#2563b8;text-decoration:underline; }
-    .split-adunit { white-space:normal;font-size:10px;font-weight:500;color:var(--text-sub);margin-top:3px;line-height:1.35; }
-    .split-adunit-warn { white-space:normal;font-size:10.5px;font-weight:700;color:var(--warn);margin-top:3px;line-height:1.4; }
     .split-kv { display:inline-block;font-size:10px;padding:1px 7px;margin:1px 4px 1px 0;border-radius:10px;background:#eef1f8;border:1px solid #dfe4ee;color:#42506b; }
     .split-dash { color:#c0c6d2; }
     .split-total-row td { font-weight:800;color:#1a1a2e;border-top:2px solid #d5dced;border-bottom:none;background:#f0f4ff; }
@@ -814,7 +812,7 @@
     .split-grow:last-child { border-bottom: none; }
     .split-bar { position: absolute; left: 0; top: 8px; bottom: 8px; width: 4px; background: var(--bad); border-radius: 4px; }
     .split-grow.crit { background: #FFE9ED; color: var(--crit-row-text); }
-    .split-grow.crit .split-gname, .split-grow.crit .split-gname-plain, .split-grow.crit .split-gnum, .split-grow.crit .split-adunit { color: var(--crit-row-text); opacity: .8; }
+    .split-grow.crit .split-gname, .split-grow.crit .split-gname-plain, .split-grow.crit .split-gnum { color: var(--crit-row-text); }
     .split-gname { font-weight: 700; color: var(--text); min-width: 0; }
     .split-gname a, .split-gname .split-gname-plain { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
     .split-gname a { color: #008EF1; text-decoration: underline; font-weight: 700; }
@@ -1427,7 +1425,8 @@
         t.impressions += v.impressions || 0; t.clicks += v.clicks || 0;
       }
     }
-    const ctrBench = expectedCtr({ impsByAdUnit: _skinIba }, adUnitCtrTotals()) ?? (bench && bench.ctr);
+    const _auTotals = adUnitCtrTotals();   // computed once, reused per-creative below (see splitTable)
+    const ctrBench = expectedCtr({ impsByAdUnit: _skinIba }, _auTotals) ?? (bench && bench.ctr);
     // Gather every contributing creative into one list (video groups span multiple VIDEO_IDs).
     const list = [];
     for (const gk of groupKeys) {
@@ -1448,7 +1447,7 @@
       ? `<div class="split-licheck"><div class="split-licheck-h">Open in Google Ad Manager to check the setup:</div>${liIds.map(id => `<a href="${gamLineItemUrl(id)}" target="_blank" rel="noopener">Line item ${esc(id)} ↗</a>`).join('')}</div>`
       : '';
     const bodyBlock = list.length
-      ? `<div class="split-body-block"><div class="split-format">${esc(fmtLabel)}</div><div class="split-sub2">Individual creatives that make up the combined row.</div>${splitTable(list, isVideo, bench, lineLive, ctrBench, parentAcked)}</div>`
+      ? `<div class="split-body-block"><div class="split-format">${esc(fmtLabel)}</div><div class="split-sub2">Individual creatives that make up the combined row.</div>${splitTable(list, isVideo, bench, lineLive, ctrBench, parentAcked, _auTotals)}</div>`
       : `<div class="split-body-block"><div class="split-format">${esc(fmtLabel)}</div><p class="split-sub2">No per-creative delivery yet — per-creative splits appear once the line delivers (they're produced by the daily refresh).</p>${liCheck}</div>`;
     body.innerHTML = header + bodyBlock;
   }
@@ -1462,7 +1461,7 @@
     tr.classList.toggle('open', !open);
   }
 
-  function splitTable(splits, isVideo, bench, lineLive, ctrBench, parentAcked) {
+  function splitTable(splits, isVideo, bench, lineLive, ctrBench, parentAcked, auTotals) {
     const cols = isVideo
       ? 'grid-template-columns:minmax(180px,2fr) 1fr 1fr 1fr 1fr 1fr minmax(120px,1.4fr);gap:16px'
       : 'grid-template-columns:minmax(200px,2fr) 1fr 1fr 1fr 1fr;gap:16px';
@@ -1477,10 +1476,17 @@
     const rows = splits.map(s => {
       tImp += s.impressions || 0; tClk += s.clicks || 0;
       const ctrNum = (s.impressions && s.clicks) ? parseFloat(((s.clicks / s.impressions) * 100).toFixed(2)) : null;
+      // This creative's OWN expected CTR — leave-one-out against the ad unit(s) IT actually runs on
+      // (not the row's blend). A creative running 100% on Top Gear must be judged against Top Gear's
+      // own peer CTR, not a benchmark pulled toward whatever sites its line-item siblings run on;
+      // expectedCtr() already does exactly this (see its docstring) — just called per-creative here
+      // instead of per-row. Falls back to the row-level ctrBench when we don't have per-ad-unit data
+      // for this creative yet (e.g. before the next refresh populates impsByAdUnit).
+      const _cCtrBench = (s.impsByAdUnit && Object.keys(s.impsByAdUnit).length ? expectedCtr(s, auTotals) : null) ?? ctrBench;
       // Same RAG pills as the main table, gated on the creative's own ≥2000 imps + a live line.
       const _gated = !!lineLive && (s.impressions || 0) >= ALERT_MIN_IMPS;
       // Flagging is severe-only (<60% of benchmark); the pill itself still turns red at <80% (rdPerfPill uses .level, unchanged).
-      const _anyRed = _gated && (alertLevel(ctrNum, ctrBench).severe || alertLevel(s.viewability, bench && bench.view).severe);
+      const _anyRed = _gated && (alertLevel(ctrNum, _cCtrBench).severe || alertLevel(s.viewability, bench && bench.view).severe);
       const nm = s.name || ('#' + s.creativeId);
       const _li = (s.lineItemIds && s.lineItemIds[0]) || null;
       // Creative name → its GAM creative page (line item + creative id). Plain text otherwise.
@@ -1491,22 +1497,6 @@
       const liSub = (s.lineItemIds && s.lineItemIds.length)
         ? `<div class="split-li">${[...new Set(s.lineItemIds)].map(id => `<a href="${gamLineItemUrl(id)}" target="_blank" rel="noopener" title="Open line item ${esc(id)} in GAM">LI ${esc(id)}</a>`).join(' · ')}</div>`
         : '';
-      // Per-ad-unit delivery breakdown for THIS creative — where it's actually running, not the
-      // row's blend. Surfaces cases like a site-specific creative variant sharing a line item with a
-      // broad one: if it's heavily concentrated on one ad unit, that's a signal it should have its
-      // own creative-level targeting within the line item rather than riding the line's full reach.
-      const auEntries = Object.entries(s.impsByAdUnit || {}).sort((a, b) => b[1].impressions - a[1].impressions);
-      const auTotal = auEntries.reduce((sum, [, v]) => sum + (v.impressions || 0), 0);
-      let adUnitSub = '';
-      if (auTotal > 0) {
-        const top = auEntries[0];
-        const topShare = top[1].impressions / auTotal;
-        const shown = auEntries.slice(0, 3).map(([name, v]) => `${esc(name)} ${Math.round(v.impressions / auTotal * 100)}%`).join(' · ');
-        const more = auEntries.length > 3 ? ` +${auEntries.length - 3} more` : '';
-        const concentrated = topShare >= 0.7 && (s.impressions || 0) >= ALERT_MIN_IMPS && (s.adUnitCoverage == null || s.adUnitCoverage >= 0.5);
-        adUnitSub = `<div class="split-adunit" title="Where this creative's impressions actually delivered">${shown}${more}</div>`
-          + (concentrated ? `<div class="split-adunit-warn">⚠ ${Math.round(topShare * 100)}% on ${esc(top[0])} — consider creative-level targeting to this ad unit within the line item</div>` : '');
-      }
       // Video ID → the completion-source creative when known, else its own line item so it's ALWAYS clickable.
       const vidCell = (s._complLineItemId && s._complCreativeId)
         ? `<a href="${gamCreativeUrl(s._complLineItemId, s._complCreativeId)}" target="_blank" rel="noopener">${esc(s._videoId || '—')}</a>`
@@ -1516,10 +1506,10 @@
       const cls = _anyRed ? (parentAcked ? 'split-grow acked' : 'split-grow crit') : 'split-grow';
       return `<div class="${cls}" style="display:grid;${cols}">`
         + (_anyRed ? '<span class="split-bar"></span>' : '')
-        + `<div class="split-gname" title="${esc(nm)}">${nameCell}${liSub}${adUnitSub}</div>`
+        + `<div class="split-gname" title="${esc(nm)}">${nameCell}${liSub}</div>`
         + `<div class="split-gnum">${num(s.impressions)}</div>`
         + `<div class="split-gnum">${num(s.clicks)}</div>`
-        + `<div>${rdPerfPill(ctrNum, ctrBench, _gated, 'expected for its inventory')}</div>`
+        + `<div>${rdPerfPill(ctrNum, _cCtrBench, _gated, 'expected for its inventory')}</div>`
         + `<div>${rdPerfPill(s.viewability, bench && bench.view, _gated, 'average')}</div>`
         + (isVideo ? `<div class="split-gnum">${pct(s.completionRate)}</div>` : '')
         + (isVideo ? `<div class="split-gvid">${vidCell}</div>` : '')
@@ -2124,7 +2114,7 @@
   // but the row outside never flags — only useful if someone happens to open it. Roll the split's own
   // per-creative severity up into the row flag using the SAME benchmarks the row (and the split modal)
   // already computed, so a genuinely severe creative surfaces without opening anything.
-  function splitHasSevere(netlifyUrl, device, ctrBench, viewBench) {
+  function splitHasSevere(netlifyUrl, device, ctrBench, viewBench, auTotals) {
     if (!splitsData) return false;
     const prefix = netlifyUrl + '##', suffix = '##' + device;
     for (const gk in splitsData) {
@@ -2132,7 +2122,10 @@
       for (const s of splitsData[gk]) {
         if ((s.impressions || 0) < ALERT_MIN_IMPS) continue;
         const ctrNum = (s.impressions && s.clicks) ? (s.clicks / s.impressions) * 100 : null;
-        if (ctrNum != null && ctrBench > 0 && alertLevel(ctrNum, ctrBench).severe) return true;
+        // Judge THIS creative against the ad unit(s) it actually runs on (same principle as splitTable) —
+        // a row-blended benchmark misjudges a creative concentrated on one site.
+        const cCtrBench = (auTotals && s.impsByAdUnit && Object.keys(s.impsByAdUnit).length ? expectedCtr(s, auTotals) : null) ?? ctrBench;
+        if (ctrNum != null && cCtrBench > 0 && alertLevel(ctrNum, cCtrBench).severe) return true;
         if (s.viewability != null && viewBench > 0 && alertLevel(s.viewability, viewBench).severe) return true;
       }
     }
@@ -2547,7 +2540,7 @@
         const ctr = g.impressions && g.clicks ? parseFloat(((g.clicks / g.impressions) * 100).toFixed(2)) : null;
         const _gated = (g.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(g.liveStatus);
         const _ctrBench = expectedCtr(g, AUCTR) ?? BENCH.ctr;   // per-publication expected CTR (our real logic)
-        const _anyRed = _gated && (alertLevel(ctr, _ctrBench).severe || alertLevel(g.activeView, BENCH.view).severe || videoComplBand(g.videos || []) === 'red' || splitHasSevere(g.netlifyUrl, activeTab, _ctrBench, BENCH.view));
+        const _anyRed = _gated && (alertLevel(ctr, _ctrBench).severe || alertLevel(g.activeView, BENCH.view).severe || videoComplBand(g.videos || []) === 'red' || splitHasSevere(g.netlifyUrl, activeTab, _ctrBench, BENCH.view, AUCTR));
         const _ack = alertAcks[alertRowKey(g.netlifyUrl)];
         const _worse = !!_ack && ((ctr != null && _ack.ctr != null && ctr < _ack.ctr * ALERT_WORSE) || (g.activeView != null && _ack.activeView != null && g.activeView < _ack.activeView * ALERT_WORSE) || (g.completionRate != null && _ack.completionRate != null && g.completionRate < _ack.completionRate * ALERT_WORSE));
         const crit = _anyRed && !(_ack && !_worse);   // #FFE9ED critical row until acked in the Edit modal
@@ -2573,7 +2566,7 @@
       const _fCtr = _rfs.impressions && _rfs.clicks ? parseFloat(((_rfs.clicks / _rfs.impressions) * 100).toFixed(2)) : null;
       const _gated = (_rfs.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(r.liveStatus);
       const _ctrBench = expectedCtr(r, AUCTR) ?? BENCH.ctr;   // per-publication expected CTR (our real logic)
-      const _anyRed = _gated && (alertLevel(_fCtr, _ctrBench).severe || alertLevel(r.activeView, BENCH.view).severe || splitHasSevere(r.netlifyUrl, activeTab, _ctrBench, BENCH.view));
+      const _anyRed = _gated && (alertLevel(_fCtr, _ctrBench).severe || alertLevel(r.activeView, BENCH.view).severe || splitHasSevere(r.netlifyUrl, activeTab, _ctrBench, BENCH.view, AUCTR));
       const _ack = alertAcks[alertRowKey(r.netlifyUrl)];
       const _worse = !!_ack && ((_fCtr != null && _ack.ctr != null && _fCtr < _ack.ctr * ALERT_WORSE) || (r.activeView != null && _ack.activeView != null && r.activeView < _ack.activeView * ALERT_WORSE));
       const crit = _anyRed && !(_ack && !_worse);   // #FFE9ED critical row until acked in the Edit modal
@@ -2874,7 +2867,7 @@
           const compl = g.cDen > 0 ? (g.cNum / g.cDen) : null;
           const gated = (g.imps || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(g.liveStatus);
           const cb = expectedCtr(g, AUCTR) ?? BENCH.ctr;
-          const anyRed = gated && (alertLevel(ctr, cb).severe || alertLevel(av, BENCH.view).severe || videoComplBand(g.videos) === 'red' || splitHasSevere(g.url, tab, cb, BENCH.view));
+          const anyRed = gated && (alertLevel(ctr, cb).severe || alertLevel(av, BENCH.view).severe || videoComplBand(g.videos) === 'red' || splitHasSevere(g.url, tab, cb, BENCH.view, AUCTR));
           if (critFor(g.url, ctr, av, compl, anyRed)) n++;
         }
       } else {
@@ -2883,7 +2876,7 @@
           const ctr = f.impressions && f.clicks ? parseFloat(((f.clicks / f.impressions) * 100).toFixed(2)) : null;
           const gated = (f.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(r.liveStatus);
           const cb = expectedCtr(r, AUCTR) ?? BENCH.ctr;
-          const anyRed = gated && (alertLevel(ctr, cb).severe || alertLevel(r.activeView, BENCH.view).severe || splitHasSevere(r.netlifyUrl, tab, cb, BENCH.view));
+          const anyRed = gated && (alertLevel(ctr, cb).severe || alertLevel(r.activeView, BENCH.view).severe || splitHasSevere(r.netlifyUrl, tab, cb, BENCH.view, AUCTR));
           if (critFor(r.netlifyUrl, ctr, r.activeView, null, anyRed)) n++;
         }
       }
