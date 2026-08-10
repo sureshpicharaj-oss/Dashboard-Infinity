@@ -780,6 +780,8 @@
     .rd-dd-clear { display: block; width: 100%; text-align: left; border: none; background: transparent; color: var(--accent); font-size: 12.5px; font-weight: 600; padding: 8px; border-radius: 8px; cursor: pointer; text-decoration: underline; font-family: var(--font); }
     .rd-dd-opt { display: flex; align-items: center; gap: 9px; padding: 8px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--text-muted); cursor: pointer; }
     .rd-dd-opt input { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+    .rd-dd-search { width: 100%; box-sizing: border-box; background: var(--input-bg); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 8px; font-size: 12.5px; font-weight: 500; font-family: var(--font); outline: none; margin-bottom: 6px; }
+    .rd-dd-empty { padding: 10px 8px; font-size: 12.5px; color: var(--text-faint); font-weight: 500; }
     .rd-clear { border: none; background: transparent; color: var(--text-muted); font-size: 12.5px; font-weight: 600; cursor: pointer; text-decoration: underline; padding: 9px 2px; font-family: var(--font); }
     .rd-search input { width: 190px; background: var(--input-bg); border: 1px solid var(--border); color: var(--text); padding: 10px 16px; border-radius: 20px; font-size: 13px; outline: none; font-weight: 500; font-family: var(--font); }
 
@@ -832,6 +834,13 @@
     .rd-field-h.flag { color: var(--bad); font-weight: 700; }
     .rd-in, .rd-sel { background: var(--ef-input-bg); border: none; color: var(--ef-input-text); padding: 12px 16px; border-radius: 10px; font-size: 14px; font-weight: 500; font-family: var(--font); outline: none; width: 100%; box-sizing: border-box; }
     .rd-in-sm { padding: 9px 14px; font-size: 13px; }
+    /* Searchable combobox (Edit modal's Category/Advertiser — search + pick from EXISTING values only). */
+    .rd-combo { position: relative; }
+    .rd-combo-list { display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 30; background: var(--ef-card); border: 1px solid var(--ef-card-border); border-radius: 10px; padding: 4px; max-height: 220px; overflow-y: auto; box-shadow: 0 12px 30px rgba(0,0,0,.25); }
+    .rd-combo.open .rd-combo-list { display: block; }
+    .rd-combo-opt { padding: 9px 12px; border-radius: 7px; font-size: 13px; font-weight: 500; color: var(--ef-input-text); cursor: pointer; }
+    .rd-combo-opt:hover, .rd-combo-opt.sel { background: var(--ef-input-bg); }
+    .rd-combo-empty { padding: 9px 12px; font-size: 12.5px; color: var(--text-faint); font-weight: 500; }
     .rd-prev-edit { width: 150px; height: 75px; border-radius: 8px; object-fit: cover; border: 1px solid var(--ef-card-border); background: var(--preview-a); flex: none; }
     .rd-upload { border: 1px solid var(--ef-card-border); background: var(--ef-input-bg); color: var(--ef-input-text); padding: 10px 18px; border-radius: 20px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: var(--font); }
     .rd-modal-foot { display: flex; gap: 12px; }
@@ -1312,6 +1321,7 @@
       const dd = document.getElementById('adUnitDropdown');
       if (dd) dd.style.display = 'none';
     }
+    document.querySelectorAll('.rd-combo.open').forEach(combo => { if (!combo.contains(e.target)) combo.classList.remove('open'); });
   });
 
   async function saveTagRules() {
@@ -2260,7 +2270,25 @@
   function rdToggleFlagged(){ flaggedOnly = !flaggedOnly; renderTable(); renderFilterBar(); updateStats(); }
   function rdClearAll(){ fCats.clear(); fAdvs.clear(); fStatuses.clear(); activeAdUnits.clear(); flaggedOnly=false; sortMode='recent'; sortCol='sortKey'; sortDir=-1; _openDD=null; const sb=document.getElementById('searchBox'); if(sb) sb.value=''; renderTable(); renderFilterBar(); updateStats(); }
   function rdSearchInput(){ renderTable(); updateStats(); const rc=document.querySelector('.rd-results'); if(rc) rc.textContent='Results · '+lastResultCount; }
-  function _ddPanel(group, opts){ return `<div class="rd-dd-panel"><button class="rd-dd-clear" onclick="rdClearGroup('${group}')">Deselect all</button>${opts.map(o=>`<label class="rd-dd-opt"><input type="checkbox" ${o.checked?'checked':''} onchange="${o.onchange}">${esc(o.label)}</label>`).join('')}</div></div>`; }
+  // `searchable` adds a live text filter above the checkbox list — hides non-matching rows in place
+  // (no re-render), so typing never loses focus. Used for Category/Advertiser, which can grow long.
+  function _ddPanel(group, opts, searchable){
+    const search = searchable ? `<input type="text" class="rd-dd-search" placeholder="Search…" oninput="rdDdFilter(this)">` : '';
+    return `<div class="rd-dd-panel">${search}<button class="rd-dd-clear" onclick="rdClearGroup('${group}')">Deselect all</button>${opts.map(o=>`<label class="rd-dd-opt"><input type="checkbox" ${o.checked?'checked':''} onchange="${o.onchange}">${esc(o.label)}</label>`).join('')}</div></div>`;
+  }
+  function rdDdFilter(input){
+    const q = input.value.trim().toLowerCase();
+    const panel = input.closest('.rd-dd-panel'); if(!panel) return;
+    let anyVisible = false;
+    panel.querySelectorAll('.rd-dd-opt').forEach(opt => {
+      const match = !q || opt.textContent.toLowerCase().includes(q);
+      opt.style.display = match ? '' : 'none';
+      if (match) anyVisible = true;
+    });
+    let empty = panel.querySelector('.rd-dd-empty');
+    if (!anyVisible) { if (!empty) { empty = document.createElement('div'); empty.className = 'rd-dd-empty'; empty.textContent = 'No matches'; panel.appendChild(empty); } }
+    else if (empty) { empty.remove(); }
+  }
   function _dd(name, label, count, panel){ const active = count>0; return `<div class="rd-dd${_openDD===name?' open':''}"><button class="rd-dd-btn${active?' active':''}" onclick="event.stopPropagation();rdToggleDD('${name}')">${label}${count?` (${count})`:''}</button>${panel}`; }
   function renderFilterBar(){
     const bar = document.getElementById('rdFilter'); if(!bar) return;
@@ -2278,8 +2306,8 @@
       + `<div class="rd-results">Results · ${lastResultCount}</div>`
       + `<button class="rd-all${anyFilter?'':' on'}" onclick="rdClearAll()">All</button>`
       + (lastFlaggedCount>0 ? `<button class="rd-flagged${flaggedOnly?' on':''}" onclick="rdToggleFlagged()"><span class="rd-flag-badge">${lastFlaggedCount}</span> Flagged</button>` : '')
-      + _dd('cat','Category',fCats.size, _ddPanel('cat', cats.map(c=>({label:c===RD_NONE?'No category':c, checked:fCats.has(c), onchange:`rdToggleVal('cat', ${esc(JSON.stringify(c))})`}))))
-      + _dd('adv','Advertiser',fAdvs.size, _ddPanel('adv', advs.map(a=>({label:a===RD_NONE?'No advertiser':a, checked:fAdvs.has(a), onchange:`rdToggleVal('adv', ${esc(JSON.stringify(a))})`}))))
+      + _dd('cat','Category',fCats.size, _ddPanel('cat', cats.map(c=>({label:c===RD_NONE?'No category':c, checked:fCats.has(c), onchange:`rdToggleVal('cat', ${esc(JSON.stringify(c))})`})), true))
+      + _dd('adv','Advertiser',fAdvs.size, _ddPanel('adv', advs.map(a=>({label:a===RD_NONE?'No advertiser':a, checked:fAdvs.has(a), onchange:`rdToggleVal('adv', ${esc(JSON.stringify(a))})`})), true))
       + _dd('status','Status',fStatuses.size, _ddPanel('status', sts.map(([v,l])=>({label:l, checked:fStatuses.has(v), onchange:`rdToggleVal('status', '${v}')`}))))
       + _dd('brand','Brand site',activeAdUnits.size, _ddPanel('brand', brs.map(b=>({label:b, checked:activeAdUnits.has(b), onchange:`rdToggleBrand(${esc(JSON.stringify(b))})`}))))
       + `<select class="rd-sort" onchange="setSortMode(this.value)"><option value="recent"${sortMode==='recent'?' selected':''}>Sort: recent</option><option value="az"${sortMode==='az'?' selected':''}>A to Z</option><option value="za"${sortMode==='za'?' selected':''}>Z to A</option></select>`
@@ -2308,6 +2336,55 @@
   // ── Edit-creative modal (Edit mode; no roles) ──
   function openRowEdit(enc){ rdEditUrl = decodeURIComponent(enc); renderEditModal(); document.getElementById('rdEditOverlay').style.display = 'flex'; document.documentElement.classList.add('modal-open'); }
   function closeRowEdit(){ document.getElementById('rdEditOverlay').style.display = 'none'; rdEditUrl = null; document.documentElement.classList.remove('modal-open'); }
+  // Searchable "assign an EXISTING value" combobox for the Edit modal (Category / Advertiser) — a plain
+  // <select> gets unwieldy once there are many categories/advertisers to scroll through. Typing filters
+  // the list; only clicking (or Enter on the top match) commits a value, so — unlike a free-text input —
+  // it can never assign something that isn't already a real option (new ones are still Filter-settings-only).
+  // hiddenId holds the actual value saveRowEdit() reads; searchId is the visible text box.
+  function rdComboField(hiddenId, values, current, noneLabel){
+    const opts = values.map(v => `<div class="rd-combo-opt${v===current?' sel':''}" data-value="${esc(v)}" onclick="rdComboPick(this,'${hiddenId}')">${esc(v)}</div>`).join('');
+    return `<div class="rd-combo" id="${hiddenId}_combo">`
+      + `<input type="text" class="rd-in rd-combo-input" id="${hiddenId}_search" placeholder="${esc(noneLabel)}" autocomplete="off" value="${esc(current)}"`
+      + ` oninput="rdComboFilter('${hiddenId}')" onfocus="rdComboFilter('${hiddenId}')" onkeydown="rdComboKeydown(event,'${hiddenId}')">`
+      + `<input type="hidden" id="${hiddenId}" value="${esc(current)}">`
+      + `<div class="rd-combo-list" id="${hiddenId}_list">`
+        + `<div class="rd-combo-opt" data-value="" onclick="rdComboPick(this,'${hiddenId}')">${esc(noneLabel)}</div>`
+        + opts
+      + `</div></div>`;
+  }
+  function rdComboFilter(hiddenId){
+    const combo = document.getElementById(hiddenId + '_combo'); if (!combo) return;
+    combo.classList.add('open');
+    const q = (document.getElementById(hiddenId + '_search').value || '').trim().toLowerCase();
+    const list = document.getElementById(hiddenId + '_list');
+    let anyVisible = false;
+    [...list.children].forEach(opt => {
+      const isNone = opt.dataset.value === '';
+      const match = isNone || !q || opt.textContent.toLowerCase().includes(q);
+      opt.style.display = match ? '' : 'none';
+      if (match && !isNone) anyVisible = true;
+    });
+    let empty = list.querySelector('.rd-combo-empty');
+    if (!anyVisible && q) { if (!empty) { empty = document.createElement('div'); empty.className = 'rd-combo-empty'; empty.textContent = 'No matches'; list.appendChild(empty); } }
+    else if (empty) { empty.remove(); }
+  }
+  function rdComboPick(el, hiddenId){
+    const val = el.dataset.value;
+    document.getElementById(hiddenId).value = val;
+    document.getElementById(hiddenId + '_search').value = val;
+    document.getElementById(hiddenId + '_combo').classList.remove('open');
+  }
+  function rdComboKeydown(e, hiddenId){
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const list = document.getElementById(hiddenId + '_list');
+      const firstVisible = [...list.children].find(o => o.style.display !== 'none' && o.classList.contains('rd-combo-opt'));
+      if (firstVisible) rdComboPick(firstVisible, hiddenId);
+    } else if (e.key === 'Escape') {
+      document.getElementById(hiddenId + '_search').value = document.getElementById(hiddenId).value;
+      document.getElementById(hiddenId + '_combo').classList.remove('open');
+    }
+  }
   function renderEditModal(){
     const url = rdEditUrl; if(!url) return;
     const row = allRows.find(r => r.netlifyUrl === url);
@@ -2319,7 +2396,6 @@
     const advs = allAdvertisers();
     const flagged = redUrls.has(url);   // red rows only (acked or not) — lets people re-flag a looked-into row
     const looked = !!alertAcks[alertRowKey(url)];
-    const opt = (v, sel) => `<option value="${esc(v)}"${v===sel?' selected':''}>${esc(v)}</option>`;
     document.getElementById('rdEditBody').innerHTML =
       `<div class="rd-modal-h"><h3>Edit creative</h3><button class="rd-modal-x" onclick="closeRowEdit()">×</button></div>`
       + `<div class="rd-fieldset">`
@@ -2328,8 +2404,8 @@
           + `<button class="rd-upload" onclick="uploadRowEditImage('${enc}','${activeTab}')">Upload image</button>`
         + `</div></div>`
         + `<div class="rd-field"><div class="rd-field-h">Creative name</div><input id="rdEditName" class="rd-in" value="${esc(name)}"></div>`
-        + `<div class="rd-field"><div class="rd-field-h">Advertiser</div><select id="rdEditAdv" class="rd-sel"><option value="">— none —</option>${advs.map(a=>opt(a,adv)).join('')}</select><div class="rd-note">Add new advertisers in Filter settings.</div></div>`
-        + `<div class="rd-field"><div class="rd-field-h">Category</div><select id="rdEditCat" class="rd-sel"><option value="">— none —</option>${cats.map(c=>opt(c,cat)).join('')}</select><div class="rd-note">Add new categories in Filter settings.</div></div>`
+        + `<div class="rd-field"><div class="rd-field-h">Advertiser</div>${rdComboField('rdEditAdv', advs, adv, '— none —')}<div class="rd-note">Add new advertisers in Filter settings.</div></div>`
+        + `<div class="rd-field"><div class="rd-field-h">Category</div>${rdComboField('rdEditCat', cats, cat, '— none —')}<div class="rd-note">Add new categories in Filter settings.</div></div>`
         + (flagged ? `<div class="rd-field"><div class="rd-field-h flag">Flagged issue</div><div class="rd-swrow"><div style="font-size:14px;font-weight:500">Has this been looked into?</div><button class="rd-toggle${looked?' on':''}" onclick="toggleLookedInto()" title="${looked?'Yes':'No'}"></button></div></div>` : '')
       + `</div>`
       + `<div class="rd-modal-foot"><button class="rd-btn-2" onclick="closeRowEdit()">Cancel</button><button class="rd-btn-1" onclick="saveRowEdit()">Apply</button></div>`;
