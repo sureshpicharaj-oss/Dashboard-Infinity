@@ -1494,7 +1494,12 @@
       // for this creative yet (e.g. before the next refresh populates impsByAdUnit).
       const _cCtrBench = (s.impsByAdUnit && Object.keys(s.impsByAdUnit).length ? expectedCtr(s, auTotals) : null) ?? ctrBench;
       // Same RAG pills as the main table, gated on the creative's own ≥2000 imps + a live line.
-      const _gated = !!lineLive && (s.impressions || 0) >= ALERT_MIN_IMPS;
+      // Prefer this row's OWN line item's status (a creative reused across several bookings gets one
+      // row per line item — see dashboard-data.js — so a completed booking must not inherit colour
+      // just because a still-live sibling booking shares the same creative). Fall back to the
+      // group-wide flag only for cache rows written before this field existed.
+      const _live = s.liveStatus != null ? ALERT_LIVE.includes(s.liveStatus) : !!lineLive;
+      const _gated = _live && (s.impressions || 0) >= ALERT_MIN_IMPS;
       // Flagging is severe-only (<60% of benchmark); the pill itself still turns red at <80% (rdPerfPill uses .level, unchanged).
       const _anyRed = _gated && (alertLevel(ctrNum, _cCtrBench).severe || alertLevel(s.viewability, bench && bench.view).severe);
       const nm = s.name || ('#' + s.creativeId);

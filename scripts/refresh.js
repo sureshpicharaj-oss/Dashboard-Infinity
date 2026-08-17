@@ -159,6 +159,7 @@ async function main() {
           keyValues,
           impsByAdUnit:   s.impsByAdUnit || {},
           adUnitCoverage: s.adUnitCoverage ?? null,
+          liveStatus:     s.liveStatus ?? null,
         };
       });
     }
