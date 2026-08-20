@@ -1554,7 +1554,7 @@
         + `<div>${rdPerfPill(s.viewability, bench && bench.view, _gated, 'average')}</div>`
         + `<div class="split-gdate">${fmtDate(s.startDate)}</div>`
         + `<div class="split-gdate">${fmtEndDate(s.endDate)}</div>`
-        + `<div class="split-gnum">${pct(s.delivery && s.delivery.paceCushion != null ? Math.round(s.delivery.paceCushion * 100) : null)}</div>`
+        + `<div>${pacingPctPill(s.delivery && s.delivery.paceCushion)}</div>`
         + (isVideo ? `<div class="split-gnum">${pct(s.completionRate)}</div>` : '')
         + (isVideo ? `<div class="split-gvid">${vidCell}</div>` : '')
         + `</div>`;
@@ -2572,6 +2572,15 @@
   // End date has a second meaning for null: an unlimited-end line item never has a "latest end",
   // so the row/creative just runs on indefinitely rather than the date being unknown.
   function fmtEndDate(ts) { return ts == null ? 'Ongoing' : fmtDate(ts); }
+  // Split-view pacing — the exact % (GAM's own actual-vs-expected delivery ratio), colour-coded at
+  // the same 90% threshold as the outer-view rollup so the two always agree on what counts as
+  // "under pacing". null covers "no live goal to pace against" (Sponsorship, completed, not yet
+  // delivering) — shown neutral rather than implying good or bad pacing.
+  function pacingPctPill(pc) {
+    if (pc == null) return '<span class="pill neutral">—</span>';
+    const under = pc < 0.90;
+    return `<span class="pill ${under ? 'bad' : 'good'}" title="${Math.round(pc * 100)}% of expected delivery to date">${Math.round(pc * 100)}%</span>`;
+  }
   // Outer-view pacing = a count across this row's own split-view creatives, not one worst-case
   // number — "5/7 on track, 2/7 under pacing" says a lot more than a single verdict for the row when
   // several bookings are blended into it. Each split's exact % (GAM's own actual-vs-expected delivery
