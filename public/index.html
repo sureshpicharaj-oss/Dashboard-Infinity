@@ -324,14 +324,11 @@
     .seg-reach.ok  { background:#e7f7ef;color:#158a5a;border:1px solid #bfe8d3; }
     .seg-reach.mid { background:#fef3e7;color:#c47d1a;border:1px solid #f3dcc0; }
     .seg-reach.low { background:#fdece9;color:#c0392b;border:1px solid #f2c9c2; }
-    /* Attention score pill (dashboard column + splits) */
-    .attn-pill { display:inline-block;font-size:12px;font-weight:800;padding:2px 9px;border-radius:11px;
-      font-variant-numeric:tabular-nums;min-width:34px;text-align:center; }
-    .attn-pill.ok  { background:#e7f7ef;color:#158a5a;border:1px solid #bfe8d3; }
-    .attn-pill.mid { background:#fef3e7;color:#c47d1a;border:1px solid #f3dcc0; }
-    .attn-pill.low { background:#fdece9;color:#c0392b;border:1px solid #f2c9c2; }
-    .attn-pill.lowconf { opacity:.5;border-style:dashed; }
-    .attn-none { color:#c8ccd6; }
+    /* Joy score pill reuses the shared .pill good/warn/bad/neutral classes (public/redesign/tokens.css)
+       for the same theme-aware colours as every other RAG pill in the table; lowconf (< 1,000 imps,
+       still provisional) just dims it rather than needing its own colour scheme. */
+    .pill.lowconf { opacity:.6; }
+    .rd-date { font-size: 13px; color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
     /* Alert system — cell RAG (vs the average card) + whole-row escalation. Higher specificity than
        .ctr-cell.has-data (which forces green) so the alert colour wins on the CTR/Viewability cells. */
     /* Under-performing stat → a compact pill with a pulsing glow (not a full-cell fill). Kept a light
@@ -749,6 +746,8 @@
     .rd-split-btn img { width: 15px; height: 15px; filter: brightness(0) invert(1); }
     .rd-num { font-size: 13.5px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
     .rd-video { display: flex; flex-direction: column; gap: 5px; }
+    .rd-pacing-stack { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+    .rd-pacing-stack .pill { font-size: 11.5px; white-space: nowrap; }
     .rd-vid { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
     .rd-vid-fmt { font-size: 11.5px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
     .pill.neutral { background: var(--chip-bg); color: var(--text-muted); }
@@ -814,11 +813,12 @@
     .split-grow:last-child { border-bottom: none; }
     .split-bar { position: absolute; left: 0; top: 8px; bottom: 8px; width: 4px; background: var(--bad); border-radius: 4px; }
     .split-grow.crit { background: #FFE9ED; color: var(--crit-row-text); }
-    .split-grow.crit .split-gname, .split-grow.crit .split-gname-plain, .split-grow.crit .split-gnum { color: var(--crit-row-text); }
+    .split-grow.crit .split-gname, .split-grow.crit .split-gname-plain, .split-grow.crit .split-gnum, .split-grow.crit .split-gdate { color: var(--crit-row-text); }
     .split-gname { font-weight: 700; color: var(--text); min-width: 0; }
     .split-gname a, .split-gname .split-gname-plain { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
     .split-gname a { color: #008EF1; text-decoration: underline; font-weight: 700; }
     .split-gnum { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+    .split-gdate { color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
     .split-gvid a { color: #008EF1; text-decoration: underline; font-weight: 700; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; max-width: 100%; }
     .split-gtotal { padding: 14px 20px; background: var(--chip-bg); border-radius: 0 0 15px 15px; align-items: center; }
     .split-gtotal > div { font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
@@ -1160,6 +1160,32 @@
     }
     return wSum > 0 ? num / wSum : null;
   }
+  // Unfiltered variants of the two above — the Joy score must match scripts/refresh.js's baked-in
+  // value regardless of the viewer's current filter selection (the server has no filter concept
+  // either), so it can't reuse the filter-reactive versions used for pill rendering.
+  function adUnitCtrTotalsAll() {
+    const totals = {};
+    for (const r of allRows) {
+      if ((r.impressions || 0) < ALERT_MIN_IMPS) continue;
+      for (const [au, v] of Object.entries(r.impsByAdUnit || {})) {
+        const t = totals[au] || (totals[au] = { imps: 0, clicks: 0 });
+        t.imps += v.impressions || 0; t.clicks += v.clicks || 0;
+      }
+    }
+    return totals;
+  }
+  function expectedCtrAll(row, totals) {
+    let wSum = 0, num = 0;
+    for (const [au, v] of Object.entries(row.impsByAdUnit || {})) {
+      const t = totals[au]; if (!t) continue;
+      const peerImps = t.imps - (v.impressions || 0);
+      const peerClicks = t.clicks - (v.clicks || 0);
+      if (peerImps <= 0) continue;
+      const w = v.impressions || 0;
+      num += ((peerClicks / peerImps) * 100) * w; wSum += w;
+    }
+    return wSum > 0 ? num / wSum : null;
+  }
 
   // Assign a stable colour to each category by index in the rules object
   const TAG_PALETTE = ['#4f7fff','#1aab6d','#c0392b','#e67e22','#7b5ea7','#16a085','#d35400','#2980b9'];
@@ -1473,14 +1499,14 @@
 
   function splitTable(splits, isVideo, bench, lineLive, ctrBench, parentAcked, auTotals) {
     const cols = isVideo
-      ? 'grid-template-columns:minmax(180px,2fr) 1fr 1fr 1fr 1fr 1fr minmax(120px,1.4fr);gap:16px'
-      : 'grid-template-columns:minmax(200px,2fr) 1fr 1fr 1fr 1fr;gap:16px';
+      ? 'grid-template-columns:minmax(180px,2fr) 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr minmax(120px,1.4fr);gap:16px'
+      : 'grid-template-columns:minmax(200px,2fr) 1fr 1fr 1fr 1fr 1fr 1fr 1fr;gap:16px';
     const dash = '—';
     const num = n => (n != null && n !== '') ? Number(n).toLocaleString() : dash;
     const pct = n => (n != null) ? n + '%' : dash;
     const heads = isVideo
-      ? ['Creative', 'Impressions', 'Clicks', 'CTR', 'Viewability', 'Completion', 'Video ID']
-      : ['Creative', 'Impressions', 'Clicks', 'CTR', 'Viewability'];
+      ? ['Creative', 'Impressions', 'Clicks', 'CTR', 'Viewability', 'Start date', 'End date', 'Pacing', 'Completion', 'Video ID']
+      : ['Creative', 'Impressions', 'Clicks', 'CTR', 'Viewability', 'Start date', 'End date', 'Pacing'];
     const head = `<div class="split-ghead" style="display:grid;${cols}">${heads.map(h => `<div>${h}</div>`).join('')}</div>`;
     let tImp = 0, tClk = 0;
     const rows = splits.map(s => {
@@ -1526,13 +1552,17 @@
         + `<div class="split-gnum">${num(s.clicks)}</div>`
         + `<div>${rdPerfPill(ctrNum, _cCtrBench, _gated, 'expected for its inventory')}</div>`
         + `<div>${rdPerfPill(s.viewability, bench && bench.view, _gated, 'average')}</div>`
+        + `<div class="split-gdate">${fmtDate(s.startDate)}</div>`
+        + `<div class="split-gdate">${fmtEndDate(s.endDate)}</div>`
+        + `<div class="split-gnum">${pct(s.delivery && s.delivery.paceCushion != null ? Math.round(s.delivery.paceCushion * 100) : null)}</div>`
         + (isVideo ? `<div class="split-gnum">${pct(s.completionRate)}</div>` : '')
         + (isVideo ? `<div class="split-gvid">${vidCell}</div>` : '')
         + `</div>`;
     }).join('');
     const totCtr = (tImp && tClk) ? ((tClk / tImp) * 100).toFixed(2) + '%' : dash;
     const totCells = [`<div class="split-gtot-label">Combined (${splits.length})</div>`,
-      `<div>${tImp.toLocaleString()}</div>`, `<div>${tClk.toLocaleString()}</div>`, `<div>${totCtr}</div>`, `<div>${dash}</div>`]
+      `<div>${tImp.toLocaleString()}</div>`, `<div>${tClk.toLocaleString()}</div>`, `<div>${totCtr}</div>`, `<div>${dash}</div>`,
+      `<div>${dash}</div>`, `<div>${dash}</div>`, `<div>${dash}</div>`]
       .concat(isVideo ? [`<div>${dash}</div>`, `<div>${dash}</div>`] : []);
     const total = `<div class="split-gtotal" style="display:grid;${cols}">${totCells.join('')}</div>`;
     return `<div class="split-tablewrap">${head}${rows}${total}</div>`;
@@ -2170,12 +2200,13 @@
   // Baked into the caches by scripts/refresh.js (used as-is on Netlify). On localhost the table
   // loads live from /api/dashboard (no score) and viewability/dwell are merged in client-side, so we
   // recompute here too. THIS MUST MIRROR scripts/refresh.js computeAttention() — keep the knobs in sync.
-  // Transparent+: each signal scored vs its expected ("par") level → PAR_SCORE (60); beating it climbs
-  // toward 100 (bounded signals reach 100 at their ceiling, CTR asymptotes — always room to grow).
+  // Joy score: each signal scored vs its expected ("par") level → PAR_SCORE (60); beating it climbs
+  // toward 100 (every signal is bounded and reaches 100 at its own ceiling — CTR's ceiling is 2× par).
   var ATT = {
     dwellCeilSec: 60,
     par: { viewability: 78, dwellSec: 45, completion: 50 }, // estate-calibrated expected levels (see lib/attention.js)
-    ctrBar: { desktop: 2.0, mobile: 0.8 },
+    ctrBar: { desktop: 2.0, mobile: 0.8 },  // fallback par only, when no per-ad-unit benchmark exists yet
+    ctrCeilMult: 2,                         // CTR's ceiling (100 points) = par × this
     PAR_SCORE: 60,
     weights: {
       display: { viewability: 0.40, dwell: 0.40, ctr: 0.20 },
@@ -2188,20 +2219,17 @@
     if (v >= max) return 100;
     return v <= par ? (v / par) * ATT.PAR_SCORE : ATT.PAR_SCORE + ((v - par) / (max - par)) * (100 - ATT.PAR_SCORE);
   }
-  function attnParOpen(v, par) {
-    if (v == null || !isFinite(v) || v <= 0) return 0;
-    var k = par * (1 - ATT.PAR_SCORE / 100) / (ATT.PAR_SCORE / 100);
-    return 100 * v / (v + k);
-  }
   function attnTierOf(score) { return score == null ? 'na' : score >= ATT.green ? 'ok' : score < ATT.red ? 'low' : 'mid'; }
-  function computeAttentionClient(r) {
+  function computeAttentionClient(r, auTotalsAll) {
     var device = r.device || '', isVideo = /video/.test(device), isMobile = device === 'mobile' || device === 'video-mobile';
-    var w = isVideo ? ATT.weights.video : ATT.weights.display, bar = isMobile ? ATT.ctrBar.mobile : ATT.ctrBar.desktop;
+    var w = isVideo ? ATT.weights.video : ATT.weights.display;
+    var ctrBench = auTotalsAll ? expectedCtrAll(r, auTotalsAll) : null;
+    var bar = (ctrBench != null && isFinite(ctrBench) && ctrBench > 0) ? ctrBench : (isMobile ? ATT.ctrBar.mobile : ATT.ctrBar.desktop);
     var raw = [];
     if (w.viewability) raw.push({ label: 'Viewability', w: w.viewability, avail: r.activeView != null, score: r.activeView != null ? attnParLinear(r.activeView, ATT.par.viewability, 100) : null, disp: r.activeView != null ? Math.round(r.activeView) + '%' : null });
     if (w.dwell) raw.push({ label: 'Dwell', w: w.dwell, avail: r.avgViewableSec != null, score: r.avgViewableSec != null ? attnParLinear(Math.min(r.avgViewableSec, ATT.dwellCeilSec), ATT.par.dwellSec, ATT.dwellCeilSec) : null, disp: r.avgViewableSec != null ? r.avgViewableSec.toFixed(1) + 's' : null });
     if (w.completion) raw.push({ label: 'Completion', w: w.completion, avail: r.completionRate != null, score: r.completionRate != null ? attnParLinear(r.completionRate, ATT.par.completion, 100) : null, disp: r.completionRate != null ? Math.round(r.completionRate) + '%' : null });
-    if (w.ctr) raw.push({ label: 'CTR', w: w.ctr, avail: r.ctr != null, score: r.ctr != null ? attnParOpen(r.ctr, bar) : null, disp: r.ctr != null ? r.ctr.toFixed(2) + '%' : null });
+    if (w.ctr) raw.push({ label: 'CTR', w: w.ctr, avail: r.ctr != null, score: r.ctr != null ? attnParLinear(r.ctr, bar, bar * ATT.ctrCeilMult) : null, disp: r.ctr != null ? r.ctr.toFixed(2) + '%' : null });
     var avail = raw.filter(function (c) { return c.avail && c.score != null; });
     var wsum = avail.reduce(function (a, c) { return a + c.w; }, 0);
     var score = null;
@@ -2209,21 +2237,21 @@
     return { score: score, tier: attnTierOf(score), lowConfidence: (r.impressions || 0) < ATT.lowVolume,
       components: raw.map(function (c) { return { label: c.label, raw: c.disp, score: c.score == null ? null : Math.round(c.score), weight: Math.round((c.rw != null ? c.rw : c.w) * 100), avail: c.avail }; }) };
   }
-  function applyAttention() { allRows.forEach(function (r) { r.attention = computeAttentionClient(r); }); }
+  function applyAttention() { var auTotalsAll = adUnitCtrTotalsAll(); allRows.forEach(function (r) { r.attention = computeAttentionClient(r, auTotalsAll); }); }
 
   function attnTitle(att) {
     var parts = att.components.filter(function(c){return c.avail;});
     var line = parts.map(function(c){return c.label+' '+c.score;}).join(' · ');
     var wts = parts.map(function(c){return c.weight;}).join('/');
-    var s = 'Transparent+ ' + att.score + ' — ' + line + '  (weighted ' + wts + ')';
+    var s = 'Joy score ' + att.score + ' — ' + line + '  (weighted ' + wts + ')';
     if (att.lowConfidence) s += '  ·  low volume — provisional';
     return s;
   }
   function attnPill(att) {
-    if (!att || att.score == null) return '<span class="attn-none" title="No Active View data — attention can\'t be scored">—</span>';
-    return '<span class="attn-pill '+att.tier+(att.lowConfidence?' lowconf':'')+'" title="'+esc(attnTitle(att))+'">'+att.score+(att.lowConfidence?'*':'')+'</span>';
+    if (!att || att.score == null) return '<span class="pill neutral" title="No Active View data — Joy score can\'t be calculated">—</span>';
+    var band = att.tier === 'ok' ? 'good' : att.tier === 'low' ? 'bad' : 'warn';
+    return '<span class="pill '+band+(att.lowConfidence?' lowconf':'')+'" title="'+esc(attnTitle(att))+'">'+att.score+(att.lowConfidence?'*':'')+'</span>';
   }
-  function attnCell(att) { return '<td class="ctr-cell">'+attnPill(att)+'</td>'; }
 
   function sortRows(rows, col, dir) {
     const STATUS_ORDER = { ready: 0, delivering: 1, paused: 2, inactive: 3 };
@@ -2239,8 +2267,13 @@
         bv = (b.attention && b.attention.score != null) ? b.attention.score : -1;
         return (bv - av) * dir * -1;
       }
-      if (col === 'impressions' || col === 'sortKey') {
+      if (col === 'impressions' || col === 'sortKey' || col === 'startDate' || col === 'endDate') {
         av = av ?? -1; bv = bv ?? -1;
+        return (bv - av) * dir * -1;
+      }
+      if (col === 'pacing') {
+        av = (a.delivery && a.delivery.paceCushion != null) ? a.delivery.paceCushion : -1;
+        bv = (b.delivery && b.delivery.paceCushion != null) ? b.delivery.paceCushion : -1;
         return (bv - av) * dir * -1;
       }
       av = (av || '').toString().toLowerCase();
@@ -2323,7 +2356,7 @@
 
   // ── v3 table helpers (designer's grid layout, wired to our real data) ──
   const RD_STATUS = { delivering:['#2f9b46','Delivering'], ready:['#E99402','Ready'], paused:['#e14a5e','Paused'], inactive:['#8B93B0','Inactive'] };
-  function rdGridStyle(isVideo){ return 'display:grid;grid-template-columns:' + (editMode?'48px ':'') + 'minmax(120px,190px) 190px 82px' + (isVideo?' 130px':'') + ' 110px 100px 100px 110px;gap:20px'; }
+  function rdGridStyle(isVideo){ return 'display:grid;grid-template-columns:' + (editMode?'48px ':'') + 'minmax(120px,190px) 190px 82px' + (isVideo?' 130px':'') + ' 110px 100px 100px 110px 90px 110px 110px 150px;gap:20px'; }
   function sortArrow(c){ return sortCol===c ? (sortDir>0?' ▲':' ▼') : ''; }
   function rdStatusChip(liveStatus){ const m = RD_STATUS[liveStatus]; if(!m) return ''; return `<div class="rd-status" style="--sc:${m[0]}"><span class="rd-sdot"${liveStatus==='delivering'?' data-pulse="1"':''}></span>${m[1]}</div>`; }
   // Every CTR/Viewability value gets a pill: good/warn/bad vs our real benchmark when gated (≥2000 imps + live),
@@ -2531,6 +2564,45 @@
   function persistAdvertiserNames(op, name){
     fetch('/api/url-advertisers', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ [op]: name }) }).catch(()=>{});
   }
+  // Plain date cell — "—" when unknown. Used for Start date (always a real date once a line item
+  // exists) and End date (see fmtEndDate below for its extra "Ongoing" case).
+  function fmtDate(ts) {
+    return ts == null ? '—' : new Date(ts).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  // End date has a second meaning for null: an unlimited-end line item never has a "latest end",
+  // so the row/creative just runs on indefinitely rather than the date being unknown.
+  function fmtEndDate(ts) { return ts == null ? 'Ongoing' : fmtDate(ts); }
+  // Outer-view pacing = a count across this row's own split-view creatives, not one worst-case
+  // number — "5/7 on track, 2/7 under pacing" says a lot more than a single verdict for the row when
+  // several bookings are blended into it. Each split's exact % (GAM's own actual-vs-expected delivery
+  // ratio) is the SAME figure shown in the split view; only splits with a computable pacing read
+  // (a live impression goal) count toward the total — one with no live goal (Sponsorship, completed,
+  // not yet delivering) is neither "on track" nor "under", so it's excluded rather than miscounted.
+  // Same key-matching pattern as splitHasSevere() — startsWith/endsWith handles both a single
+  // (device-only) key and a video row's several (per-VIDEO_ID) keys uniformly.
+  function pacingRollup(netlifyUrl, device) {
+    if (!splitsData) return null;
+    const prefix = netlifyUrl + '##', suffix = '##' + device;
+    let onTrack = 0, under = 0;
+    for (const gk in splitsData) {
+      if (!gk.startsWith(prefix) || !gk.endsWith(suffix)) continue;
+      for (const s of splitsData[gk]) {
+        const pc = s.delivery && s.delivery.paceCushion;
+        if (pc == null) continue;
+        if (pc >= 0.90) onTrack++; else under++;
+      }
+    }
+    const total = onTrack + under;
+    return total > 0 ? { onTrack, under, total } : null;
+  }
+  function pacingCell(netlifyUrl, device) {
+    const r = pacingRollup(netlifyUrl, device);
+    if (!r) return '<span class="pill neutral">—</span>';
+    const parts = [];
+    if (r.onTrack > 0) parts.push(`<span class="pill good">${r.onTrack}/${r.total} on track</span>`);
+    if (r.under > 0) parts.push(`<span class="pill bad">${r.under}/${r.total} under pacing</span>`);
+    return `<div class="rd-pacing-stack">${parts.join('')}</div>`;
+  }
   function rdRow(o){
     return `<div class="rd-row${o.crit?' crit':o.ackedRed?' acked-red':''}" style="${rdGridStyle(o.isVideo)}">`
       + rdEditCell(o.encodedUrl)
@@ -2542,6 +2614,10 @@
       + `<div class="rd-num">${o.clicks > 0 ? o.clicks.toLocaleString() : '—'}</div>`
       + `<div>${rdPerfPill(o.ctr, o.ctrBench, o.gated, 'expected for its inventory')}</div>`
       + `<div>${rdPerfPill(o.view, o.viewBench, o.gated, 'average')}</div>`
+      + `<div>${attnPill(o.joyScore)}</div>`
+      + `<div class="rd-date">${fmtDate(o.startDate)}</div>`
+      + `<div class="rd-date">${fmtEndDate(o.endDate)}</div>`
+      + `<div>${pacingCell(o.url, o.device)}</div>`
       + `</div>`;
   }
 
@@ -2551,6 +2627,7 @@
     const tbody = document.getElementById('tableBody');
     const BENCH = currentBenchmarks(); // alert benchmarks == the average cards (same computation)
     const AUCTR = adUnitCtrTotals();   // per-publication CTR totals → each row's expected CTR (vs its inventory)
+    const AUCTR_ALL = adUnitCtrTotalsAll();   // unfiltered — Joy score must match the server-baked value
     const _head = document.getElementById('rdHead');
     if (_head) _head.innerHTML = `<div class="rd-hrow" style="${rdGridStyle(isVideoTab)}">`
       + (editMode ? '<div>Edit</div>' : '')
@@ -2560,6 +2637,10 @@
       + `<div class="rd-sortable" onclick="sortBy('clicks')">Clicks${sortArrow('clicks')}</div>`
       + `<div class="rd-sortable" onclick="sortBy('ctr')">CTR${sortArrow('ctr')}</div>`
       + `<div class="rd-sortable" onclick="sortBy('activeView')">Viewability %${sortArrow('activeView')}</div>`
+      + `<div class="rd-sortable" onclick="sortBy('attention')">Joy score${sortArrow('attention')}</div>`
+      + `<div class="rd-sortable" onclick="sortBy('startDate')">Start date${sortArrow('startDate')}</div>`
+      + `<div class="rd-sortable" onclick="sortBy('endDate')">End date${sortArrow('endDate')}</div>`
+      + `<div class="rd-sortable" onclick="sortBy('pacing')">Pacing${sortArrow('pacing')}</div>`
       + '</div>';
 
     let rows = allRows.filter(r => passFilters(r) &&
@@ -2579,9 +2660,15 @@
             avViewable: 0, avMeasurable: 0, avViewableTime: 0, complNum: 0, complDen: 0,
             sortKey: r.sortKey, liveStatus: null, impsByAdUnit: {},
             impressions: 0, clicks: 0, videos: [], lineItemIds: new Set(), partial: false, anyUnmatched: false,
+            startDate: null, endDate: null, endOpen: false,
           });
         }
         const g = urlMap.get(r.netlifyUrl);
+        // Earliest start / farthest end across the group's own videos (pacing itself is rolled up
+        // separately, from the split view's own creatives — see pacingRollup — not from these rows).
+        if (r.startDate != null && (g.startDate == null || r.startDate < g.startDate)) g.startDate = r.startDate;
+        if (r.endDate == null) g.endOpen = true;
+        else if (g.endDate == null || r.endDate > g.endDate) g.endDate = r.endDate;
         const _rfs = getFilteredStats(r);
         g.impressions += _rfs.impressions || 0;
         g.clicks      += _rfs.clicks      || 0;
@@ -2613,9 +2700,10 @@
         const completionRate = g.complDen > 0 ? parseFloat((g.complNum / g.complDen).toFixed(1)) : null;
         const gctr = g.impressions && g.clicks ? (g.clicks / g.impressions) * 100 : null;
         // Compound video row has no single `attention` (it's built by grouping per-VIDEO_ID rows) —
-        // score it here from the group's aggregated signals so the Transparent+ column isn't blank.
-        const attention = computeAttentionClient({ device: activeTab, activeView, avgViewableSec, ctr: gctr, completionRate, impressions: g.impressions });
-        return Object.assign({}, g, { activeView, avgViewableSec, completionRate, attention });
+        // score it here from the group's aggregated signals so the Joy score column isn't blank.
+        const attention = computeAttentionClient({ device: activeTab, activeView, avgViewableSec, ctr: gctr, completionRate, impressions: g.impressions, impsByAdUnit: g.impsByAdUnit }, AUCTR_ALL);
+        const endDate = g.endOpen ? null : g.endDate; // any open-ended video in the group → the group never "ends"
+        return Object.assign({}, g, { activeView, avgViewableSec, completionRate, attention, endDate });
       });
       const built = groups.map(g => {
         const ctr = g.impressions && g.clicks ? parseFloat(((g.clicks / g.impressions) * 100).toFixed(2)) : null;
@@ -2628,7 +2716,7 @@
         const ackedRed = _anyRed && !!_ack && !_worse; // acked but still red → keep the left bar, drop the tint
         const encodedUrl = encodeURIComponent(g.netlifyUrl);
         const sub = (g.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
-        return { crit, ackedRed, red: _anyRed, url: g.netlifyUrl, ctr, view: g.activeView, compl: g.completionRate, html: rdRow({ crit, ackedRed, encodedUrl, url: g.netlifyUrl, name: g.advertiser, liveStatus: g.liveStatus, isVideo: true, videos: g.videos, device: activeTab, sub, imps: g.impressions || 0, clicks: g.clicks || 0, ctr, ctrBench: _ctrBench, view: g.activeView, viewBench: BENCH.view, gated: _gated }) };
+        return { crit, ackedRed, red: _anyRed, url: g.netlifyUrl, ctr, view: g.activeView, compl: g.completionRate, html: rdRow({ crit, ackedRed, encodedUrl, url: g.netlifyUrl, name: g.advertiser, liveStatus: g.liveStatus, isVideo: true, videos: g.videos, device: activeTab, sub, imps: g.impressions || 0, clicks: g.clicks || 0, ctr, ctrBench: _ctrBench, view: g.activeView, viewBench: BENCH.view, gated: _gated, joyScore: g.attention, startDate: g.startDate, endDate: g.endDate }) };
       });
       lastFlaggedCount = built.filter(b => b.crit).length;
       rowMetrics = {}; critUrls.clear(); redUrls.clear();
@@ -2654,7 +2742,7 @@
       const ackedRed = _anyRed && !!_ack && !_worse; // acked but still red → keep the left bar, drop the tint
       const encodedUrl = encodeURIComponent(r.netlifyUrl);
       const sub = (r.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
-      return { crit, ackedRed, red: _anyRed, url: r.netlifyUrl, ctr: _fCtr, view: r.activeView, compl: null, html: rdRow({ crit, ackedRed, encodedUrl, url: r.netlifyUrl, name: r.advertiser, liveStatus: r.liveStatus, isVideo: false, videos: null, device: activeTab, sub, imps: _rfs.impressions || 0, clicks: _rfs.clicks || 0, ctr: _fCtr, ctrBench: _ctrBench, view: r.activeView, viewBench: BENCH.view, gated: _gated }) };
+      return { crit, ackedRed, red: _anyRed, url: r.netlifyUrl, ctr: _fCtr, view: r.activeView, compl: null, html: rdRow({ crit, ackedRed, encodedUrl, url: r.netlifyUrl, name: r.advertiser, liveStatus: r.liveStatus, isVideo: false, videos: null, device: activeTab, sub, imps: _rfs.impressions || 0, clicks: _rfs.clicks || 0, ctr: _fCtr, ctrBench: _ctrBench, view: r.activeView, viewBench: BENCH.view, gated: _gated, joyScore: r.attention, startDate: r.startDate, endDate: r.endDate }) };
     });
     lastFlaggedCount = built.filter(b => b.crit).length;
     rowMetrics = {}; critUrls.clear(); redUrls.clear();

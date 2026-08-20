@@ -31,6 +31,38 @@ function tally(scores) {
   return { n: scores.length, tiers: t, min: isFinite(min) ? min : null, max: isFinite(max) ? max : null };
 }
 
+// Estate-wide, unfiltered equivalent of public/index.html's adUnitCtrTotals()/expectedCtr() — gives
+// the Joy score's CTR par a per-publication benchmark instead of a flat desktop/mobile split. Built
+// once from dashboard_cache.json's rows (>=2000-imp gate, same as everywhere else this benchmark is
+// used) and reused for both rows and per-creative splits below, exactly like scripts/refresh.js does.
+function buildAdUnitCtrTotals(rows) {
+  const totals = {};
+  for (const r of rows) {
+    if ((r.impressions || 0) < 2000) continue;
+    for (const [au, v] of Object.entries(r.impsByAdUnit || {})) {
+      const t = totals[au] || (totals[au] = { imps: 0, clicks: 0 });
+      t.imps += v.impressions || 0; t.clicks += v.clicks || 0;
+    }
+  }
+  return totals;
+}
+function expectedCtr(entity, totals) {
+  let wSum = 0, num = 0;
+  for (const [au, v] of Object.entries(entity.impsByAdUnit || {})) {
+    const t = totals[au]; if (!t) continue;
+    const peerImps = t.imps - (v.impressions || 0);
+    const peerClicks = t.clicks - (v.clicks || 0);
+    if (peerImps <= 0) continue;
+    const w = v.impressions || 0;
+    num += ((peerClicks / peerImps) * 100) * w; wSum += w;
+  }
+  return wSum > 0 ? num / wSum : null;
+}
+
+let auTotals = {};
+try { auTotals = buildAdUnitCtrTotals(read('dashboard_cache.json').results || []); }
+catch { console.warn('no dashboard_cache.json — Joy score CTR falls back to the flat device bar'); }
+
 function scoreRow(r) {
   return computeAttention({
     device: r.device,
@@ -39,6 +71,7 @@ function scoreRow(r) {
     ctr: r.ctr ?? null,
     completionRate: r.completionRate ?? null,
     impressions: r.impressions,
+    ctrBench: expectedCtr(r, auTotals),
   });
 }
 
@@ -71,6 +104,7 @@ try {
         ctr: s.ctr ?? null,
         completionRate: s.completionRate ?? null,
         impressions: s.impressions,
+        ctrBench: expectedCtr(s, auTotals),
       });
       allAfter.push(s.attention);
       entries++;
