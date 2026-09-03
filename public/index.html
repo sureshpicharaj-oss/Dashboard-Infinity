@@ -324,9 +324,15 @@
     .seg-reach.ok  { background:#e7f7ef;color:#158a5a;border:1px solid #bfe8d3; }
     .seg-reach.mid { background:#fef3e7;color:#c47d1a;border:1px solid #f3dcc0; }
     .seg-reach.low { background:#fdece9;color:#c0392b;border:1px solid #f2c9c2; }
-    /* Joy score pill reuses the shared .pill good/warn/bad/neutral classes (public/redesign/tokens.css)
-       for the same theme-aware colours as every other RAG pill in the table; lowconf (< 1,000 imps,
-       still provisional) just dims it rather than needing its own colour scheme. */
+    /* Joy score pill — its own colour treatment (softer than the solid good/warn/bad RAG pills),
+       per the original design handoff. */
+    .attn-pill { display:inline-block;font-size:12px;font-weight:800;padding:2px 9px;border-radius:11px;
+      font-variant-numeric:tabular-nums;min-width:34px;text-align:center; }
+    .attn-pill.ok  { background:#e7f7ef;color:#158a5a;border:1px solid #bfe8d3; }
+    .attn-pill.mid { background:#fef3e7;color:#c47d1a;border:1px solid #f3dcc0; }
+    .attn-pill.low { background:#fdece9;color:#c0392b;border:1px solid #f2c9c2; }
+    .attn-pill.lowconf { opacity:.5;border-style:dashed; }
+    .attn-none { color:#c8ccd6; }
     .pill.lowconf { opacity:.6; }
     .rd-date { font-size: 13px; color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
     /* Alert system — cell RAG (vs the average card) + whole-row escalation. Higher specificity than
@@ -2248,9 +2254,8 @@
     return s;
   }
   function attnPill(att) {
-    if (!att || att.score == null) return '<span class="pill neutral" title="No Active View data — Joy score can\'t be calculated">—</span>';
-    var band = att.tier === 'ok' ? 'good' : att.tier === 'low' ? 'bad' : 'warn';
-    return '<span class="pill '+band+(att.lowConfidence?' lowconf':'')+'" title="'+esc(attnTitle(att))+'">'+att.score+(att.lowConfidence?'*':'')+'</span>';
+    if (!att || att.score == null) return '<span class="attn-none" title="No Active View data — Joy score can\'t be calculated">—</span>';
+    return '<span class="attn-pill '+att.tier+(att.lowConfidence?' lowconf':'')+'" title="'+esc(attnTitle(att))+'">'+att.score+(att.lowConfidence?'*':'')+'</span>';
   }
 
   function sortRows(rows, col, dir) {
