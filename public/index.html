@@ -324,14 +324,13 @@
     .seg-reach.ok  { background:#e7f7ef;color:#158a5a;border:1px solid #bfe8d3; }
     .seg-reach.mid { background:#fef3e7;color:#c47d1a;border:1px solid #f3dcc0; }
     .seg-reach.low { background:#fdece9;color:#c0392b;border:1px solid #f2c9c2; }
-    /* Joy score pill — its own colour treatment (softer than the solid good/warn/bad RAG pills),
-       per the original design handoff. */
-    .attn-pill { display:inline-block;font-size:12px;font-weight:800;padding:2px 9px;border-radius:11px;
-      font-variant-numeric:tabular-nums;min-width:34px;text-align:center; }
-    .attn-pill.ok  { background:#e7f7ef;color:#158a5a;border:1px solid #bfe8d3; }
-    .attn-pill.mid { background:#fef3e7;color:#c47d1a;border:1px solid #f3dcc0; }
-    .attn-pill.low { background:#fdece9;color:#c0392b;border:1px solid #f2c9c2; }
-    .attn-pill.lowconf { opacity:.5;border-style:dashed; }
+    /* Joy score pill — a single brand-purple identity circle (not a RAG/tiered colour — every tier
+       renders the same purple; only the number and the low-confidence state change), per the
+       original design reference. */
+    .attn-pill { display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;
+      border-radius:50%;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums;
+      background:#9A4FFB;color:#fff;box-sizing:border-box; }
+    .attn-pill.lowconf { background:#E9DBFF;color:#9A4FFB;border:2px solid #9A4FFB; }
     .attn-none { color:#c8ccd6; }
     .pill.lowconf { opacity:.6; }
     .rd-date { font-size: 13px; color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
