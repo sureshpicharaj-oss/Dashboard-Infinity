@@ -637,6 +637,7 @@
     .tab-btn[data-tab="video"]::before         { background-image: url('/redesign/assets/icons/desktop-video.svg'); }
     .tab-btn[data-tab="mobile"]::before        { background-image: url('/redesign/assets/icons/mobile.svg'); }
     .tab-btn[data-tab="video-mobile"]::before  { background-image: url('/redesign/assets/icons/mobile-video.svg'); }
+    .tab-btn:not(.active):hover { background: rgba(255,255,255,.18); }
     .tab-btn.active { background: var(--accent); }
     .tab-btn .nav-badge { position: absolute; top: 8px; right: 14px; min-width: 18px; height: 18px; padding: 0 5px;
       border-radius: 9px; background: var(--bad); color: #fff; font-size: 11px; font-weight: 800;
@@ -654,6 +655,7 @@
     .sb-tool img { width: 17px; height: 17px; filter: brightness(0) invert(1); flex: none; }
     .sidebar.collapsed .sb-tool { width: 46px; height: 46px; border-radius: 50%; padding: 0; justify-content: center; margin: 0 auto; }
     .sidebar.collapsed .sb-tool .lbl { display: none; }
+    .sb-tool:not(.on):hover { background: rgba(255,255,255,.18); }
     .sb-tool.on { background: var(--accent); }
     /* Sidebar stat tiles */
     .sb-tile { background: #0d1024; border: 1px solid rgba(27,139,234,.4); border-radius: 12px; padding: 14px 16px; }
