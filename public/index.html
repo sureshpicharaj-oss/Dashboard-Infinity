@@ -726,7 +726,17 @@
     .rd-scroll { overflow: visible; }
     /* Filter bar AND table header both pin to the viewport as the WHOLE page scrolls (the overview
        panel scrolls away normally). Header sits just below the sticky filter. */
-    #rdHead { position: sticky; top: 50px; z-index: 20; }
+    #rdHead { position: sticky; top: 50px; z-index: 20; overflow: hidden; }
+    /* The row grid's fixed-px columns (rdGridStyle) can add up to wider than the viewport once Joy
+       score/dates/pacing are all shown — #tableBody scrolls horizontally on its own so the extra
+       columns don't spill out past the card's rounded edge onto the page background. #rdHead can't
+       share that scroller directly: it needs to stay sticky to the PAGE viewport, and giving any of
+       its own ancestors overflow-x:auto also flips their overflow-y to auto per the CSS spec pairing
+       rule, which would make #rdHead stick to that ancestor's (never-actually-scrolling) box instead
+       and just scroll away with the page. So #tableBody scrolls independently and a scroll listener
+       (search: tableBody sync) mirrors its scrollLeft onto #rdHead's row via a transform, keeping the
+       two visually locked together without linking their scroll containers. */
+    #tableBody { overflow-x: auto; }
     .rd-hrow, .rd-row { display: grid; align-items: center; padding: 14px 20px; gap: 20px; }
     .rd-hrow { background: #F5F6FA; border-bottom: 1px solid var(--border); font-size: 10.5px; font-weight: 500; color: var(--text-sub); border-radius: 16px 16px 0 0; }
     :root[data-theme="dark"] .rd-hrow { background: #11162F; }
@@ -3005,6 +3015,18 @@
   function closeDashKey(e){ if(e) e.stopPropagation(); document.querySelector('.dash-key').classList.remove('open'); }
   // Close the flagging-key card on an outside click.
   document.addEventListener('click', e => { const dk = document.querySelector('.dash-key'); if (dk && dk.classList.contains('open') && !dk.contains(e.target)) dk.classList.remove('open'); });
+  // tableBody sync — #tableBody scrolls horizontally on its own (see its CSS rule) so the sticky
+  // #rdHead can stay pinned to the page viewport; mirror the scroll position onto the header row via
+  // a transform so the two never visually drift apart. #tableBody's own contents are replaced on every
+  // render, but the element itself is static, so this listener only needs registering once.
+  (function () {
+    const body = document.getElementById('tableBody');
+    if (!body) return;
+    body.addEventListener('scroll', () => {
+      const hrow = document.querySelector('#rdHead .rd-hrow');
+      if (hrow) hrow.style.transform = `translateX(${-body.scrollLeft}px)`;
+    });
+  })();
   function toggleEditMode() {
     editMode = !editMode;
     const b = document.getElementById('editModeBtn');
