@@ -1,13 +1,25 @@
 name: Daily GAM Refresh
 
+# Scheduled workflows queue behind everyone else's GitHub Actions runs, and GitHub's own docs
+# warn this queueing is worst exactly on the hour (00, :06:00 etc. are the most contended
+# minute of any hour across all of GitHub). This was `0 6 * * *` and, since ~27 Aug 2026,
+# started landing 3.5-6h late most days (confirmed from the auto-refresh commit timestamps,
+# not a regression in this script — the delay isn't correlated with data size, it's GitHub
+# Actions queue congestion at the top of the hour). Moved much earlier and off the exact hour
+# so a similar multi-hour delay still lands well before the 9am deadline this feeds.
 on:
   schedule:
-    - cron: '0 6 * * *'
+    - cron: '13 1 * * *'   # 01:13 UTC — leaves ~6h of buffer to a 9am UTC/BST deadline
   workflow_dispatch:
+
+concurrency:
+  group: daily-gam-refresh
+  cancel-in-progress: false   # let an overlapping run finish rather than losing its work
 
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    timeout-minutes: 45   # guards against a hung GAM call silently eating the whole buffer
 
     steps:
       - uses: actions/checkout@v4
