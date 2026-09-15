@@ -83,12 +83,13 @@ async function main() {
     console.warn(`⚠ Video stats fetch failed: ${err.message || err} — reusing ${Object.keys(videoStats).length} cached keys; dashboard refresh continues`);
   }
 
-  let activeView, avPerCreative = {}, activeViewFailed = false;
+  let activeView, avPerCreative = {}, avDiagnostics = null, activeViewFailed = false;
   try {
     console.log('Running active view fetch…');
     const avResult = await fetchActiveViewStatsWithSplits(urlLineItemMap, urlLicaImpsMap, networkCode, token);
     activeView = avResult.byUrl;
     avPerCreative = avResult.perCreative || {};
+    avDiagnostics = avResult.diagnostics || null;
     console.log(`Active view: ${Object.keys(activeView).length} URLs`);
   } catch (err) {
     activeViewFailed = true;
@@ -110,6 +111,7 @@ async function main() {
       activeViewViewable:   av?.viewable ?? null,
       activeViewMeasurable: av?.measurable ?? null,
       avgViewableSec:       av?.avgViewableSec ?? null,
+      activeViewApprox:     av?.approx === true,
       completionRate:       vs?.completionRate ?? null,
       durationSec:          vs?.durationSec ?? null,
       videoStarts:          vs?.videoStarts ?? null,
@@ -130,6 +132,20 @@ async function main() {
   }
   if (!activeViewFailed) {
     fs.writeFileSync(path.join(dataDir, 'active_view_cache.json'), JSON.stringify(activeView));
+    // Diagnostics for "why is this URL's viewability missing/approximate" support questions —
+    // guarded the same way as active_view_cache.json so a transient failure never overwrites
+    // good diagnostics with an empty/failed run's data.
+    if (avDiagnostics) {
+      fs.writeFileSync(path.join(dataDir, 'active_view_debug.json'), JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        matched: avDiagnostics.matched,
+        ambiguous: avDiagnostics.ambiguous,
+        conflicting: avDiagnostics.conflicting,
+        unmatched: avDiagnostics.unmatched,
+        unresolvedGroupKeys: avDiagnostics.unresolvedGroupKeys,
+        filledByFallback: avDiagnostics.filledByFallback,
+      }));
+    }
   } else {
     console.warn('Skipped rewriting active_view_cache.json (fetch failed; prior cache kept)');
   }
