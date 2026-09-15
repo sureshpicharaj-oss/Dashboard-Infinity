@@ -400,5 +400,41 @@ module.exports = function(SCREENSHOT_DIR) {
     } catch(e) { res.status(500).json({ error: e.message }); }
   });
 
+  /* Diagnostic: for every group key in url_lineitem_cache.json, reports whether it has a
+   * url_lica_imps_cache.json entry (eligible for exact impression-fingerprint matching),
+   * whether it resolved (present in active_view_cache.json), and whether it was filled by
+   * the line-item-level fallback (approx: true). This is the endpoint to hit the next time
+   * someone reports a missing viewability number. */
+  router.get('/api/active-view/unresolved', (req, res) => {
+    const urlLineItemPath = path.join(SCREENSHOT_DIR, 'url_lineitem_cache.json');
+    if (!fs.existsSync(urlLineItemPath)) {
+      return res.status(503).json({ error: 'Load dashboard first to generate line item data' });
+    }
+    const urlLicaImpsPath = path.join(SCREENSHOT_DIR, 'url_lica_imps_cache.json');
+    const avCachePath = path.join(SCREENSHOT_DIR, 'active_view_cache.json');
+
+    const urlLineItemMap = JSON.parse(fs.readFileSync(urlLineItemPath, 'utf8'));
+    const urlLicaImpsMap = fs.existsSync(urlLicaImpsPath) ? JSON.parse(fs.readFileSync(urlLicaImpsPath, 'utf8')) : {};
+    let avData = {};
+    if (fs.existsSync(avCachePath)) {
+      try { avData = JSON.parse(fs.readFileSync(avCachePath, 'utf8')); } catch(e) {}
+    }
+
+    const rows = Object.keys(urlLineItemMap).map(groupKey => {
+      const hasLicaImpsEntry = Object.prototype.hasOwnProperty.call(urlLicaImpsMap, groupKey);
+      const av = avData[groupKey];
+      const resolved = av != null;
+      const filledByFallback = resolved && av?.approx === true;
+      return { groupKey, hasLicaImpsEntry, resolved, filledByFallback };
+    });
+
+    res.json({
+      total: rows.length,
+      unresolved: rows.filter(r => !r.resolved).length,
+      filledByFallback: rows.filter(r => r.filledByFallback).length,
+      rows,
+    });
+  });
+
   return router;
 };

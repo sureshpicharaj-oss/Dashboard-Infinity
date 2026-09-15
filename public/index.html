@@ -2384,7 +2384,7 @@
   function rdStatusChip(liveStatus){ const m = RD_STATUS[liveStatus]; if(!m) return ''; return `<div class="rd-status" style="--sc:${m[0]}"><span class="rd-sdot"${liveStatus==='delivering'?' data-pulse="1"':''}></span>${m[1]}</div>`; }
   // Every CTR/Viewability value gets a pill: good/warn/bad vs our real benchmark when gated (≥2000 imps + live),
   // neutral grey when we don't have the sample to judge. ⚠ prefix on bad (matches the design).
-  function rdPerfPill(value, benchmark, gated, ofLabel){ if(value==null) return '<span class="pill neutral">—</span>'; const disp = value + '%'; if(!gated) return `<span class="pill neutral">${disp}</span>`; const lvl = alertLevel(value, benchmark).level; const band = lvl==='red'?'bad':lvl==='orange'?'warn':'good'; const ic = band==='bad'?'⚠ ':''; const fire = (band==='good' && benchmark > 0 && value >= benchmark * 1.5) ? '<span class="fire" title="Exceptional — 1.5×+ the benchmark">🔥</span>' : ''; return `<span class="pill ${band}"${alertCellTitle(value, benchmark, gated, ofLabel)}>${ic}${fire}${disp}</span>`; }
+  function rdPerfPill(value, benchmark, gated, ofLabel, approx){ if(value==null) return '<span class="pill neutral">—</span>'; const disp = (approx ? '~' : '') + value + '%'; if(!gated || approx) return `<span class="pill neutral"${approx ? ' title="Approximate: line-item-level viewability, shared across all creatives on this line item"' : ''}>${disp}</span>`; const lvl = alertLevel(value, benchmark).level; const band = lvl==='red'?'bad':lvl==='orange'?'warn':'good'; const ic = band==='bad'?'⚠ ':''; const fire = (band==='good' && benchmark > 0 && value >= benchmark * 1.5) ? '<span class="fire" title="Exceptional — 1.5×+ the benchmark">🔥</span>' : ''; return `<span class="pill ${band}"${alertCellTitle(value, benchmark, gated, ofLabel)}>${ic}${fire}${disp}</span>`; }
   // Videos column: one row per video (stacked). Completion pill grey normally, RED only under the flat 20% rule.
   // One pill per duration bucket — completion AVERAGED across the group's videos for Long- and
   // Short-form (weighted by video starts), not one pill per individual video. Red only under the flat floor.
@@ -2645,7 +2645,7 @@
       + `<div class="rd-num">${o.imps > 0 ? o.imps.toLocaleString() : '—'}</div>`
       + `<div class="rd-num">${o.clicks > 0 ? o.clicks.toLocaleString() : '—'}</div>`
       + `<div>${rdPerfPill(o.ctr, o.ctrBench, o.gated, 'expected for its inventory')}</div>`
-      + `<div>${rdPerfPill(o.view, o.viewBench, o.gated, 'average')}</div>`
+      + `<div>${rdPerfPill(o.view, o.viewBench, o.gated, 'average', o.viewApprox)}</div>`
       + `<div>${attnPill(o.joyScore)}</div>`
       + `<div class="rd-date">${fmtDate(o.startDate)}</div>`
       + `<div class="rd-date">${fmtEndDate(o.endDate)}</div>`
@@ -2689,7 +2689,7 @@
         if (!urlMap.has(r.netlifyUrl)) {
           urlMap.set(r.netlifyUrl, {
             netlifyUrl: r.netlifyUrl, advertiser: r.advertiser,
-            avViewable: 0, avMeasurable: 0, avViewableTime: 0, complNum: 0, complDen: 0,
+            avViewable: 0, avMeasurable: 0, avViewableTime: 0, anyApprox: false, complNum: 0, complDen: 0,
             sortKey: r.sortKey, liveStatus: null, impsByAdUnit: {},
             impressions: 0, clicks: 0, videos: [], lineItemIds: new Set(), partial: false, anyUnmatched: false,
             startDate: null, endDate: null, endOpen: false,
@@ -2710,6 +2710,7 @@
         // viewable/measurable across the group's videos rather than taking one arbitrary row's rate.
         g.avViewable   += r.activeViewViewable   || 0;
         g.avMeasurable += r.activeViewMeasurable || 0;
+        if (r.activeViewApprox) g.anyApprox = true;
         // Dwell + completion for the group's Transparent+ score: dwell is viewable-weighted (mirrors
         // active-view-data.js), completion impression-weighted across the group's videos.
         g.avViewableTime += (r.avgViewableSec || 0) * (r.activeViewViewable || 0);
@@ -2735,20 +2736,20 @@
         // score it here from the group's aggregated signals so the Joy score column isn't blank.
         const attention = computeAttentionClient({ device: activeTab, activeView, avgViewableSec, ctr: gctr, completionRate, impressions: g.impressions, impsByAdUnit: g.impsByAdUnit }, AUCTR_ALL);
         const endDate = g.endOpen ? null : g.endDate; // any open-ended video in the group → the group never "ends"
-        return Object.assign({}, g, { activeView, avgViewableSec, completionRate, attention, endDate });
+        return Object.assign({}, g, { activeView, avgViewableSec, completionRate, attention, endDate, activeViewApprox: g.anyApprox });
       });
       const built = groups.map(g => {
         const ctr = g.impressions && g.clicks ? parseFloat(((g.clicks / g.impressions) * 100).toFixed(2)) : null;
         const _gated = (g.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(g.liveStatus);
         const _ctrBench = expectedCtr(g, AUCTR) ?? BENCH.ctr;   // per-publication expected CTR (our real logic)
-        const _anyRed = _gated && (alertLevel(ctr, _ctrBench).severe || alertLevel(g.activeView, BENCH.view).severe || videoComplBand(g.videos || []) === 'red' || splitHasSevere(g.netlifyUrl, activeTab, _ctrBench, BENCH.view, AUCTR));
+        const _anyRed = _gated && (alertLevel(ctr, _ctrBench).severe || (!g.activeViewApprox && alertLevel(g.activeView, BENCH.view).severe) || videoComplBand(g.videos || []) === 'red' || splitHasSevere(g.netlifyUrl, activeTab, _ctrBench, BENCH.view, AUCTR));
         const _ack = alertAcks[alertRowKey(g.netlifyUrl)];
         const _worse = !!_ack && ((ctr != null && _ack.ctr != null && ctr < _ack.ctr * ALERT_WORSE) || (g.activeView != null && _ack.activeView != null && g.activeView < _ack.activeView * ALERT_WORSE) || (g.completionRate != null && _ack.completionRate != null && g.completionRate < _ack.completionRate * ALERT_WORSE));
         const crit = _anyRed && !(_ack && !_worse);   // #FFE9ED critical row until acked in the Edit modal
         const ackedRed = _anyRed && !!_ack && !_worse; // acked but still red → keep the left bar, drop the tint
         const encodedUrl = encodeURIComponent(g.netlifyUrl);
         const sub = (g.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
-        return { crit, ackedRed, red: _anyRed, url: g.netlifyUrl, ctr, view: g.activeView, compl: g.completionRate, html: rdRow({ crit, ackedRed, encodedUrl, url: g.netlifyUrl, name: g.advertiser, liveStatus: g.liveStatus, isVideo: true, videos: g.videos, device: activeTab, sub, imps: g.impressions || 0, clicks: g.clicks || 0, ctr, ctrBench: _ctrBench, view: g.activeView, viewBench: BENCH.view, gated: _gated, joyScore: g.attention, startDate: g.startDate, endDate: g.endDate }) };
+        return { crit, ackedRed, red: _anyRed, url: g.netlifyUrl, ctr, view: g.activeView, compl: g.completionRate, html: rdRow({ crit, ackedRed, encodedUrl, url: g.netlifyUrl, name: g.advertiser, liveStatus: g.liveStatus, isVideo: true, videos: g.videos, device: activeTab, sub, imps: g.impressions || 0, clicks: g.clicks || 0, ctr, ctrBench: _ctrBench, view: g.activeView, viewBench: BENCH.view, gated: _gated, viewApprox: g.activeViewApprox, joyScore: g.attention, startDate: g.startDate, endDate: g.endDate }) };
       });
       lastFlaggedCount = built.filter(b => b.crit).length;
       rowMetrics = {}; critUrls.clear(); redUrls.clear();
@@ -2767,14 +2768,14 @@
       const _fCtr = _rfs.impressions && _rfs.clicks ? parseFloat(((_rfs.clicks / _rfs.impressions) * 100).toFixed(2)) : null;
       const _gated = (_rfs.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(r.liveStatus);
       const _ctrBench = expectedCtr(r, AUCTR) ?? BENCH.ctr;   // per-publication expected CTR (our real logic)
-      const _anyRed = _gated && (alertLevel(_fCtr, _ctrBench).severe || alertLevel(r.activeView, BENCH.view).severe || splitHasSevere(r.netlifyUrl, activeTab, _ctrBench, BENCH.view, AUCTR));
+      const _anyRed = _gated && (alertLevel(_fCtr, _ctrBench).severe || (!r.activeViewApprox && alertLevel(r.activeView, BENCH.view).severe) || splitHasSevere(r.netlifyUrl, activeTab, _ctrBench, BENCH.view, AUCTR));
       const _ack = alertAcks[alertRowKey(r.netlifyUrl)];
       const _worse = !!_ack && ((_fCtr != null && _ack.ctr != null && _fCtr < _ack.ctr * ALERT_WORSE) || (r.activeView != null && _ack.activeView != null && r.activeView < _ack.activeView * ALERT_WORSE));
       const crit = _anyRed && !(_ack && !_worse);   // #FFE9ED critical row until acked in the Edit modal
       const ackedRed = _anyRed && !!_ack && !_worse; // acked but still red → keep the left bar, drop the tint
       const encodedUrl = encodeURIComponent(r.netlifyUrl);
       const sub = (r.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
-      return { crit, ackedRed, red: _anyRed, url: r.netlifyUrl, ctr: _fCtr, view: r.activeView, compl: null, html: rdRow({ crit, ackedRed, encodedUrl, url: r.netlifyUrl, name: r.advertiser, liveStatus: r.liveStatus, isVideo: false, videos: null, device: activeTab, sub, imps: _rfs.impressions || 0, clicks: _rfs.clicks || 0, ctr: _fCtr, ctrBench: _ctrBench, view: r.activeView, viewBench: BENCH.view, gated: _gated, joyScore: r.attention, startDate: r.startDate, endDate: r.endDate }) };
+      return { crit, ackedRed, red: _anyRed, url: r.netlifyUrl, ctr: _fCtr, view: r.activeView, compl: null, html: rdRow({ crit, ackedRed, encodedUrl, url: r.netlifyUrl, name: r.advertiser, liveStatus: r.liveStatus, isVideo: false, videos: null, device: activeTab, sub, imps: _rfs.impressions || 0, clicks: _rfs.clicks || 0, ctr: _fCtr, ctrBench: _ctrBench, view: r.activeView, viewBench: BENCH.view, gated: _gated, viewApprox: r.activeViewApprox, joyScore: r.attention, startDate: r.startDate, endDate: r.endDate }) };
     });
     lastFlaggedCount = built.filter(b => b.crit).length;
     rowMetrics = {}; critUrls.clear(); redUrls.clear();
@@ -2971,6 +2972,7 @@
           r.activeViewViewable  = av?.viewable  ?? null;
           r.activeViewMeasurable= av?.measurable ?? null;
           r.avgViewableSec      = av?.avgViewableSec ?? null;
+          r.activeViewApprox    = av?.approx === true;
         }
       });
       applyAttention();
@@ -3065,9 +3067,10 @@
         const m = new Map();
         for (const r of rows) {
           let g = m.get(r.netlifyUrl);
-          if (!g) { g = { url: r.netlifyUrl, imps: 0, clicks: 0, avV: 0, avM: 0, cNum: 0, cDen: 0, liveStatus: null, impsByAdUnit: {}, videos: [] }; m.set(r.netlifyUrl, g); }
+          if (!g) { g = { url: r.netlifyUrl, imps: 0, clicks: 0, avV: 0, avM: 0, anyApprox: false, cNum: 0, cDen: 0, liveStatus: null, impsByAdUnit: {}, videos: [] }; m.set(r.netlifyUrl, g); }
           const f = getFilteredStats(r); g.imps += f.impressions || 0; g.clicks += f.clicks || 0;
           g.avV += r.activeViewViewable || 0; g.avM += r.activeViewMeasurable || 0;
+          if (r.activeViewApprox) g.anyApprox = true;
           if (r.completionRate != null) { g.cNum += r.completionRate * (f.impressions || 0); g.cDen += (f.impressions || 0); }
           for (const [au, v] of Object.entries(r.impsByAdUnit || {})) { const t2 = g.impsByAdUnit[au] || (g.impsByAdUnit[au] = { impressions: 0, clicks: 0 }); t2.impressions += v.impressions || 0; t2.clicks += v.clicks || 0; }
           if (r.videoId) g.videos.push({ completionRate: r.completionRate, durationSec: r.durationSec });
@@ -3080,7 +3083,7 @@
           const compl = g.cDen > 0 ? (g.cNum / g.cDen) : null;
           const gated = (g.imps || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(g.liveStatus);
           const cb = expectedCtr(g, AUCTR) ?? BENCH.ctr;
-          const anyRed = gated && (alertLevel(ctr, cb).severe || alertLevel(av, BENCH.view).severe || videoComplBand(g.videos) === 'red' || splitHasSevere(g.url, tab, cb, BENCH.view, AUCTR));
+          const anyRed = gated && (alertLevel(ctr, cb).severe || (!g.anyApprox && alertLevel(av, BENCH.view).severe) || videoComplBand(g.videos) === 'red' || splitHasSevere(g.url, tab, cb, BENCH.view, AUCTR));
           if (critFor(g.url, ctr, av, compl, anyRed)) n++;
         }
       } else {
@@ -3089,7 +3092,7 @@
           const ctr = f.impressions && f.clicks ? parseFloat(((f.clicks / f.impressions) * 100).toFixed(2)) : null;
           const gated = (f.impressions || 0) >= ALERT_MIN_IMPS && ALERT_LIVE.includes(r.liveStatus);
           const cb = expectedCtr(r, AUCTR) ?? BENCH.ctr;
-          const anyRed = gated && (alertLevel(ctr, cb).severe || alertLevel(r.activeView, BENCH.view).severe || splitHasSevere(r.netlifyUrl, tab, cb, BENCH.view, AUCTR));
+          const anyRed = gated && (alertLevel(ctr, cb).severe || (!r.activeViewApprox && alertLevel(r.activeView, BENCH.view).severe) || splitHasSevere(r.netlifyUrl, tab, cb, BENCH.view, AUCTR));
           if (critFor(r.netlifyUrl, ctr, r.activeView, null, anyRed)) n++;
         }
       }
