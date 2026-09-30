@@ -190,6 +190,9 @@ async function main() {
         return {
           creativeId:     s.creativeId,
           name:           s.name,
+          // Per-creative tag generation. This object is an explicit whitelist rebuild of the
+          // urlSplitsMap entry, so anything not named here is silently dropped from the cache.
+          tagVersion:     s.tagVersion ?? 'v1',
           impressions:    s.impressions,
           clicks:         s.clicks,
           ctr:            s.ctr,

@@ -269,7 +269,8 @@ module.exports = function(SCREENSHOT_DIR) {
     } catch(e) { res.status(500).json({ error: e.message }); }
   });
 
-  /* Audit: scans 300×250/251 creatives modified in the last 180 days (no template-ID filter)
+  /* Audit: scans every Infinity creative size modified in the last 180 days (no template-ID
+   * filter) — 300×250/251 (v1) plus 320×50/51 and 300×600/601 (v2) —
    * to find any with Netlify URLs that use template IDs not in our companion scan list.
    * For each companion found, resolves the master via creative sets and checks LICA
    * impressions — surfacing any campaigns that are serving but not on the dashboard.
@@ -298,7 +299,18 @@ module.exports = function(SCREENSHOT_DIR) {
       const cutoff = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000);
       const cutoffStr = cutoff.toISOString().replace('T', 'T').slice(0, 19); // 'YYYY-MM-DDTHH:MM:SS'
 
-      // Scan 300×250/251 creatives modified since the cutoff date — no template ID filter
+      // Every size an Infinity tag is known to use. The v2 tag added 320×50/51 masters and
+      // 300×600/601 companions; without them here this audit stays blind to exactly the kind of
+      // change it exists to catch — which is how the v2 tag went unnoticed in the first place.
+      // Note template 12504331 ("Pixel-non-OOP-slots") legitimately carries no Netlify URL, so it
+      // never surfaces here; that is correct, not a gap.
+      const AUDIT_SIZE_CLAUSE = '(' + [
+        '(width = 300 AND height = 250)', '(width = 300 AND height = 251)',
+        '(width = 320 AND height = 50)',  '(width = 320 AND height = 51)',
+        '(width = 300 AND height = 600)', '(width = 300 AND height = 601)',
+      ].join(' OR ') + ')';
+
+      // Scan those creatives modified since the cutoff date — no template ID filter
       const allCompanions = [];
       let offset = 0, total = null;
       while (total === null || offset < total) {
@@ -306,7 +318,7 @@ module.exports = function(SCREENSHOT_DIR) {
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
   <soapenv:Header><RequestHeader xmlns="${GAM_SOAP_NS}"><networkCode>${networkCode}</networkCode><applicationName>Infinity-Dashboard</applicationName></RequestHeader></soapenv:Header>
   <soapenv:Body><getCreativesByStatement xmlns="${GAM_SOAP_NS}"><filterStatement>
-    <query>WHERE ((width = 300 AND height = 250) OR (width = 300 AND height = 251)) AND lastModifiedDateTime >= '${cutoffStr}' LIMIT 500 OFFSET ${offset}</query>
+    <query>WHERE ${AUDIT_SIZE_CLAUSE} AND lastModifiedDateTime >= '${cutoffStr}' LIMIT 500 OFFSET ${offset}</query>
   </filterStatement></getCreativesByStatement></soapenv:Body>
 </soapenv:Envelope>`;
         const r = await axios.post(GAM_SOAP_ENDPOINT, soap, {

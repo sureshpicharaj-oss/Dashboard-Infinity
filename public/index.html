@@ -404,6 +404,11 @@
     .dv-badge.ok  { background:#e7f7ef;color:#158a5a;border:1px solid #bfe8d3; }
     .dv-badge.mid { background:#fef3e7;color:#c47d1a;border:1px solid #f3dcc0; }
     .dv-badge.low { background:#fdece9;color:#c0392b;border:1px solid #f2c9c2; }
+    /* Marks a row whose delivery came from the new Infinity tag (320x51 master + 300x601
+       companion). Only ever rendered for v2, so legacy rows are visually unchanged. */
+    .rd-tagver { font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+                 padding:1px 6px;border-radius:9px;white-space:nowrap;
+                 background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe; }
     .seg-deliv-caveat { font-size:11px;color:#7a8397;line-height:1.45;margin:8px 0 0;font-style:italic; }
     .live-dot { display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle;flex-shrink:0; }
     .live-dot.delivering { background:#f59e0b;box-shadow:0 0 0 0 rgba(245,158,11,.6);animation:pulse-yellow 1.6s infinite; }
@@ -1555,9 +1560,12 @@
       const nm = s.name || ('#' + s.creativeId);
       const _li = (s.lineItemIds && s.lineItemIds[0]) || null;
       // Creative name → its GAM creative page (line item + creative id). Plain text otherwise.
-      const nameCell = (_li && s.creativeId)
+      const _tagver = s.tagVersion === 'v2'
+        ? ' <span class="rd-tagver" title="New Infinity tag \u2014 320x51 master + 300x601 companion">new</span>'
+        : '';
+      const nameCell = ((_li && s.creativeId)
         ? `<a href="${gamCreativeUrl(_li, s.creativeId)}" target="_blank" rel="noopener">${esc(nm)}</a>`
-        : `<span class="split-gname-plain">${esc(nm)}</span>`;
+        : `<span class="split-gname-plain">${esc(nm)}</span>`) + _tagver;
       // Line item id(s) — a muted, clickable sub-line under the creative name.
       const liSub = (s.lineItemIds && s.lineItemIds.length)
         ? `<div class="split-li">${[...new Set(s.lineItemIds)].map(id => `<a href="${gamLineItemUrl(id)}" target="_blank" rel="noopener" title="Open line item ${esc(id)} in GAM">LI ${esc(id)}</a>`).join(' · ')}</div>`
@@ -2638,7 +2646,7 @@
   function rdRow(o){
     return `<div class="rd-row${o.crit?' crit':o.ackedRed?' acked-red':''}" style="${rdGridStyle(o.isVideo)}">`
       + rdEditCell(o.encodedUrl)
-      + `<div class="rd-creative"><div class="rd-cname" title="${esc(o.name)}">${esc(o.name)}</div>${rdStatusChip(o.liveStatus)}</div>`
+      + `<div class="rd-creative"><div class="rd-cname" title="${esc(o.name)}">${esc(o.name)}</div>${rdStatusChip(o.liveStatus)}${o.tagVersion === 'v2' ? '<span class="rd-tagver" title="New Infinity tag \u2014 320x51 master + 300x601 companion">new</span>' : ''}</div>`
       + rdPreview(o.url, o.encodedUrl, o.sub, o.device)
       + rdSplit(o.encodedUrl, o.device)
       + (o.isVideo ? `<div class="rd-video">${rdVideoCell(o.videos, o.gated)}</div>` : '')
@@ -2690,7 +2698,7 @@
           urlMap.set(r.netlifyUrl, {
             netlifyUrl: r.netlifyUrl, advertiser: r.advertiser,
             avViewable: 0, avMeasurable: 0, avViewableTime: 0, anyApprox: false, complNum: 0, complDen: 0,
-            sortKey: r.sortKey, liveStatus: null, impsByAdUnit: {},
+            sortKey: r.sortKey, liveStatus: null, impsByAdUnit: {}, tagVersion: 'v1',
             impressions: 0, clicks: 0, videos: [], lineItemIds: new Set(), partial: false, anyUnmatched: false,
             startDate: null, endDate: null, endOpen: false,
           });
@@ -2725,6 +2733,7 @@
         (r.lineItemIds || []).forEach(id => g.lineItemIds.add(id));
         const STATUS_ORDER = { ready: 0, delivering: 1, paused: 2, inactive: 3 };
         if ((STATUS_ORDER[r.liveStatus] ?? 99) < (STATUS_ORDER[g.liveStatus] ?? 99)) g.liveStatus = r.liveStatus;
+        if (r.tagVersion === 'v2') g.tagVersion = 'v2';   // any v2 creative badges the whole group
       }
 
       const groups = [...urlMap.values()].map(g => {
@@ -2749,7 +2758,7 @@
         const ackedRed = _anyRed && !!_ack && !_worse; // acked but still red → keep the left bar, drop the tint
         const encodedUrl = encodeURIComponent(g.netlifyUrl);
         const sub = (g.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
-        return { crit, ackedRed, red: _anyRed, url: g.netlifyUrl, ctr, view: g.activeView, compl: g.completionRate, html: rdRow({ crit, ackedRed, encodedUrl, url: g.netlifyUrl, name: g.advertiser, liveStatus: g.liveStatus, isVideo: true, videos: g.videos, device: activeTab, sub, imps: g.impressions || 0, clicks: g.clicks || 0, ctr, ctrBench: _ctrBench, view: g.activeView, viewBench: BENCH.view, gated: _gated, viewApprox: g.activeViewApprox, joyScore: g.attention, startDate: g.startDate, endDate: g.endDate }) };
+        return { crit, ackedRed, red: _anyRed, url: g.netlifyUrl, ctr, view: g.activeView, compl: g.completionRate, html: rdRow({ crit, ackedRed, encodedUrl, url: g.netlifyUrl, name: g.advertiser, liveStatus: g.liveStatus, tagVersion: g.tagVersion, isVideo: true, videos: g.videos, device: activeTab, sub, imps: g.impressions || 0, clicks: g.clicks || 0, ctr, ctrBench: _ctrBench, view: g.activeView, viewBench: BENCH.view, gated: _gated, viewApprox: g.activeViewApprox, joyScore: g.attention, startDate: g.startDate, endDate: g.endDate }) };
       });
       lastFlaggedCount = built.filter(b => b.crit).length;
       rowMetrics = {}; critUrls.clear(); redUrls.clear();
@@ -2775,7 +2784,7 @@
       const ackedRed = _anyRed && !!_ack && !_worse; // acked but still red → keep the left bar, drop the tint
       const encodedUrl = encodeURIComponent(r.netlifyUrl);
       const sub = (r.netlifyUrl || '').match(/https?:\/\/([^.]+)\.netlify\.app/)?.[1] || '';
-      return { crit, ackedRed, red: _anyRed, url: r.netlifyUrl, ctr: _fCtr, view: r.activeView, compl: null, html: rdRow({ crit, ackedRed, encodedUrl, url: r.netlifyUrl, name: r.advertiser, liveStatus: r.liveStatus, isVideo: false, videos: null, device: activeTab, sub, imps: _rfs.impressions || 0, clicks: _rfs.clicks || 0, ctr: _fCtr, ctrBench: _ctrBench, view: r.activeView, viewBench: BENCH.view, gated: _gated, viewApprox: r.activeViewApprox, joyScore: r.attention, startDate: r.startDate, endDate: r.endDate }) };
+      return { crit, ackedRed, red: _anyRed, url: r.netlifyUrl, ctr: _fCtr, view: r.activeView, compl: null, html: rdRow({ crit, ackedRed, encodedUrl, url: r.netlifyUrl, name: r.advertiser, liveStatus: r.liveStatus, tagVersion: r.tagVersion, isVideo: false, videos: null, device: activeTab, sub, imps: _rfs.impressions || 0, clicks: _rfs.clicks || 0, ctr: _fCtr, ctrBench: _ctrBench, view: r.activeView, viewBench: BENCH.view, gated: _gated, viewApprox: r.activeViewApprox, joyScore: r.attention, startDate: r.startDate, endDate: r.endDate }) };
     });
     lastFlaggedCount = built.filter(b => b.crit).length;
     rowMetrics = {}; critUrls.clear(); redUrls.clear();
